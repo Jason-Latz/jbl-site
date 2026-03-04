@@ -87,6 +87,18 @@ function validateSpotifyUrl(value: string | null) {
   return { valid: true as const, url: parsed.toString() };
 }
 
+function isStorageNotFoundError(error: {
+  message?: string;
+  statusCode?: string | number;
+}) {
+  if (error.statusCode === "404" || error.statusCode === 404) {
+    return true;
+  }
+
+  const message = (error.message ?? "").toLowerCase();
+  return message.includes("not found");
+}
+
 export async function GET() {
   const supabase = createRouteHandlerClient({ cookies });
   const access = await requireEditor(supabase);
@@ -306,5 +318,68 @@ export async function PATCH(request: Request) {
       songUrl: normalizeNullableText(data.song_url),
       createdAt: data.created_at
     }
+  });
+}
+
+export async function DELETE(request: Request) {
+  const supabase = createRouteHandlerClient({ cookies });
+  const access = await requireEditor(supabase);
+
+  if (!access.allowed) {
+    return NextResponse.json(
+      { error: access.message },
+      { status: access.status }
+    );
+  }
+
+  let payload: Record<string, unknown>;
+  try {
+    payload = (await request.json()) as Record<string, unknown>;
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
+  }
+
+  const storagePath =
+    typeof payload.storagePath === "string" ? payload.storagePath.trim() : "";
+
+  if (!storagePath) {
+    return NextResponse.json(
+      { error: "storagePath is required." },
+      { status: 400 }
+    );
+  }
+
+  const { error: storageDeleteError } = await supabase.storage
+    .from(PHOTO_BUCKET)
+    .remove([storagePath]);
+
+  if (
+    storageDeleteError &&
+    !isStorageNotFoundError({
+      message: storageDeleteError.message,
+      statusCode: storageDeleteError.statusCode
+    })
+  ) {
+    return NextResponse.json(
+      { error: storageDeleteError.message },
+      { status: 500 }
+    );
+  }
+
+  const { error: metadataDeleteError } = await supabase
+    .from("photos")
+    .delete()
+    .eq("storage_path", storagePath);
+
+  if (metadataDeleteError) {
+    return NextResponse.json(
+      { error: metadataDeleteError.message },
+      { status: 500 }
+    );
+  }
+
+  return NextResponse.json({
+    deleted: true,
+    path: storagePath
   });
 }

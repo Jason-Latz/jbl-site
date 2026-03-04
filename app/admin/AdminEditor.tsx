@@ -58,6 +58,12 @@ type PhotoMetadataResponse = {
   photo?: PhotoApiItem;
 };
 
+type PhotoDeleteResponse = {
+  error?: string;
+  deleted?: boolean;
+  path?: string;
+};
+
 function formatPostDate(value: string | null) {
   if (!value) {
     return null;
@@ -113,6 +119,7 @@ export default function AdminEditor() {
   const [photoMetadataMessage, setPhotoMetadataMessage] = useState("");
   const [photoMetadataError, setPhotoMetadataError] = useState("");
   const [savingPhotoPath, setSavingPhotoPath] = useState<string | null>(null);
+  const [deletingPhotoPath, setDeletingPhotoPath] = useState<string | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -230,6 +237,7 @@ export default function AdminEditor() {
     setPhotoMetadataError("");
     setPhotoMetadataMessage("");
     setSavingPhotoPath(null);
+    setDeletingPhotoPath(null);
 
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
@@ -400,6 +408,45 @@ export default function AdminEditor() {
       setPhotoMetadataError("Unable to save metadata.");
     } finally {
       setSavingPhotoPath(null);
+    }
+  };
+
+  const handleDeletePhoto = async (path: string) => {
+    if (savingPhotoPath || deletingPhotoPath) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Delete this photo from the gallery? This will remove the image and metadata."
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingPhotoPath(path);
+    setPhotoMetadataMessage("");
+    setPhotoMetadataError("");
+
+    try {
+      const response = await fetch("/api/photos", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ storagePath: path })
+      });
+
+      const data = (await response.json()) as PhotoDeleteResponse;
+
+      if (!response.ok) {
+        setPhotoMetadataError(data.error ?? "Unable to delete photo.");
+        return;
+      }
+
+      setPhotos((current) => current.filter((photo) => photo.path !== path));
+      setPhotoMetadataMessage("Photo deleted.");
+    } catch {
+      setPhotoMetadataError("Unable to delete photo.");
+    } finally {
+      setDeletingPhotoPath(null);
     }
   };
 
@@ -581,9 +628,20 @@ export default function AdminEditor() {
                   <button
                     className="secondary"
                     onClick={() => handleSavePhotoMetadata(photo.path)}
-                    disabled={savingPhotoPath === photo.path}
+                    disabled={
+                      savingPhotoPath === photo.path || deletingPhotoPath === photo.path
+                    }
                   >
                     {savingPhotoPath === photo.path ? "Saving..." : "Save metadata"}
+                  </button>
+                  <button
+                    className="secondary"
+                    onClick={() => handleDeletePhoto(photo.path)}
+                    disabled={
+                      deletingPhotoPath === photo.path || savingPhotoPath === photo.path
+                    }
+                  >
+                    {deletingPhotoPath === photo.path ? "Deleting..." : "Delete photo"}
                   </button>
                 </div>
               </div>
