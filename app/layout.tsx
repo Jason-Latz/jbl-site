@@ -3,9 +3,14 @@ import { Inter, Newsreader } from "next/font/google";
 import "./globals.css";
 import SiteFooter from "@/components/SiteFooter";
 import SiteNav from "@/components/SiteNav";
+import SpotifyNowPlaying from "@/components/SpotifyNowPlaying";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
-const newsreader = Newsreader({ subsets: ["latin"], variable: "--font-serif" });
+const newsreader = Newsreader({
+  subsets: ["latin"],
+  variable: "--font-serif",
+  adjustFontFallback: false
+});
 
 export const metadata: Metadata = {
   title: "Your Name",
@@ -22,8 +27,11 @@ export default function RootLayout({
       <body>
         <header className="site-header">
           <div className="container">
-            <div className="site-title">Your Name</div>
-            <SiteNav />
+            <div className="site-header-top">
+              <div className="site-title">Your Name</div>
+              <SiteNav />
+            </div>
+            <SpotifyNowPlaying />
           </div>
         </header>
         <main>

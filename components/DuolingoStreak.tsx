@@ -15,6 +15,22 @@ const USERNAME = "jasoneeee";
 const STORAGE_KEY = `duolingo-streak-cache-${USERNAME}`;
 const POLL_INTERVAL_MS = 60_000;
 const ERROR_RETRY_DELAYS_MS = [5_000, 15_000, 30_000];
+const DEFAULT_STREAK_ICON_DONE_URL =
+  "https://d35aaqx5ub95lt.cloudfront.net/images/streakCalendar/4e0a0177dbfbbcf30f6a633d825a1460.svg";
+const DEFAULT_STREAK_ICON_PENDING_URL =
+  "https://d35aaqx5ub95lt.cloudfront.net/images/streakCalendar/fbdc5a60b0f33c7d4beb3af40f2287d5.svg";
+
+const STREAK_ICON_DONE_URL =
+  process.env.NEXT_PUBLIC_DUOLINGO_STREAK_ICON_DONE?.trim() ||
+  DEFAULT_STREAK_ICON_DONE_URL;
+const STREAK_ICON_PENDING_URL =
+  process.env.NEXT_PUBLIC_DUOLINGO_STREAK_ICON_PENDING?.trim() ||
+  DEFAULT_STREAK_ICON_PENDING_URL;
+
+type ParsedResponsePayload =
+  | { type: "empty" }
+  | { type: "json"; payload: unknown }
+  | { type: "text"; payload: string };
 
 function getRetryDelayMs(consecutiveErrors: number) {
   if (consecutiveErrors <= 0) {
@@ -47,6 +63,21 @@ function getPayloadError(payload: unknown) {
   }
 
   return null;
+}
+
+async function parseResponsePayload(response: Response): Promise<ParsedResponsePayload> {
+  const rawBody = await response.text();
+
+  if (!rawBody) {
+    return { type: "empty" };
+  }
+
+  try {
+    const parsed = JSON.parse(rawBody) as unknown;
+    return { type: "json", payload: parsed };
+  } catch {
+    return { type: "text", payload: rawBody };
+  }
 }
 
 function isDuolingoStreakResponse(payload: unknown): payload is DuolingoStreakResponse {
@@ -88,6 +119,15 @@ function formatCheckedAt(value: string) {
   });
 }
 
+function getTodayKey(timeZone: string) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(new Date());
+}
+
 export default function DuolingoStreak() {
   const [data, setData] = useState<DuolingoStreakResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -119,11 +159,19 @@ export default function DuolingoStreak() {
       const response = await fetch(`/api/duolingo/streak?username=${USERNAME}`, {
         cache: "no-store"
       });
-      const payload = (await response.json()) as unknown;
+      const parsedPayload = await parseResponsePayload(response);
+      const payload =
+        parsedPayload.type === "json" ? parsedPayload.payload : null;
 
       if (!response.ok) {
-        const errorMessage = getPayloadError(payload) ?? "Unable to refresh streak data.";
+        const errorMessage =
+          getPayloadError(payload) ??
+          `Duolingo endpoint returned status ${response.status}.`;
         throw new Error(errorMessage);
+      }
+
+      if (parsedPayload.type !== "json") {
+        throw new Error("Duolingo endpoint returned an invalid response.");
       }
 
       if (!isDuolingoStreakResponse(payload)) {
@@ -209,10 +257,36 @@ export default function DuolingoStreak() {
       ? "Loading streak..."
       : "Streak temporarily unavailable";
 
+  const streakCompletedToday = useMemo(() => {
+    if (!data?.streakEndDate) {
+      return false;
+    }
+
+    const localTimeZone =
+      Intl.DateTimeFormat().resolvedOptions().timeZone || "America/Chicago";
+    return data.streakEndDate === getTodayKey(localTimeZone);
+  }, [data?.streakEndDate]);
+
+  const streakIconUrl = streakCompletedToday
+    ? STREAK_ICON_DONE_URL
+    : STREAK_ICON_PENDING_URL;
+  const streakIconAlt = streakCompletedToday
+    ? "Duolingo streak completed today"
+    : "Duolingo streak not completed for today";
+
   return (
     <section className="duolingo-tracker card" aria-live="polite">
       <div className="duolingo-head">
-        <p className="duolingo-label">Live Duolingo streak</p>
+        <div className="duolingo-label-row">
+          <img
+            className="duolingo-fire-icon"
+            src={streakIconUrl}
+            alt={streakIconAlt}
+            loading="lazy"
+            decoding="async"
+          />
+          <p className="duolingo-label">Live Duolingo streak</p>
+        </div>
         <a
           href={data?.profileUrl ?? `https://www.duolingo.com/profile/${USERNAME}`}
           target="_blank"
