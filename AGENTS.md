@@ -68,6 +68,7 @@ Err on the side of more commits, not fewer.
 2. Keep commits modular so each commit has one clear purpose.
 3. Use explicit commit messages that describe exactly what changed and why.
 4. Avoid bundling unrelated changes into one commit.
+5. Keep `AGENTS.md` updates in their own commit, separate from `CODEBASE_GUIDE.md` and code changes.
 
 ## 9) Jason Preference: Simplicity with Reliability
 
@@ -112,9 +113,10 @@ When Jason requests visual changes on existing data integrations:
 
 For blog/editor UX work:
 
-1. Prefer a dedicated article compose page over dense inline editing on the dashboard.
-2. Preserve markdown authoring with live preview that matches site rendering.
-3. Keep easy formatting actions (bold/italic/headings/lists/links/code) and footnote support available.
+1. Prefer creating a draft first and opening its dedicated editor route (`/admin/[id]`) instead of editing inline on the dashboard.
+2. Prefer a single-pane writer with a `Markdown/Visual` toggle over side-by-side split editing.
+3. In visual mode, keep direct inline editing available and sync those edits back to markdown source.
+4. Keep easy formatting actions (bold/italic/headings/lists/links/code) and footnote support available.
 
 ## 15) Local Validation Caveat: No curl in Shell
 
