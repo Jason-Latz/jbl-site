@@ -2,6 +2,7 @@
 
 import {
   useCallback,
+  useDeferredValue,
   useEffect,
   useMemo,
   useRef,
@@ -26,6 +27,11 @@ type LayoutRow = {
   height: number;
 };
 
+type PendingLayoutItem = {
+  photo: PhotoCatalogItem;
+  ratio: number;
+};
+
 const INITIAL_BATCH_SIZE = 8;
 const BATCH_SIZE = 8;
 const PRIORITY_IMAGE_COUNT = 4;
@@ -45,12 +51,22 @@ const LANDSCAPE_BASE_RATIO = 1.5;
 const MOSAIC_RENDER_QUALITY = 92;
 const MIN_TILE_RENDER_WIDTH = 320;
 const MAX_TILE_RENDER_WIDTH = 2200;
+const TILE_RENDER_PIXEL_RATIO = 2;
+const TILE_RENDER_WIDTH_STEP = 96;
 
 function clamp(value: number, min: number, max: number) {
+  if (!Number.isFinite(value)) {
+    return min;
+  }
+
   return Math.min(max, Math.max(min, value));
 }
 
 function normalizeZoomPercent(value: number) {
+  if (!Number.isFinite(value)) {
+    return DEFAULT_ZOOM_PERCENT;
+  }
+
   return clamp(Math.round(value), MIN_ZOOM_PERCENT, MAX_ZOOM_PERCENT);
 }
 
@@ -81,30 +97,46 @@ function displayOrFallback(value: string | null, fallback: string) {
   return value && value.trim().length > 0 ? value : fallback;
 }
 
-function getRowBaseWidth(
-  items: Array<{ photo: PhotoCatalogItem; ratio: number }>,
+function getBaseWidthForItem(
+  item: PendingLayoutItem,
   targetRowHeight: number
 ) {
-  return items.reduce((sum, item) => sum + item.ratio * targetRowHeight, 0);
+  return item.ratio * targetRowHeight;
 }
 
-function getJustifiedScale(
-  items: Array<{ photo: PhotoCatalogItem; ratio: number }>,
+function getJustifiedScaleFromBase(
+  baseWidth: number,
+  itemCount: number,
   containerWidth: number,
-  targetRowHeight: number
 ) {
-  if (items.length === 0) {
+  if (itemCount === 0) {
     return 1;
   }
 
-  const baseWidth = getRowBaseWidth(items, targetRowHeight);
   if (baseWidth <= 0) {
     return 1;
   }
 
-  const gapWidth = TILE_GAP * Math.max(0, items.length - 1);
+  const gapWidth = TILE_GAP * Math.max(0, itemCount - 1);
   const availableWidth = Math.max(0, containerWidth - gapWidth);
   return availableWidth / baseWidth;
+}
+
+function normalizeRenderWidth(displayWidth: number) {
+  if (!Number.isFinite(displayWidth) || displayWidth <= 0) {
+    return MIN_TILE_RENDER_WIDTH;
+  }
+
+  const bounded = clamp(
+    Math.round(displayWidth * TILE_RENDER_PIXEL_RATIO),
+    MIN_TILE_RENDER_WIDTH,
+    MAX_TILE_RENDER_WIDTH
+  );
+
+  const quantized =
+    Math.round(bounded / TILE_RENDER_WIDTH_STEP) * TILE_RENDER_WIDTH_STEP;
+
+  return clamp(quantized, MIN_TILE_RENDER_WIDTH, MAX_TILE_RENDER_WIDTH);
 }
 
 function buildJustifiedRows(
@@ -115,9 +147,12 @@ function buildJustifiedRows(
 ) {
   const rows: LayoutRow[] = [];
 
-  let pending: Array<{ photo: PhotoCatalogItem; ratio: number }> = [];
+  let pending: PendingLayoutItem[] = [];
+  let pendingBaseWidth = 0;
+
   const pushRow = (
-    items: Array<{ photo: PhotoCatalogItem; ratio: number }>,
+    items: PendingLayoutItem[],
+    baseWidth: number,
     justify: boolean
   ) => {
     if (items.length === 0) {
@@ -127,7 +162,7 @@ function buildJustifiedRows(
     const scale =
       justify
         ? clamp(
-            getJustifiedScale(items, containerWidth, targetRowHeight),
+            getJustifiedScaleFromBase(baseWidth, items.length, containerWidth),
             0.72,
             1.36
           )
@@ -151,49 +186,58 @@ function buildJustifiedRows(
         ? ratioByPath[photo.path]
         : RATIO_FALLBACK;
 
-    pending.push({ photo, ratio });
+    const pendingItem = { photo, ratio };
+    const itemBaseWidth = getBaseWidthForItem(pendingItem, targetRowHeight);
+
+    pending.push(pendingItem);
+    pendingBaseWidth += itemBaseWidth;
+
     const projectedWidth =
-      getRowBaseWidth(pending, targetRowHeight) +
+      pendingBaseWidth +
       TILE_GAP * Math.max(0, pending.length - 1);
 
     if (projectedWidth >= containerWidth) {
       if (pending.length === 1) {
-        pushRow(pending, true);
+        pushRow(pending, pendingBaseWidth, true);
         pending = [];
+        pendingBaseWidth = 0;
         return;
       }
 
       const withCurrent = pending;
       const withoutCurrent = pending.slice(0, -1);
       const overflowItem = pending[pending.length - 1];
+      const withoutCurrentBaseWidth = pendingBaseWidth - itemBaseWidth;
 
-      const withCurrentScale = getJustifiedScale(
-        withCurrent,
+      const withCurrentScale = getJustifiedScaleFromBase(
+        pendingBaseWidth,
+        withCurrent.length,
         containerWidth,
-        targetRowHeight
       );
-      const withoutCurrentScale = getJustifiedScale(
-        withoutCurrent,
+      const withoutCurrentScale = getJustifiedScaleFromBase(
+        withoutCurrentBaseWidth,
+        withoutCurrent.length,
         containerWidth,
-        targetRowHeight
       );
 
       const withCurrentDelta = Math.abs(1 - withCurrentScale);
       const withoutCurrentDelta = Math.abs(1 - withoutCurrentScale);
 
       if (withoutCurrentDelta < withCurrentDelta) {
-        pushRow(withoutCurrent, true);
+        pushRow(withoutCurrent, withoutCurrentBaseWidth, true);
         pending = [overflowItem];
+        pendingBaseWidth = itemBaseWidth;
         return;
       }
 
-      pushRow(withCurrent, true);
+      pushRow(withCurrent, pendingBaseWidth, true);
       pending = [];
+      pendingBaseWidth = 0;
     }
   });
 
   // Last row should not be stretched edge-to-edge.
-  pushRow(pending, false);
+  pushRow(pending, pendingBaseWidth, false);
 
   return rows;
 }
@@ -206,6 +250,9 @@ export default function PhotoMosaic({ photos }: PhotoMosaicProps) {
   const [zoomPercent, setZoomPercent] = useState(DEFAULT_ZOOM_PERCENT);
   const [containerWidth, setContainerWidth] = useState(0);
   const [ratioByPath, setRatioByPath] = useState<Record<string, number>>({});
+  const [transformFallbackByPath, setTransformFallbackByPath] = useState<
+    Record<string, true>
+  >({});
 
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const layoutRef = useRef<HTMLDivElement | null>(null);
@@ -248,9 +295,14 @@ export default function PhotoMosaic({ photos }: PhotoMosaicProps) {
   const hasMoreToLoad = visibleCount < photos.length;
   const effectiveWidth = containerWidth > 0 ? containerWidth : LAYOUT_WIDTH_FALLBACK;
   const baseRowHeight = getAdaptiveBaseRowHeight(effectiveWidth);
-  const targetRowHeight = baseRowHeight * (zoomPercent / 100);
+  const deferredZoomPercent = useDeferredValue(zoomPercent);
+  const targetRowHeight = baseRowHeight * (deferredZoomPercent / 100);
+
   const onZoomChange = useCallback((nextValue: number) => {
-    setZoomPercent(normalizeZoomPercent(nextValue));
+    const normalized = normalizeZoomPercent(nextValue);
+    setZoomPercent((current) =>
+      current === normalized ? current : normalized
+    );
   }, []);
 
   const eagerPaths = useMemo(
@@ -264,18 +316,20 @@ export default function PhotoMosaic({ photos }: PhotoMosaicProps) {
     [visiblePhotos, ratioByPath, effectiveWidth, targetRowHeight]
   );
 
-  const tileImageUrl = useCallback((photo: PhotoCatalogItem, displayWidth: number) => {
-    const requestedWidth = clamp(
-      Math.round(displayWidth * 2),
-      MIN_TILE_RENDER_WIDTH,
-      MAX_TILE_RENDER_WIDTH
-    );
+  const tileImageUrl = useCallback(
+    (photo: PhotoCatalogItem, displayWidth: number) => {
+      if (transformFallbackByPath[photo.path]) {
+        return photo.url;
+      }
 
-    return buildPublicRenderUrl(photo.url, {
-      width: requestedWidth,
-      quality: MOSAIC_RENDER_QUALITY
-    });
-  }, []);
+      const requestedWidth = normalizeRenderWidth(displayWidth);
+      return buildPublicRenderUrl(photo.url, {
+        width: requestedWidth,
+        quality: MOSAIC_RENDER_QUALITY
+      });
+    },
+    [transformFallbackByPath]
+  );
 
   const onTileImageLoad = useCallback(
     (path: string, event: SyntheticEvent<HTMLImageElement>) => {
@@ -306,6 +360,19 @@ export default function PhotoMosaic({ photos }: PhotoMosaicProps) {
     },
     []
   );
+
+  const onTileImageError = useCallback((path: string) => {
+    setTransformFallbackByPath((current) => {
+      if (current[path]) {
+        return current;
+      }
+
+      return {
+        ...current,
+        [path]: true
+      };
+    });
+  }, []);
 
   useEffect(() => {
     if (!activePhoto) {
@@ -367,7 +434,6 @@ export default function PhotoMosaic({ photos }: PhotoMosaicProps) {
               step={1}
               value={zoomPercent}
               onInput={(event) => onZoomChange(event.currentTarget.valueAsNumber)}
-              onChange={(event) => onZoomChange(event.currentTarget.valueAsNumber)}
             />
             <span>200%</span>
           </label>
@@ -413,6 +479,7 @@ export default function PhotoMosaic({ photos }: PhotoMosaicProps) {
                         fetchPriority={eager ? "high" : "auto"}
                         decoding="async"
                         onLoad={(event) => onTileImageLoad(tile.photo.path, event)}
+                        onError={() => onTileImageError(tile.photo.path)}
                       />
                     </button>
                   );

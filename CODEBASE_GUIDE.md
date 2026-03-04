@@ -675,9 +675,10 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 7. Storage and table policies re-validate editor permission on write operations.
 8. `/travel` reads merged storage + metadata rows via `lib/photos.ts`; `PhotoMosaic` mounts only the first batch of photos at first paint and appends the next batches via an intersection sentinel so network fetches happen progressively during scroll.
 9. `PhotoMosaic` computes justified rows from per-photo aspect ratios so visible photos rewrap for best fit as viewport or zoom changes, and chooses row breaks that keep visual scale close to the selected zoom value.
-10. Mosaic tiles use width-only transformed URLs (`q92` target, `resize=contain`) to keep captured aspect ratios while reducing transfer/decode cost.
-11. `/travel` includes a draggable zoom slider (25% to 200%) with a single Reset action; zoom changes row target height and triggers reflow (instead of scaling one fixed block), with `100%` tuned to match the prior masonry baseline across responsive breakpoints.
-12. Clicking a photo opens metadata in the modal with the original image URL.
+10. Mosaic tiles use width-only transformed URLs (`q92` target, `resize=contain`) to keep captured aspect ratios while reducing transfer/decode cost; requested widths are quantized into fixed buckets so small zoom drags reuse cached image variants.
+11. If a transformed tile request fails, `PhotoMosaic` falls back that tile to its original public object URL so zoom-level edge cases do not show a broken image icon.
+12. `/travel` includes a draggable zoom slider (25% to 200%) with a single Reset action; zoom changes row target height and triggers reflow (instead of scaling one fixed block), with `100%` tuned to match the prior masonry baseline across responsive breakpoints. Zoom control state is deferred for row recomputation to keep slider interaction smooth.
+13. Clicking a photo opens metadata in the modal with the original image URL.
 
 ## 16) File-by-file quick reference
 
@@ -705,7 +706,7 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 - `components/ThemeToggle.tsx`: client-side light/dark theme switcher in the site header (persists selection and respects system preference when no explicit selection exists).
 - `components/SiteFooter.tsx`: footer with dynamic copyright year and external links to LinkedIn, GitHub, and Instagram.
 - `components/SiteNav.tsx`: primary navigation (includes `/travel` link).
-- `components/PhotoMosaic.tsx`: justified row packer with progressive top-down batch loading, width-only `q92` transformed tile URLs (`resize=contain`), draggable 25%-200% zoom + reset that reflows rows (with a legacy-calibrated `100%` baseline), and click-to-open metadata modal on `/travel`.
+- `components/PhotoMosaic.tsx`: justified row packer with progressive top-down batch loading, width-only `q92` transformed tile URLs (`resize=contain`) with quantized width buckets and per-tile original-URL fallback on transform errors, draggable 25%-200% zoom + reset that reflows rows (with a legacy-calibrated `100%` baseline and deferred layout recompute), and click-to-open metadata modal on `/travel`.
 - `lib/posts.ts`: public content fetch functions.
   - used by home page and writings pages for published content lists/details
 - `lib/photos.ts`: merged photo catalog helper (storage objects + metadata table rows) plus public render URL builder for display-sized image variants.
