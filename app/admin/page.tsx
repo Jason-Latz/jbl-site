@@ -27,7 +27,7 @@ export default async function AdminPage() {
     <section className="section">
       <h1>Content admin</h1>
       <p className="post-meta">
-        Create and publish articles, then upload photography for the mosaic page.
+        Create and publish articles, then upload travel photos for the mosaic page.
       </p>
       <AdminEditor />
     </section>

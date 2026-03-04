@@ -176,7 +176,7 @@ export default function AdminEditor() {
     setPhotosError("");
 
     try {
-      const response = await fetch("/api/photos", { cache: "no-store" });
+      const response = await fetch("/api/travel", { cache: "no-store" });
       const data = (await response.json()) as PhotosListResponse;
 
       if (!response.ok) {
@@ -316,7 +316,7 @@ export default function AdminEditor() {
     });
 
     try {
-      const response = await fetch("/api/photos", {
+      const response = await fetch("/api/travel", {
         method: "POST",
         body: formData
       });
@@ -377,7 +377,7 @@ export default function AdminEditor() {
     setPhotoMetadataError("");
 
     try {
-      const response = await fetch("/api/photos", {
+      const response = await fetch("/api/travel", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -428,7 +428,7 @@ export default function AdminEditor() {
     setPhotoMetadataError("");
 
     try {
-      const response = await fetch("/api/photos", {
+      const response = await fetch("/api/travel", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ storagePath: path })
@@ -482,8 +482,8 @@ export default function AdminEditor() {
         <button className="secondary" onClick={handleCreateDraft} disabled={creatingDraft}>
           {creatingDraft ? "Creating draft..." : "New article"}
         </button>
-        <Link className="secondary" href="/photography" target="_blank">
-          View photography page
+        <Link className="secondary" href="/travel" target="_blank">
+          View travel page
         </Link>
         <button className="secondary" onClick={handleSignOut}>
           Sign out
@@ -533,10 +533,10 @@ export default function AdminEditor() {
       </div>
 
       <div className="section">
-        <h3>Photography uploads</h3>
+        <h3>Travel uploads</h3>
         <p className="post-meta">
           Select multiple images and upload them in one batch. They will appear on
-          the photography page automatically.
+          the travel page automatically.
         </p>
         <div className="card photo-upload-panel">
           <div className="form-grid">
@@ -573,7 +573,7 @@ export default function AdminEditor() {
       <div className="section">
         <h3>Photo metadata</h3>
         <p className="post-meta">
-          Click a photo on the public photography page to see this metadata.
+          Click a photo on the public travel page to see this metadata.
         </p>
         {photosError && <p className="post-meta">{photosError}</p>}
         {photoMetadataMessage && <p className="post-meta">{photoMetadataMessage}</p>}

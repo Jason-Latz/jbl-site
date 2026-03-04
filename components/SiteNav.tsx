@@ -3,7 +3,7 @@ import Link from "next/link";
 const navItems = [
   { label: "Home", href: "/" },
   { label: "Writings", href: "/writings" },
-  { label: "Photography", href: "/photography" },
+  { label: "Travel", href: "/travel" },
   { label: "Experience", href: "/experience" },
   { label: "Admin", href: "/admin" }
 ];
