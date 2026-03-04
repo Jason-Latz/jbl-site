@@ -41,12 +41,13 @@ app/
   admin/new/page.tsx       # Dedicated route for creating new posts
   admin/[id]/page.tsx      # Dedicated route for editing existing posts
   api/spotify/live/route.ts # Spotify now-playing + stats API proxy
-  api/photos/route.ts      # GET list, POST upload batch, PATCH metadata (editor-only)
+  api/photos/route.ts      # GET list, POST upload batch, PATCH metadata, DELETE photo (editor-only)
   api/posts/route.ts       # GET all posts (editor-only), POST create post
   api/posts/[id]/route.ts  # GET one post + PATCH update post (editor-only)
 
 components/
   SiteNav.tsx              # Main nav links
+  ThemeToggle.tsx          # Client theme switcher (light/dark with localStorage persistence)
   SiteFooter.tsx           # Footer copyright + social links
   SpotifyNowPlaying.tsx    # Home-page Spotify ribbon panel polling /api/spotify/live
   DuolingoStreak.tsx       # Home-page Duolingo ribbon panel polling /api/duolingo/streak
@@ -77,13 +78,14 @@ scripts/spotify-refresh-token.mjs # Local helper to generate Spotify refresh tok
 
 ### 4.1 App shell and layout
 
-`app/layout.tsx` is the root layout and does five key things:
+`app/layout.tsx` is the root layout and does six key things:
 
 1. Loads Google fonts (`Inter`, `Newsreader`) and exposes them as CSS variables.
 2. Disables `adjustFontFallback` for `Newsreader` to avoid noisy dev-time font override warnings in Next.js.
 3. Defines base metadata (`title`, `description`) for the whole site.
 4. Renders global chrome: header with site title + nav, main content container, and footer with social links.
-5. Applies shared container widths and spacing through global CSS classes.
+5. Initializes the persisted light/dark theme before hydration (inline `beforeInteractive` script reading `localStorage.site-theme`, with system-color fallback).
+6. Applies shared container widths and spacing through global CSS classes.
 
 This means every route is rendered inside the same visual shell by default.
 
@@ -157,7 +159,7 @@ Admin UI behavior:
 6. `Visual` mode is editable (`contenteditable`) and converts inline edits back into markdown automatically while typing.
 7. On existing post routes (`/admin/[id]`), compose changes autosave after a short idle delay; explicit Save remains available.
 8. Dashboard route supports selecting multiple image files and uploading them in one batch through `POST /api/photos`.
-9. Dashboard route loads photo catalog rows through `GET /api/photos` and allows per-photo metadata saves through `PATCH /api/photos`.
+9. Dashboard route loads photo catalog rows through `GET /api/photos`, allows per-photo metadata saves through `PATCH /api/photos`, and supports per-photo deletion through `DELETE /api/photos`.
 10. On `401/403` API responses, editor clients sign out or route away instead of silently showing empty data.
 11. Sign-out clears local editor/session state.
 
@@ -361,10 +363,19 @@ This is an app-level guard layered on top of RLS.
 - Upserts metadata into `public.photos` by `storage_path`
 - Returns updated metadata row + public storage URL
 
+### `DELETE /api/photos` (`app/api/photos/route.ts`)
+
+- Requires editor role (`requireEditor`)
+- Expects JSON payload with:
+  - `storagePath` (required)
+- Deletes object from Supabase Storage bucket `photos`
+- Deletes matching metadata row from `public.photos`
+- Returns deletion status payload with deleted path
+
 Important current behavior:
 
 - If an already-published post is edited while still published, `published_at` is reset to “now”.
-- There is no DELETE route currently.
+- Photo delete calls remove both storage object and metadata row for the selected `storagePath`.
 - API validates slug shape server-side but does not normalize malformed values into a canonical slug.
 
 ## 8) Public data-fetching helpers (`lib/posts.ts`, `lib/photos.ts`)
@@ -410,6 +421,7 @@ If env vars are missing, helpers safely return empty/null data rather than throw
 - Supports selecting multiple local image files and uploading in one batch via `POST /api/photos`
 - Loads photo catalog via `GET /api/photos`
 - Supports per-photo metadata saves (location, description, song title/url) via `PATCH /api/photos`
+- Supports per-photo deletion via `DELETE /api/photos`
 - Shows post list with status/slug and actions:
   - `New article` -> creates draft via `POST /api/posts` and routes to `/admin/[id]`
   - `Edit` -> `/admin/[id]`
@@ -454,8 +466,10 @@ Because admin uses fetch calls to API routes, there is no server action dependen
 All styles are in `app/globals.css` with a lightweight class-based approach:
 
 - CSS variables for palette/sizing (`--bg`, `--fg`, `--border`, etc.)
+- Global theme tokens for light and dark modes (`:root` and `:root[data-theme="dark"]`) used by cards, forms, editor controls, photo modals, and activity ribbon gradients
 - Shared layout helpers: `container`, `section`, `card`
 - Typographic distinction via sans + serif fonts
+- Header-level `ThemeToggle` control in `site-header` toggles mode across the whole site and persists preference in `localStorage` (`site-theme`)
 - Specific classes for editor/auth/forms and photography views (`editor-shell`, `editor-mode-toggle`, `markdown-editor`, `checkbox-row`, `post-row`, `photo-stage`, `photo-masonry`, `photo-tile`, `photo-modal`, `photo-admin-grid`, etc.)
 
 No Tailwind or CSS Modules are used.
@@ -577,7 +591,7 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 6. Site metadata is generic placeholders (`Your Name`) and should be customized.
 7. Spotify "today" stats are approximate because `/me/player/recently-played` returns only the latest 50 tracks.
 8. Spotify now-playing and recent-play endpoints depend on account/app permissions and may return `502` via `/api/spotify/live` when OAuth scope or account constraints are not satisfied.
-9. Photography mosaic now supports metadata (location/description/song), but ordering is still based on storage object creation time and there is no delete/manual-order UI yet.
+9. Photography mosaic now supports metadata and admin-side delete actions, but ordering is still based on storage object creation time and there is no manual ordering UI yet.
 
 ## 15) End-to-end request flow examples
 
@@ -609,7 +623,7 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 3. Client sends multipart request to `POST /api/photos` with `files[]`.
 4. Route handler builds Supabase route client from cookies and runs `requireEditor`.
 5. Accepted files upload to bucket `photos`; matching metadata rows are created/upserted in `public.photos`.
-6. Dashboard loads editable photo cards via `GET /api/photos`; metadata saves use `PATCH /api/photos`.
+6. Dashboard loads editable photo cards via `GET /api/photos`; metadata saves use `PATCH /api/photos`; photo deletions use `DELETE /api/photos`.
 7. Storage and table policies re-validate editor permission on write operations.
 8. `/photography` reads merged storage + metadata rows via `lib/photos.ts`; clicking a photo opens metadata in the modal.
 
@@ -623,16 +637,17 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 - `app/writings/[slug]/page.tsx`: individual published post renderer + metadata.
 - `app/experience/page.tsx`: static resume-style profile sections for education, work, projects, skills, and activities.
 - `app/admin/page.tsx`: admin route wrapper, forced dynamic render, and signed-in non-editor redirect to `/writings`.
-- `app/admin/AdminEditor.tsx`: auth UI + dashboard post list, multi-photo upload, and per-photo metadata editing.
+- `app/admin/AdminEditor.tsx`: auth UI + dashboard post list, multi-photo upload, per-photo metadata editing, and per-photo delete controls.
 - `app/admin/PostEditorPage.tsx`: markdown editor form, toolbar shortcuts, and editable single-pane markdown/visual toggle.
 - `app/admin/new/page.tsx`: dedicated create route wrapping `PostEditorPage`.
 - `app/admin/[id]/page.tsx`: dedicated edit route wrapping `PostEditorPage`.
 - `app/api/spotify/live/route.ts`: server route for Spotify now-playing, daily stats, and playlist context.
-- `app/api/photos/route.ts`: editor-only photo API (`GET` list, `POST` upload, `PATCH` metadata).
+- `app/api/photos/route.ts`: editor-only photo API (`GET` list, `POST` upload, `PATCH` metadata, `DELETE` photo).
 - `app/api/posts/route.ts`: list/create post APIs (editor-only).
 - `app/api/posts/[id]/route.ts`: fetch/update single post API (editor-only).
 - `components/SpotifyNowPlaying.tsx`: resilient polling UI for the Spotify home-page ribbon row (with long-track marquee behavior) + expandable detail panel.
 - `components/DuolingoStreak.tsx`: resilient polling UI for the Duolingo home-page ribbon row + expandable detail panel.
+- `components/ThemeToggle.tsx`: client-side light/dark theme switcher in the site header (persists selection and respects system preference when no explicit selection exists).
 - `components/SiteFooter.tsx`: footer with dynamic copyright year and external links to LinkedIn, GitHub, and Instagram.
 - `components/SiteNav.tsx`: primary navigation (includes `/photography` link).
 - `components/PhotoMosaic.tsx`: gapless masonry renderer + click-to-open metadata modal on `/photography`.
@@ -650,13 +665,13 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 
 1. Add HTML sanitization before rendering `content`.
 2. Preserve original first-publish timestamp (only set `published_at` on first publish).
-3. Add DELETE and optional soft-delete/archive behavior.
+3. Add optional soft-delete/archive behavior for posts (current delete request focuses on photos only).
 4. Add automated tests for:
    - `requireEditor`
    - API route auth/validation
    - slug behavior
 5. Add unsaved-change leave warnings on compose routes.
-6. Add advanced photography controls (manual ordering, tag-based filtering, and delete/archive controls) in `/admin`.
+6. Add advanced photography controls (manual ordering, tag-based filtering, and bulk actions) in `/admin`.
 
 ## 18) Repository and git context
 
