@@ -37,6 +37,7 @@ export function encodeStoragePath(path: string) {
 type PublicRenderOptions = {
   width: number;
   quality?: number;
+  resize?: "cover" | "contain" | "fill";
 };
 
 export function buildPublicRenderUrl(
@@ -61,6 +62,7 @@ export function buildPublicRenderUrl(
     "/storage/v1/render/image/public/"
   );
   url.searchParams.set("width", String(width));
+  url.searchParams.set("resize", options.resize ?? "contain");
   if (quality !== null) {
     url.searchParams.set("quality", String(quality));
   }

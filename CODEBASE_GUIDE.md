@@ -423,7 +423,7 @@ If env vars are missing, helpers safely return empty/null data rather than throw
   - returns data used by the public `/travel` route and `PhotoMosaic`
 - `buildPublicRenderUrl(originalUrl, { width, quality })`:
   - converts a public object URL into a Supabase image render URL
-  - uses width-only resize + quality params so displayed tiles stay proportional to original capture aspect ratio
+  - uses width + `resize=contain` + quality params so displayed tiles keep original capture proportions without crop/distortion
 
 ## 9) Editor details (`app/admin/AdminEditor.tsx`, `app/admin/PostEditorPage.tsx`)
 
