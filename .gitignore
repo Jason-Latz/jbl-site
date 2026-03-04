@@ -1,8 +1,10 @@
 node_modules
 .next
 .vercel
+.env
 .env.local
 .env.*.local
 *.log
 dist
 out
+supabase/.temp
