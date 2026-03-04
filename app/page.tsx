@@ -14,12 +14,11 @@ export default async function HomePage() {
         <SpotifyNowPlaying />
         <DuolingoStreak />
       </div>
-      <div className="pill">Research, product, and thoughtful writing</div>
-      <h1>Building calm, deliberate products and ideas.</h1>
+      <div className="pill">doing cool things?</div>
+      <h1>Out and about, occasionally building things.</h1>
       <p>
-        I share writing on technology, leadership, and the quiet decisions that
-        shape teams. This space is a home for essays, notes, and a record of my
-        work.
+        I'm doing a lot of travelling, vibe coding, and occasionally startup
+        things. I also like writing.
       </p>
 
       <div className="section">
