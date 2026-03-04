@@ -7,6 +7,7 @@ This document explains how the site is structured, how data and auth flow throug
 This is a **Next.js 14 App Router** project for a personal website with:
 
 - Public pages: home, writings archive, individual writing pages, and experience
+- A live Spotify header card showing now-playing status, same-day listening stats, and recent playlist context
 - A protected admin editor at `/admin`
 - Supabase-backed storage for posts and editor permissions
 - TipTap rich-text editor for writing content
@@ -19,6 +20,7 @@ The site is intentionally minimal and server-rendered where possible.
 - Language: TypeScript (`strict: true`)
 - UI: React 18 + plain CSS (`app/globals.css`)
 - DB/Auth: Supabase (`@supabase/supabase-js`, `@supabase/auth-helpers-nextjs`)
+- External API integration: Spotify Web API (OAuth refresh token flow)
 - Rich text editor: TipTap (`@tiptap/react`, `@tiptap/starter-kit`, link extension)
 - Infra tooling used locally: Supabase CLI (`supabase`) + PostgreSQL CLI (`psql`)
 
@@ -34,14 +36,18 @@ app/
   writings/[slug]/page.tsx # Single published post page
   admin/page.tsx           # Admin page wrapper
   admin/AdminEditor.tsx    # Client-side auth + editor UI + CRUD actions
+  api/spotify/live/route.ts # Spotify now-playing + stats API proxy
   api/posts/route.ts       # GET all posts (editor-only), POST create post
   api/posts/[id]/route.ts  # PATCH update post (editor-only)
 
 components/
   SiteNav.tsx              # Main nav links
-  SiteFooter.tsx           # Footer
+  SiteFooter.tsx           # Footer copyright + social links
+  SpotifyNowPlaying.tsx    # Header card polling /api/spotify/live
+  DuolingoStreak.tsx       # Home-page Duolingo streak widget
 
 lib/
+  spotify.ts               # Spotify OAuth token refresh + data aggregation
   posts.ts                 # Supabase public-read helpers for published content
   requireEditor.ts         # Shared authorization check for API routes
   date.ts                  # Date formatting helper
@@ -57,18 +63,20 @@ middleware.ts              # Initializes Supabase auth session for /admin and /a
 .gitignore                 # Ignore rules incl. env + Supabase temp artifacts
 package-lock.json          # NPM dependency lockfile
 tsconfig.json              # TS config incl. @/* alias and Next plugin metadata
+scripts/spotify-refresh-token.mjs # Local helper to generate Spotify refresh token
 ```
 
 ## 4) Runtime architecture
 
 ### 4.1 App shell and layout
 
-`app/layout.tsx` is the root layout and does four key things:
+`app/layout.tsx` is the root layout and does five key things:
 
 1. Loads Google fonts (`Inter`, `Newsreader`) and exposes them as CSS variables.
 2. Defines base metadata (`title`, `description`) for the whole site.
-3. Renders global chrome: header with site title + nav, main content container, footer.
+3. Renders global chrome: header with site title + nav, Spotify live card, main content container, and footer with social links.
 4. Applies shared container widths and spacing through global CSS classes.
+5. Keeps Spotify widget client-side while the surrounding layout stays server-rendered.
 
 This means every route is rendered inside the same visual shell by default.
 
@@ -81,9 +89,30 @@ This means every route is rendered inside the same visual shell by default.
 
 Both writings routes set `export const revalidate = 60`, so page data is ISR-cached for up to 60 seconds.
 
-### 4.3 Admin area
+### 4.3 Spotify activity header
+
+The site header now includes `components/SpotifyNowPlaying.tsx` (client component), which polls `/api/spotify/live` every 45 seconds and renders:
+
+1. Current track and playback state (if active)
+2. Same-day listening metrics (play count, minutes listened, unique artists)
+3. Most recent playlist context (playback context first, library fallback second)
+4. Last successful fetch timestamp and resilient stale-data messaging on errors
+
+`app/api/spotify/live/route.ts` is server-side and uses `lib/spotify.ts` to:
+
+1. Refresh an access token with `SPOTIFY_REFRESH_TOKEN`
+2. Read `/me/player/currently-playing` and `/me/player/recently-played`
+3. Compute "today" metrics in `SPOTIFY_TIMEZONE` (default `America/Chicago`)
+4. Resolve playlist metadata via playback context (`/playlists/:id`) or `/me/playlists?limit=1`
+
+Response caching is disabled (`Cache-Control: no-store`) so header data is always fresh. The client poller also guards against transient non-JSON route responses (for example, dev-time HTML error pages) and falls back to status-based retry messaging instead of JSON parse errors.
+
+### 4.4 Admin area
 
 - `/admin` is rendered by `app/admin/page.tsx` and includes `AdminEditor`.
+- `app/admin/page.tsx` now does a server-side profile role check:
+  - unauthenticated visitors can see the sign-in UI
+  - signed-in users without `profiles.is_editor = true` are redirected to `/writings`
 - `AdminEditor.tsx` is a client component because it needs:
   - browser auth session state
   - interactive editor behavior
@@ -93,10 +122,11 @@ Admin UI behavior:
 
 1. On mount, it checks Supabase auth session.
 2. If no session, it renders a sign-in form (`signInWithPassword`).
-3. If authenticated, it loads posts from `/api/posts`.
+3. If authenticated, it loads posts from `/api/posts` with explicit error handling.
 4. User can create a new draft, edit existing posts, toggle publish state, and save.
 5. Rich content is stored as HTML from TipTap (`editor.getHTML()`).
-6. Sign-out clears local editor/post state.
+6. On `401/403` API responses, it signs out or routes away instead of silently showing an empty list.
+7. Sign-out clears local editor/post state.
 
 ## 5) Data layer and Supabase model
 
@@ -131,7 +161,8 @@ RLS is enabled on both tables.
 Policies:
 
 - Profiles:
-  - owner can `select`, `update`, and `insert` own profile row
+  - owner can `select` own profile row
+  - owner can `insert`/`update` own row, but `is_editor = true` is allowed only when JWT email is `jasonlatz0@gmail.com` (via `public.can_self_assign_editor()`)
 - Posts:
   - anyone can `select` rows where `published = true`
   - editor users can perform all operations (`for all`) if their profile has `is_editor = true`
@@ -164,6 +195,22 @@ Each write-capable/admin API route calls `requireEditor(supabase)`:
 This is an app-level guard layered on top of RLS.
 
 ## 7) API route behavior
+
+### `GET /api/spotify/live` (`app/api/spotify/live/route.ts`)
+
+- Requires env vars:
+  - `SPOTIFY_CLIENT_ID`
+  - `SPOTIFY_CLIENT_SECRET`
+  - `SPOTIFY_REFRESH_TOKEN`
+- Returns `503` if required Spotify env keys are missing
+- On success returns:
+  - `fetchedAt`
+  - `isPlaying`
+  - `nowPlaying` (track metadata or `null`)
+  - `today` (same-day stats in configured timezone)
+  - `recentPlaylist` (playback-context playlist or fallback library playlist)
+- Route is forced dynamic (`dynamic = "force-dynamic"`, `revalidate = 0`) and responds with `Cache-Control: no-store`
+- On upstream Spotify failures it returns `502` with a diagnostic message
 
 ### `GET /api/posts` (`app/api/posts/route.ts`)
 
@@ -258,6 +305,7 @@ This avoids stale editor text when switching between posts/drafts.
 
 - Most public pages are server components.
 - Writings pages use ISR (`revalidate = 60`).
+- Spotify header data is client-polled and backed by a dynamic no-store API route.
 - Admin page is dynamic/interactive:
   - `export const dynamic = "force-dynamic"` on `app/admin/page.tsx`
   - runtime auth + fetch-based state updates in browser
@@ -286,18 +334,28 @@ Required env vars:
 - `DATABASE_URL` (server-side Postgres connection convenience)
 - `SUPABASE_DB_URL` (session pooler DSN for SQL tooling)
 - `SUPABASE_DB_URL_TRANSACTION` (transaction pooler DSN for SQL tooling)
+- `SPOTIFY_CLIENT_ID` (Spotify app client ID)
+- `SPOTIFY_CLIENT_SECRET` (Spotify app client secret)
+- `SPOTIFY_REFRESH_TOKEN` (OAuth refresh token tied to the Spotify account)
+- `SPOTIFY_REDIRECT_URI` (redirect URI used during one-time token bootstrap)
+- `SPOTIFY_TIMEZONE` (IANA timezone used for "today" stats; defaults to `America/Chicago`)
 
 Setup sequence:
 
 1. `npm install`
-2. Create `.env` (or `.env.local`) and populate the vars above
-3. Run SQL in `supabase/schema.sql`
-4. Create Supabase auth user
-5. Insert/update profile row with `is_editor = true`
-6. `npm run dev`
-7. Use `/admin` to manage posts
+2. Create `.env` (or `.env.local`) and populate Supabase vars + Spotify `CLIENT_ID`, `CLIENT_SECRET`, `REDIRECT_URI`, and `TIMEZONE`
+3. Generate Spotify refresh token:
+   - Run `npm run spotify:token` and open the printed Spotify authorize URL
+   - Approve the requested scopes and copy the `code` query parameter from the redirect URL
+   - Run `SPOTIFY_AUTH_CODE="<code>" npm run spotify:token` and copy the printed `SPOTIFY_REFRESH_TOKEN`
+   - Add that token to `.env`
+4. Run SQL in `supabase/schema.sql`
+5. Create Supabase auth user
+6. Ensure `jasonlatz0@gmail.com` has a `public.profiles` row with `is_editor = true`
+7. `npm run dev`
+8. Use `/admin` to manage posts
 
-### 12.1 Current provisioned state (completed on March 3, 2026 local time)
+### 12.1 Current provisioned state (completed on March 4, 2026 local time)
 
 The following infrastructure work has already been completed in this repository session:
 
@@ -316,6 +374,14 @@ The following infrastructure work has already been completed in this repository 
 6. `.gitignore` updated to ignore:
    - `.env`
    - `supabase/.temp`
+7. Verified auth user exists:
+   - `jasonlatz0@gmail.com`
+8. Applied direct Supabase SQL updates:
+   - `public.can_self_assign_editor()` function added
+   - profile insert/update policies tightened so only `jasonlatz0@gmail.com` can set `is_editor = true`
+   - upserted `public.profiles` row for `jasonlatz0@gmail.com` with `is_editor = true`
+9. Verified current role state:
+   - `jasonlatz0@gmail.com` resolves to editor (`is_editor = true`)
 
 ### 12.2 Supabase connectivity notes for future agents
 
@@ -327,13 +393,20 @@ For this project reference (`qllalbklzxtsvqzszigo`):
    - `aws-1-us-east-1.pooler.supabase.com:6543` (transaction pooler)
 3. If direct DB host fails with route/DNS issues, prefer pooler DSNs for CLI and `psql` operations.
 
+### 12.3 Spotify OAuth notes
+
+1. Spotify refresh tokens are generated via `scripts/spotify-refresh-token.mjs` and are not returned by the dashboard UI directly.
+2. The helper script auto-loads `.env` and `.env.local`, so `npm run spotify:token` works without manual `export` steps.
+3. A refresh token is typically returned only on a fresh authorization; if missing, remove the app from account permissions and re-authorize.
+4. Header stats are "same-day within recent 50 plays," so heavy listening sessions may exceed the available history window.
+
 ## 13) Security model summary
 
 The app depends on three layers together:
 
 1. Supabase auth session cookies (middleware + auth helpers)
 2. App-level role checks (`requireEditor`) in protected API routes
-3. Supabase RLS policies (authoritative DB enforcement)
+3. Supabase RLS policies (authoritative DB enforcement, including restricted self-assignment of editor role)
 
 Even if an API check were missed, RLS still limits unauthorized post mutations.
 
@@ -345,6 +418,8 @@ Even if an API check were missed, RLS still limits unauthorized post mutations.
 4. No tests currently in repo (unit/integration/e2e).
 5. No explicit loading/error boundaries for public route fetch failures.
 6. Site metadata is generic placeholders (`Your Name`) and should be customized.
+7. Spotify "today" stats are approximate because `/me/player/recently-played` returns only the latest 50 tracks.
+8. Spotify now-playing and recent-play endpoints depend on account/app permissions and may return `502` via `/api/spotify/live` when OAuth scope or account constraints are not satisfied.
 
 ## 15) End-to-end request flow examples
 
@@ -358,13 +433,14 @@ Even if an API check were missed, RLS still limits unauthorized post mutations.
 
 ### Admin save post (`/admin`)
 
-1. User signs in via Supabase auth client.
-2. Editor submits JSON to `POST /api/posts` or `PATCH /api/posts/:id`.
-3. Route handler creates Supabase route client from request cookies.
-4. `requireEditor` checks authenticated user + `profiles.is_editor`.
-5. On success, handler writes to `public.posts`.
-6. RLS re-validates permission at DB layer.
-7. Client refreshes post list via `GET /api/posts`.
+1. User opens `/admin`; signed-in non-editors are redirected to `/writings`.
+2. Editor signs in via Supabase auth client (if not already signed in).
+3. Editor submits JSON to `POST /api/posts` or `PATCH /api/posts/:id`.
+4. Route handler creates Supabase route client from request cookies.
+5. `requireEditor` checks authenticated user + `profiles.is_editor`.
+6. On success, handler writes to `public.posts`.
+7. RLS re-validates permission at DB layer.
+8. Client refreshes post list via `GET /api/posts`.
 
 ## 16) File-by-file quick reference
 
@@ -373,15 +449,20 @@ Even if an API check were missed, RLS still limits unauthorized post mutations.
 - `app/writings/page.tsx`: archive list page for published posts.
 - `app/writings/[slug]/page.tsx`: individual published post renderer + metadata.
 - `app/experience/page.tsx`: static experience timeline.
-- `app/admin/page.tsx`: admin route wrapper, forced dynamic render.
-- `app/admin/AdminEditor.tsx`: auth UI, editor UI, and post CRUD client logic.
+- `app/admin/page.tsx`: admin route wrapper, forced dynamic render, and signed-in non-editor redirect to `/writings`.
+- `app/admin/AdminEditor.tsx`: auth UI, editor UI, post CRUD client logic, explicit API error handling, and TipTap SSR-safe render config.
+- `app/api/spotify/live/route.ts`: server route for Spotify now-playing, daily stats, and playlist context.
 - `app/api/posts/route.ts`: list/create post APIs (editor-only).
 - `app/api/posts/[id]/route.ts`: update post API (editor-only).
+- `components/SpotifyNowPlaying.tsx`: resilient polling UI for Spotify header card.
+- `components/SiteFooter.tsx`: footer with dynamic copyright year and external links to LinkedIn, GitHub, and Instagram.
 - `lib/posts.ts`: public content fetch functions.
+- `lib/spotify.ts`: Spotify token refresh, API fetches, and payload shaping.
 - `lib/requireEditor.ts`: reusable editor authorization check.
 - `lib/date.ts`: date formatting helper.
 - `middleware.ts`: Supabase session middleware on admin/api routes.
 - `supabase/schema.sql`: complete DB schema + trigger + RLS policies.
+- `scripts/spotify-refresh-token.mjs`: local command-line helper for Spotify OAuth token bootstrap.
 
 ## 17) Practical next improvements (if you extend this code)
 
@@ -412,11 +493,14 @@ Even if an API check were missed, RLS still limits unauthorized post mutations.
    - `include` contains `.next/types/**/*.ts`
    - `plugins` contains `{ "name": "next" }`
 4. Dependency install (`npm install`) generated `package-lock.json` and is required before first run.
+5. During March 3, 2026 validation, forcing a fixed dev port avoided auto-port fallback (`npm run dev -- --port 3100`) and returned HTTP `200` for `/`, `/writings`, and `/admin`.
+6. TipTap emitted an SSR hydration warning until `immediatelyRender: false` was set in `app/admin/AdminEditor.tsx`.
 
 ## 20) Agent checklist (quick start)
 
 1. Confirm env file exists (`.env` or `.env.local`) with all Supabase keys/URLs.
 2. Confirm `npm install` has been run (lockfile + `node_modules` present).
-3. Start dev server with `npm run dev`.
-4. If `/admin` access is needed, ensure an auth user exists and `profiles.is_editor = true`.
-5. If DB schema drift is suspected, re-run `supabase/schema.sql` against pooler endpoint.
+3. If Spotify header is expected to work, ensure `SPOTIFY_REFRESH_TOKEN` is populated (use `npm run spotify:token` to bootstrap it).
+4. Start dev server with `npm run dev`.
+5. If `/admin` access is needed, ensure `jasonlatz0@gmail.com` exists in `auth.users` and has `profiles.is_editor = true` (unless policy is intentionally changed).
+6. If DB schema drift is suspected, re-run `supabase/schema.sql` against pooler endpoint.

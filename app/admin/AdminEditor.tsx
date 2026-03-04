@@ -5,6 +5,7 @@ import type { Session } from "@supabase/supabase-js";
 import LinkExtension from "@tiptap/extension-link";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 type Post = {
@@ -28,6 +29,7 @@ const slugify = (value: string) =>
     .replace(/-+/g, "-");
 
 export default function AdminEditor() {
+  const router = useRouter();
   const supabase = useMemo(() => createClientComponentClient(), []);
   const [session, setSession] = useState<Session | null>(null);
   const [authMessage, setAuthMessage] = useState("");
@@ -44,10 +46,12 @@ export default function AdminEditor() {
   const [statusMessage, setStatusMessage] = useState("");
   const [loadingPosts, setLoadingPosts] = useState(false);
   const [slugEdited, setSlugEdited] = useState(false);
+  const [postsError, setPostsError] = useState("");
 
   const editor = useEditor({
     extensions: [StarterKit, LinkExtension.configure({ openOnClick: false })],
     content,
+    immediatelyRender: false,
     onUpdate: ({ editor: activeEditor }) => {
       setContent(activeEditor.getHTML());
     }
@@ -71,14 +75,17 @@ export default function AdminEditor() {
 
     const {
       data: { subscription }
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
       setSession(nextSession);
+      if (event === "SIGNED_IN" || event === "SIGNED_OUT") {
+        router.refresh();
+      }
     });
 
     return () => {
       subscription.unsubscribe();
     };
-  }, [supabase]);
+  }, [router, supabase]);
 
   useEffect(() => {
     if (!session) {
@@ -87,16 +94,37 @@ export default function AdminEditor() {
 
     const loadPosts = async () => {
       setLoadingPosts(true);
-      const response = await fetch("/api/posts");
-      const data = await response.json();
-      if (response.ok) {
+      setPostsError("");
+
+      try {
+        const response = await fetch("/api/posts", { cache: "no-store" });
+        const data = (await response.json()) as { error?: string; posts?: Post[] };
+
+        if (!response.ok) {
+          const message = data.error ?? "Unable to load posts.";
+          setPosts([]);
+          setPostsError(message);
+
+          if (response.status === 401) {
+            await supabase.auth.signOut();
+          } else if (response.status === 403) {
+            router.replace("/writings");
+          }
+
+          return;
+        }
+
         setPosts(data.posts ?? []);
+      } catch {
+        setPosts([]);
+        setPostsError("Unable to load posts.");
+      } finally {
+        setLoadingPosts(false);
       }
-      setLoadingPosts(false);
     };
 
-    loadPosts();
-  }, [session]);
+    void loadPosts();
+  }, [router, session, supabase]);
 
   const resetForm = () => {
     setActivePostId(null);
@@ -107,6 +135,7 @@ export default function AdminEditor() {
     setContent("");
     setSlugEdited(false);
     setStatusMessage("");
+    setPostsError("");
   };
 
   const handleSignIn = async () => {
@@ -161,6 +190,13 @@ export default function AdminEditor() {
     const data = await response.json();
     if (!response.ok) {
       setStatusMessage(data.error ?? "Something went wrong.");
+
+      if (response.status === 401) {
+        await supabase.auth.signOut();
+      } else if (response.status === 403) {
+        router.replace("/writings");
+      }
+
       return;
     }
 
@@ -168,10 +204,13 @@ export default function AdminEditor() {
     setActivePostId(data.post?.id ?? activePostId);
     setSlugEdited(true);
 
-    const refreshed = await fetch("/api/posts");
+    const refreshed = await fetch("/api/posts", { cache: "no-store" });
     const refreshedData = await refreshed.json();
     if (refreshed.ok) {
       setPosts(refreshedData.posts ?? []);
+      setPostsError("");
+    } else {
+      setPostsError(refreshedData.error ?? "Unable to refresh posts.");
     }
   };
 
@@ -266,6 +305,7 @@ export default function AdminEditor() {
 
       <div className="section">
         <h3>Posts</h3>
+        {postsError && <p className="post-meta">{postsError}</p>}
         {loadingPosts ? (
           <p className="post-meta">Loading...</p>
         ) : (
@@ -297,7 +337,7 @@ export default function AdminEditor() {
             ))}
           </div>
         )}
-        {posts.length === 0 && !loadingPosts && (
+        {posts.length === 0 && !loadingPosts && !postsError && (
           <p className="post-meta">No posts yet.</p>
         )}
       </div>
