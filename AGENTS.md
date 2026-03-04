@@ -85,6 +85,8 @@ For AGENTS maintenance:
 1. Record only durable, cross-task preferences and learnings.
 2. Do not add one-off content values (for example single URL/handle tweaks) unless they affect security, access control, or recurring workflow.
 3. Prefer keeping implementation-specific facts in code or `CODEBASE_GUIDE.md` instead of expanding AGENTS.md.
+4. Add new AGENTS rules only when they are critical to recurring workflow, security, permissions, validation, or commit hygiene.
+5. If a note is feature-specific or likely temporary, do not add it to AGENTS.md; keep it in `CODEBASE_GUIDE.md` instead.
 
 ## 11) Jason Preference: Work Through Unrelated Diffs
 
@@ -92,6 +94,8 @@ When the working tree shows unrelated modifications:
 
 1. Continue with the current task unless there is a direct conflict in the same files/regions being edited.
 2. Surface direct conflicts clearly once, then proceed based on Jason's instruction.
+3. Ignore unrelated files by default and do not stage or commit them unless Jason explicitly asks.
+4. When committing, include only files changed for the current request.
 
 ## 12) Jason Preference: Editor Access Must Stay Owner-Only
 
