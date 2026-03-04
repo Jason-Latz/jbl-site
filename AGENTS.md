@@ -117,6 +117,7 @@ For blog/editor UX work:
 2. Prefer a single-pane writer with a `Markdown/Visual` toggle over side-by-side split editing.
 3. In visual mode, keep direct inline editing available and sync those edits back to markdown source.
 4. Keep easy formatting actions (bold/italic/headings/lists/links/code) and footnote support available.
+5. Do not require a manual “apply preview edits” action; inline visual edits should auto-sync and existing drafts should autosave.
 
 ## 15) Local Validation Caveat: No curl in Shell
 
@@ -147,3 +148,11 @@ For Spotify and Duolingo surfaces on `/`:
 2. Keep full widget details available via click-to-expand dropdown panels.
 3. Use caret-only affordances for expand/collapse; avoid extra "Details" label text in the ribbon row.
 4. For Spotify summary text, prefer overflow-safe behavior (for example marquee-style scrolling) instead of growing ribbon height.
+
+## 19) Jason Preference: Photography Should Be Gapless and Metadata-Driven
+
+For the public photography and admin photo workflow:
+
+1. Keep the public photography mosaic gapless (no spacing/gutters between photos).
+2. Clicking a photo on `/photography` should show user-entered metadata: location, description, and optional song link.
+3. Keep that metadata editable in `/admin` so gallery details can be updated without CLI or SQL work.
