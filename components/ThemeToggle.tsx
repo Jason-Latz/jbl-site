@@ -80,7 +80,11 @@ export default function ThemeToggle() {
     }
   };
 
-  const buttonLabel = theme === "dark" ? "Light mode" : "Dark mode";
+  const icon = isReady
+    ? theme === "dark"
+      ? "☀"
+      : "☾"
+    : "☾";
 
   return (
     <button
@@ -90,7 +94,9 @@ export default function ThemeToggle() {
       aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
       title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
     >
-      {isReady ? buttonLabel : "Theme"}
+      <span className="theme-toggle-icon" aria-hidden="true">
+        {icon}
+      </span>
     </button>
   );
 }
