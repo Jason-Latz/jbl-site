@@ -547,11 +547,6 @@ img {
   color: var(--muted);
 }
 
-.spotify-history {
-  display: grid;
-  gap: 0.55rem;
-}
-
 .spotify-history-title {
   margin: 0;
   font-size: 0.75rem;
@@ -561,12 +556,52 @@ img {
   color: var(--muted);
 }
 
+.spotify-history-panel {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-soft);
+  overflow: hidden;
+}
+
+.spotify-history-summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+  padding: 0.58rem 0.72rem;
+}
+
+.spotify-history-summary::-webkit-details-marker {
+  display: none;
+}
+
+.spotify-history-caret {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.spotify-history-caret::before {
+  content: "▾";
+}
+
+.spotify-history-panel[open] .spotify-history-caret::before {
+  content: "▴";
+}
+
 .spotify-history-list {
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding: 0.45rem 0.72rem 0.72rem;
   display: grid;
   gap: 0.55rem;
+  border-top: 1px solid var(--border);
 }
 
 .spotify-history-item {

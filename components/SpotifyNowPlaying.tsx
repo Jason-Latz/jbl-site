@@ -26,7 +26,15 @@ type SpotifyPlaylistPayload = {
   url: string | null;
   imageUrl: string | null;
   ownerName: string | null;
-  source: "current-playback" | "recent-playback-context" | "library-fallback";
+  source: "current-playback" | "recent-playback-context";
+};
+
+type SpotifyRecentTrackPayload = {
+  trackName: string;
+  artists: string[];
+  albumName: string | null;
+  trackUrl: string | null;
+  albumImageUrl: string | null;
 };
 
 type SpotifyLiveResponse = {
@@ -35,6 +43,7 @@ type SpotifyLiveResponse = {
   nowPlaying: SpotifyNowPlayingPayload | null;
   today: SpotifyTodayStatsPayload;
   recentPlaylist: SpotifyPlaylistPayload | null;
+  recentTracks: SpotifyRecentTrackPayload[];
 };
 
 const STORAGE_KEY = "spotify-live-cache-v1";
@@ -110,7 +119,8 @@ function isSpotifyLiveResponse(payload: unknown): payload is SpotifyLiveResponse
     typeof candidate.isPlaying === "boolean" &&
     typeof candidate.today?.playCount === "number" &&
     typeof candidate.today?.uniqueArtists === "number" &&
-    typeof candidate.today?.minutesListened === "number"
+    typeof candidate.today?.minutesListened === "number" &&
+    Array.isArray(candidate.recentTracks)
   );
 }
 
@@ -161,6 +171,14 @@ function formatPlayedAt(isoDate: string | null) {
     hour: "numeric",
     minute: "2-digit"
   });
+}
+
+function formatTrackLine(trackName: string, artists: string[]) {
+  if (artists.length === 0) {
+    return trackName;
+  }
+
+  return `${trackName} — ${artists.join(", ")}`;
 }
 
 export default function SpotifyNowPlaying() {
@@ -267,18 +285,29 @@ export default function SpotifyNowPlaying() {
   }, [fetchSpotifyLive]);
 
   const trackLine = useMemo(() => {
-    if (!data?.nowPlaying) {
-      return isLoading
-        ? "Loading Spotify listening activity..."
-        : "Nothing is currently playing.";
+    if (data?.nowPlaying) {
+      return formatTrackLine(data.nowPlaying.trackName, data.nowPlaying.artists);
     }
 
-    if (data.nowPlaying.artists.length === 0) {
-      return data.nowPlaying.trackName;
+    const latestRecentTrack = data?.recentTracks?.[0];
+    if (latestRecentTrack) {
+      return `Last played: ${formatTrackLine(
+        latestRecentTrack.trackName,
+        latestRecentTrack.artists
+      )}`;
     }
 
-    return `${data.nowPlaying.trackName} — ${data.nowPlaying.artists.join(", ")}`;
+    return isLoading
+      ? "Loading Spotify listening activity..."
+      : "Nothing is currently playing.";
   }, [data, isLoading]);
+
+  const leadTrack = data?.nowPlaying ?? data?.recentTracks?.[0] ?? null;
+  const leadTrackLine = leadTrack
+    ? formatTrackLine(leadTrack.trackName, leadTrack.artists)
+    : trackLine;
+  const leadTrackAlbum = leadTrack?.albumName ?? null;
+  const leadTrackArtwork = leadTrack?.albumImageUrl ?? null;
 
   const statusLine = useMemo(() => {
     const retryDelay = formatRetryDelay(getRetryDelayMs(consecutiveErrors));
@@ -352,6 +381,14 @@ export default function SpotifyNowPlaying() {
                 <a href={data.nowPlaying.trackUrl} target="_blank" rel="noreferrer">
                   Open track ↗
                 </a>
+              ) : data?.recentTracks?.[0]?.trackUrl ? (
+                <a
+                  href={data.recentTracks[0].trackUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Open last track ↗
+                </a>
               ) : data?.recentPlaylist?.url ? (
                 <a href={data.recentPlaylist.url} target="_blank" rel="noreferrer">
                   Open playlist ↗
@@ -360,21 +397,19 @@ export default function SpotifyNowPlaying() {
             </div>
 
             <div className="spotify-track-row">
-              {data?.nowPlaying?.albumImageUrl ? (
+              {leadTrackArtwork ? (
                 <img
                   className="spotify-artwork"
-                  src={data.nowPlaying.albumImageUrl}
-                  alt={`Album cover for ${
-                    data.nowPlaying.albumName ?? data.nowPlaying.trackName
-                  }`}
+                  src={leadTrackArtwork}
+                  alt={`Album cover for ${leadTrackAlbum ?? leadTrackLine}`}
                   loading="lazy"
                   decoding="async"
                 />
               ) : null}
               <div className="spotify-track-copy">
-                <p className="spotify-track">{trackLine}</p>
-                {data?.nowPlaying?.albumName ? (
-                  <p className="spotify-meta">Album: {data.nowPlaying.albumName}</p>
+                <p className="spotify-track">{leadTrackLine}</p>
+                {leadTrackAlbum ? (
+                  <p className="spotify-meta">Album: {leadTrackAlbum}</p>
                 ) : null}
               </div>
             </div>
@@ -396,6 +431,54 @@ export default function SpotifyNowPlaying() {
                   : ""}
                 .
               </p>
+            ) : null}
+
+            {data?.recentTracks.length ? (
+              <details className="spotify-history-panel">
+                <summary className="spotify-history-summary">
+                  <p className="spotify-history-title">Last 10 listened</p>
+                  <span className="spotify-history-caret" aria-hidden="true" />
+                </summary>
+                <ul className="spotify-history-list">
+                  {data.recentTracks.map((track, index) => (
+                    <li
+                      key={`${track.trackUrl ?? track.trackName}-${index}`}
+                      className="spotify-history-item"
+                    >
+                      {track.albumImageUrl ? (
+                        <img
+                          className="spotify-history-artwork"
+                          src={track.albumImageUrl}
+                          alt={`Album cover for ${track.albumName ?? track.trackName}`}
+                          loading="lazy"
+                          decoding="async"
+                        />
+                      ) : (
+                        <span
+                          className="spotify-history-artwork spotify-history-artwork-placeholder"
+                          aria-hidden="true"
+                        />
+                      )}
+                      <div className="spotify-history-copy">
+                        <p className="spotify-history-track">
+                          {track.trackUrl ? (
+                            <a href={track.trackUrl} target="_blank" rel="noreferrer">
+                              {track.trackName}
+                            </a>
+                          ) : (
+                            track.trackName
+                          )}
+                        </p>
+                        <p className="spotify-meta">
+                          {track.artists.length > 0
+                            ? track.artists.join(", ")
+                            : "Unknown artist"}
+                        </p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </details>
             ) : null}
 
             <p className="spotify-meta">{statusLine}</p>

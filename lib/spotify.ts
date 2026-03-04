@@ -57,14 +57,9 @@ type SpotifyPlaylistResponse = {
   };
 };
 
-type SpotifyUserPlaylistsResponse = {
-  items?: SpotifyPlaylistResponse[];
-};
-
 type SpotifyPlaylistSource =
   | "current-playback"
-  | "recent-playback-context"
-  | "library-fallback";
+  | "recent-playback-context";
 
 export type SpotifyPlaylist = {
   name: string;
@@ -93,12 +88,21 @@ export type SpotifyTodayStats = {
   isApproximate: boolean;
 };
 
+export type SpotifyRecentTrack = {
+  trackName: string;
+  artists: string[];
+  albumName: string | null;
+  trackUrl: string | null;
+  albumImageUrl: string | null;
+};
+
 export type SpotifyLivePayload = {
   fetchedAt: string;
   isPlaying: boolean;
   nowPlaying: SpotifyNowPlaying | null;
   today: SpotifyTodayStats;
   recentPlaylist: SpotifyPlaylist | null;
+  recentTracks: SpotifyRecentTrack[];
 };
 
 const SPOTIFY_API_BASE_URL = "https://api.spotify.com/v1";
@@ -234,25 +238,62 @@ function mapPlaylist(
   };
 }
 
+function mapArtists(artists: SpotifyArtist[] | undefined): string[] {
+  return (
+    artists
+      ?.map((artist) => artist.name)
+      .filter(
+        (name): name is string => typeof name === "string" && name.length > 0
+      ) ?? []
+  );
+}
+
 function mapNowPlaying(item: SpotifyTrack | null | undefined): SpotifyNowPlaying | null {
   if (!item?.name || typeof item.name !== "string") {
     return null;
   }
 
-  const artists =
-    item.artists
-      ?.map((artist) => artist.name)
-      .filter((name): name is string => typeof name === "string" && name.length > 0) ?? [];
-
   return {
     trackName: item.name,
-    artists,
+    artists: mapArtists(item.artists),
     albumName: item.album?.name ?? null,
     trackUrl: item.external_urls?.spotify ?? null,
     albumImageUrl: getImageUrl(item.album?.images),
     progressMs: null,
     durationMs: typeof item.duration_ms === "number" ? item.duration_ms : null
   };
+}
+
+function mapRecentTracks(
+  recentlyPlayed: SpotifyRecentlyPlayedItem[],
+  limit: number
+): SpotifyRecentTrack[] {
+  const tracks: SpotifyRecentTrack[] = [];
+
+  for (const item of recentlyPlayed) {
+    if (tracks.length >= limit) {
+      break;
+    }
+
+    if (!item.played_at || !item.track?.name) {
+      continue;
+    }
+
+    const playedAtDate = new Date(item.played_at);
+    if (Number.isNaN(playedAtDate.getTime())) {
+      continue;
+    }
+
+    tracks.push({
+      trackName: item.track.name,
+      artists: mapArtists(item.track.artists),
+      albumName: item.track.album?.name ?? null,
+      trackUrl: item.track.external_urls?.spotify ?? null,
+      albumImageUrl: getImageUrl(item.track.album?.images)
+    });
+  }
+
+  return tracks;
 }
 
 async function fetchCurrentlyPlaying() {
@@ -304,23 +345,6 @@ async function fetchPlaylistById(
 
   const payload = (await response.json()) as SpotifyPlaylistResponse;
   return mapPlaylist(payload, source);
-}
-
-async function fetchLibraryFallbackPlaylist() {
-  const response = await spotifyRequest("/me/playlists?limit=1");
-
-  if (!response.ok) {
-    return null;
-  }
-
-  const payload = (await response.json()) as SpotifyUserPlaylistsResponse;
-  const firstPlaylist = payload.items?.[0];
-
-  if (!firstPlaylist) {
-    return null;
-  }
-
-  return mapPlaylist(firstPlaylist, "library-fallback");
 }
 
 function buildTodayStats(
@@ -400,7 +424,7 @@ async function resolveRecentPlaylist(
     }
   }
 
-  return fetchLibraryFallbackPlaylist();
+  return null;
 }
 
 export async function fetchSpotifyLivePayload(): Promise<SpotifyLivePayload> {
@@ -413,6 +437,7 @@ export async function fetchSpotifyLivePayload(): Promise<SpotifyLivePayload> {
 
   const recentPlaylist = await resolveRecentPlaylist(currentPlayback, recentlyPlayed);
   const nowPlaying = mapNowPlaying(currentPlayback?.item);
+  const recentTracks = mapRecentTracks(recentlyPlayed, 10);
 
   if (nowPlaying && typeof currentPlayback?.progress_ms === "number") {
     nowPlaying.progressMs = currentPlayback.progress_ms;
@@ -423,6 +448,7 @@ export async function fetchSpotifyLivePayload(): Promise<SpotifyLivePayload> {
     isPlaying: currentPlayback?.is_playing === true,
     nowPlaying,
     today: buildTodayStats(recentlyPlayed, timeZone),
-    recentPlaylist
+    recentPlaylist,
+    recentTracks
   };
 }

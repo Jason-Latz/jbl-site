@@ -33,6 +33,7 @@ app/
   globals.css              # Global styles and component utility classes
   experience/page.tsx      # Static experience timeline
   travel/page.tsx          # Public travel mosaic page
+  travel/quality-lab/page.tsx # Side-by-side quality comparison page for travel images
   photography/page.tsx     # Legacy redirect from /photography -> /travel
   writings/page.tsx        # Published writings list page
   writings/[slug]/page.tsx # Single published post page
@@ -96,6 +97,7 @@ This means every route is rendered inside the same visual shell by default.
 - `/` (`app/page.tsx`): hero content, single-line collapsible Spotify + Duolingo activity ribbon, dynamic “latest writing” card sourced from published posts, and a “now” card.
 - `/experience` (`app/experience/page.tsx`): static, resume-style sections (education, professional experience, projects, technical skills, activities) rendered as cards.
 - `/travel` (`app/travel/page.tsx`): server-rendered gallery route that hydrates a client-side gapless mosaic (`PhotoMosaic`) built from storage images plus metadata from `public.photos`; the mosaic now renders an initial top batch and appends additional photos as the user scrolls.
+- `/travel/quality-lab` (`app/travel/quality-lab/page.tsx`): visual tuning route that renders the same sampled photos side-by-side as `High (q90)`, `Super High (q95)`, and `Original` to compare sharpness versus payload strategy.
 - `/photography` (`app/photography/page.tsx`): legacy compatibility route that redirects to `/travel`.
 - `/writings` (`app/writings/page.tsx`): server component fetching published posts from Supabase via `lib/posts.ts`.
 - `/writings/[slug]` (`app/writings/[slug]/page.tsx`): server component fetching one published post by slug; returns `notFound()` if missing.
@@ -114,17 +116,19 @@ The home page includes `components/SpotifyNowPlaying.tsx` and `components/Duolin
 
 1. Spotify-branded label icon in the card header
 2. Current track summary in the ribbon row, with marquee-style horizontal scroll when text is long
-3. Album art thumbnail for the currently playing track (when available)
+3. Album art thumbnail for the current track (or latest recently played track when idle)
 4. Same-day listening metrics (play count, minutes listened, unique artists)
-5. Most recent playlist context (playback context first, library fallback second)
-6. Last successful fetch timestamp and resilient stale-data messaging on errors
+5. Most recent playlist context resolved from active playback or recent playback history (no static library fallback)
+6. A nested "Last 10 listened" dropdown inside the expanded panel (album art, track name, artists)
+7. Last successful fetch timestamp and resilient stale-data messaging on errors
 
 `app/api/spotify/live/route.ts` is server-side and uses `lib/spotify.ts` to:
 
 1. Refresh an access token with `SPOTIFY_REFRESH_TOKEN`
 2. Read `/me/player/currently-playing` and `/me/player/recently-played`
 3. Compute "today" metrics in `SPOTIFY_TIMEZONE` (default `America/Chicago`)
-4. Resolve playlist metadata via playback context (`/playlists/:id`) or `/me/playlists?limit=1`
+4. Resolve recent playlist metadata via active playback context (`/playlists/:id`) or most-recent recent-playback context
+5. Return last-10 recently played tracks for the expandable history list
 
 `DuolingoStreak.tsx` polls `/api/duolingo/streak` every 60 seconds and renders:
 
@@ -287,7 +291,8 @@ This is an app-level guard layered on top of RLS.
   - `isPlaying`
   - `nowPlaying` (track metadata or `null`)
   - `today` (same-day stats in configured timezone)
-  - `recentPlaylist` (playback-context playlist or fallback library playlist)
+  - `recentPlaylist` (playlist from active playback context or latest recent-playback context; otherwise `null`)
+  - `recentTracks` (up to 10 most recently played tracks with album art, track, and artist list)
 - Route is forced dynamic (`dynamic = "force-dynamic"`, `revalidate = 0`) and responds with `Cache-Control: no-store`
 - On upstream Spotify failures it returns `502` with a diagnostic message
 
@@ -641,6 +646,7 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 - `app/page.tsx`: landing content + shared one-line activity ribbon.
   - latest writing card is dynamically populated from most recent published post
 - `app/travel/page.tsx`: travel route shell that loads photo catalog and renders `PhotoMosaic`.
+- `app/travel/quality-lab/page.tsx`: side-by-side travel image quality comparison route for evaluating delivery settings against originals.
 - `app/photography/page.tsx`: legacy redirect shim from `/photography` to `/travel`.
 - `app/writings/page.tsx`: archive list page for published posts.
 - `app/writings/[slug]/page.tsx`: individual published post renderer + metadata.
@@ -650,7 +656,7 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 - `app/admin/PostEditorPage.tsx`: markdown editor form, toolbar shortcuts, and editable single-pane markdown/visual toggle.
 - `app/admin/new/page.tsx`: dedicated create route wrapping `PostEditorPage`.
 - `app/admin/[id]/page.tsx`: dedicated edit route wrapping `PostEditorPage`.
-- `app/api/spotify/live/route.ts`: server route for Spotify now-playing, daily stats, and playlist context.
+- `app/api/spotify/live/route.ts`: server route for Spotify now-playing, daily stats, playlist context, and last-10 listening history.
 - `app/api/travel/route.ts`: editor-only photo API (`GET` list, `POST` upload, `PATCH` metadata, `DELETE` photo).
 - `app/api/photos/route.ts`: legacy compatibility alias that re-exports `/api/travel` handlers.
 - `app/api/posts/route.ts`: list/create post APIs (editor-only).
