@@ -48,6 +48,7 @@ After relevant changes, validate at minimum:
 3. HTTP success for:
    - `/`
    - `/writings`
+   - `/photography`
    - `/admin`
 
 ## 7) Handoff Standard
@@ -114,3 +115,17 @@ For blog/editor UX work:
 1. Prefer a dedicated article compose page over dense inline editing on the dashboard.
 2. Preserve markdown authoring with live preview that matches site rendering.
 3. Keep easy formatting actions (bold/italic/headings/lists/links/code) and footnote support available.
+
+## 15) Local Validation Caveat: No curl in Shell
+
+For local HTTP route validation in this environment:
+
+1. Do not assume `curl` is installed.
+2. Prefer `node -e`/Node `fetch` for status checks when validating `npm run dev` routes.
+
+## 16) Jason Preference: Media Uploads Should Be In-Site
+
+When adding or changing media workflows:
+
+1. Prefer upload flows inside the website admin UI over CLI-only workflows.
+2. Support selecting and uploading multiple files in one action through the browser picker.
