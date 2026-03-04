@@ -1,11 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { PhotoCatalogItem } from "@/lib/photos";
 
 type PhotoMosaicProps = {
   photos: PhotoCatalogItem[];
 };
+
+const INITIAL_BATCH_SIZE = 8;
+const BATCH_SIZE = 8;
+const PRIORITY_IMAGE_COUNT = 4;
+const LOAD_MORE_ROOT_MARGIN = "1200px 0px";
 
 function displayOrFallback(value: string | null, fallback: string) {
   return value && value.trim().length > 0 ? value : fallback;
@@ -13,6 +18,17 @@ function displayOrFallback(value: string | null, fallback: string) {
 
 export default function PhotoMosaic({ photos }: PhotoMosaicProps) {
   const [activePhoto, setActivePhoto] = useState<PhotoCatalogItem | null>(null);
+  const [visibleCount, setVisibleCount] = useState(() =>
+    Math.min(INITIAL_BATCH_SIZE, photos.length)
+  );
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    setVisibleCount(Math.min(INITIAL_BATCH_SIZE, photos.length));
+  }, [photos.length]);
+
+  const visiblePhotos = photos.slice(0, visibleCount);
+  const hasMoreToLoad = visibleCount < photos.length;
 
   useEffect(() => {
     if (!activePhoto) {
@@ -31,21 +47,60 @@ export default function PhotoMosaic({ photos }: PhotoMosaicProps) {
     };
   }, [activePhoto]);
 
+  useEffect(() => {
+    if (!hasMoreToLoad || !loadMoreRef.current) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const isVisible = entries.some((entry) => entry.isIntersecting);
+        if (!isVisible) {
+          return;
+        }
+
+        setVisibleCount((current) => Math.min(current + BATCH_SIZE, photos.length));
+      },
+      {
+        root: null,
+        rootMargin: LOAD_MORE_ROOT_MARGIN
+      }
+    );
+
+    observer.observe(loadMoreRef.current);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [hasMoreToLoad, photos.length]);
+
   return (
     <>
       <div className="photo-stage section">
         <div className="photo-masonry">
-          {photos.map((photo) => (
-            <button
-              key={photo.path}
-              type="button"
-              className="photo-tile"
-              onClick={() => setActivePhoto(photo)}
-              aria-label={`Open details for ${photo.alt}`}
-            >
-              <img src={photo.url} alt={photo.alt} loading="lazy" decoding="async" />
-            </button>
-          ))}
+          {visiblePhotos.map((photo, index) => {
+            const eager = index < PRIORITY_IMAGE_COUNT;
+
+            return (
+              <button
+                key={photo.path}
+                type="button"
+                className="photo-tile"
+                onClick={() => setActivePhoto(photo)}
+                aria-label={`Open details for ${photo.alt}`}
+              >
+                <img
+                  src={photo.url}
+                  alt={photo.alt}
+                  loading={eager ? "eager" : "lazy"}
+                  fetchPriority={eager ? "high" : "auto"}
+                  decoding="async"
+                />
+              </button>
+            );
+          })}
+
+          {hasMoreToLoad ? <div ref={loadMoreRef} className="photo-load-sentinel" /> : null}
         </div>
       </div>
 

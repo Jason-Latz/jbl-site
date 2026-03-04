@@ -93,7 +93,7 @@ This means every route is rendered inside the same visual shell by default.
 
 - `/` (`app/page.tsx`): hero content, single-line collapsible Spotify + Duolingo activity ribbon, dynamic “latest writing” card sourced from published posts, and a “now” card.
 - `/experience` (`app/experience/page.tsx`): static, resume-style sections (education, professional experience, projects, technical skills, activities) rendered as cards.
-- `/photography` (`app/photography/page.tsx`): server-rendered gallery route that hydrates a client-side gapless mosaic (`PhotoMosaic`) built from storage images plus metadata from `public.photos`.
+- `/photography` (`app/photography/page.tsx`): server-rendered gallery route that hydrates a client-side gapless mosaic (`PhotoMosaic`) built from storage images plus metadata from `public.photos`; the mosaic now renders an initial top batch and appends additional photos as the user scrolls.
 - `/writings` (`app/writings/page.tsx`): server component fetching published posts from Supabase via `lib/posts.ts`.
 - `/writings/[slug]` (`app/writings/[slug]/page.tsx`): server component fetching one published post by slug; returns `notFound()` if missing.
 
@@ -625,7 +625,8 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 5. Accepted files upload to bucket `photos`; matching metadata rows are created/upserted in `public.photos`.
 6. Dashboard loads editable photo cards via `GET /api/photos`; metadata saves use `PATCH /api/photos`; photo deletions use `DELETE /api/photos`.
 7. Storage and table policies re-validate editor permission on write operations.
-8. `/photography` reads merged storage + metadata rows via `lib/photos.ts`; clicking a photo opens metadata in the modal.
+8. `/photography` reads merged storage + metadata rows via `lib/photos.ts`; `PhotoMosaic` mounts only the first batch of photos at first paint and appends the next batches via an intersection sentinel so network fetches happen progressively during scroll.
+9. Clicking a photo opens metadata in the modal with the original image URL.
 
 ## 16) File-by-file quick reference
 
@@ -650,7 +651,7 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 - `components/ThemeToggle.tsx`: client-side light/dark theme switcher in the site header (persists selection and respects system preference when no explicit selection exists).
 - `components/SiteFooter.tsx`: footer with dynamic copyright year and external links to LinkedIn, GitHub, and Instagram.
 - `components/SiteNav.tsx`: primary navigation (includes `/photography` link).
-- `components/PhotoMosaic.tsx`: gapless masonry renderer + click-to-open metadata modal on `/photography`.
+- `components/PhotoMosaic.tsx`: gapless masonry renderer with progressive top-down batch loading (initial batch + scroll-triggered append), plus click-to-open metadata modal on `/photography`.
 - `lib/posts.ts`: public content fetch functions.
   - used by home page and writings pages for published content lists/details
 - `lib/photos.ts`: merged photo catalog helper (storage objects + metadata table rows).
