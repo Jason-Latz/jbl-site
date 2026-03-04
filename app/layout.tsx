@@ -22,15 +22,13 @@ const themeInitScript = `
 (() => {
   const key = "site-theme";
   const root = document.documentElement;
-  const getSystemTheme = () =>
-    window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 
   try {
     const stored = localStorage.getItem(key);
-    const nextTheme = stored === "dark" || stored === "light" ? stored : getSystemTheme();
+    const nextTheme = stored === "dark" || stored === "light" ? stored : "light";
     root.setAttribute("data-theme", nextTheme);
   } catch {
-    root.setAttribute("data-theme", getSystemTheme());
+    root.setAttribute("data-theme", "light");
   }
 })();
 `;

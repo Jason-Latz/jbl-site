@@ -1,16 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 type Theme = "light" | "dark";
 
 const STORAGE_KEY = "site-theme";
-
-function getSystemTheme(): Theme {
-  return window.matchMedia("(prefers-color-scheme: dark)").matches
-    ? "dark"
-    : "light";
-}
 
 function isTheme(value: string | null): value is Theme {
   return value === "light" || value === "dark";
@@ -23,7 +17,6 @@ function applyTheme(theme: Theme) {
 export default function ThemeToggle() {
   const [theme, setTheme] = useState<Theme>("light");
   const [isReady, setIsReady] = useState(false);
-  const hasStoredPreferenceRef = useRef(false);
 
   useEffect(() => {
     const rootTheme = document.documentElement.getAttribute("data-theme");
@@ -34,42 +27,22 @@ export default function ThemeToggle() {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (isTheme(stored)) {
-        hasStoredPreferenceRef.current = true;
         setTheme(stored);
         applyTheme(stored);
       } else {
-        const next = getSystemTheme();
-        setTheme(next);
-        applyTheme(next);
+        setTheme("light");
+        applyTheme("light");
       }
     } catch {
-      const next = getSystemTheme();
-      setTheme(next);
-      applyTheme(next);
+      setTheme("light");
+      applyTheme("light");
+    } finally {
+      setIsReady(true);
     }
-
-    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-    const syncWithSystem = (event: MediaQueryListEvent) => {
-      if (hasStoredPreferenceRef.current) {
-        return;
-      }
-
-      const next = event.matches ? "dark" : "light";
-      setTheme(next);
-      applyTheme(next);
-    };
-
-    mediaQuery.addEventListener("change", syncWithSystem);
-    setIsReady(true);
-
-    return () => {
-      mediaQuery.removeEventListener("change", syncWithSystem);
-    };
   }, []);
 
   const toggleTheme = () => {
     const next = theme === "dark" ? "light" : "dark";
-    hasStoredPreferenceRef.current = true;
     setTheme(next);
     applyTheme(next);
 

@@ -84,7 +84,7 @@ scripts/spotify-refresh-token.mjs # Local helper to generate Spotify refresh tok
 2. Disables `adjustFontFallback` for `Newsreader` to avoid noisy dev-time font override warnings in Next.js.
 3. Defines base metadata (`title`, `description`) for the whole site.
 4. Renders global chrome: header with site title + nav, main content container, and footer with social links.
-5. Initializes the persisted light/dark theme before hydration (inline `beforeInteractive` script reading `localStorage.site-theme`, with system-color fallback).
+5. Initializes the persisted light/dark theme before hydration (inline `beforeInteractive` script reading `localStorage.site-theme`, defaulting to light mode when no stored preference exists).
 6. Applies shared container widths and spacing through global CSS classes.
 
 This means every route is rendered inside the same visual shell by default.
