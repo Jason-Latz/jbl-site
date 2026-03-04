@@ -50,10 +50,7 @@ export default async function HomePage() {
       <div className="section">
         <h2>Now</h2>
         <div className="card">
-          <p>
-            Advising early-stage teams, writing about applied AI, and exploring
-            the future of thoughtful interfaces.
-          </p>
+          <p>see what I've been up to</p>
           <Link href="/experience">View experience →</Link>
         </div>
       </div>
