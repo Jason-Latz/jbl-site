@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { buildPublicRenderUrl } from "@/lib/photos";
 import type { PhotoCatalogItem } from "@/lib/photos";
 
 type PhotoMosaicProps = {
@@ -11,6 +12,8 @@ const INITIAL_BATCH_SIZE = 8;
 const BATCH_SIZE = 8;
 const PRIORITY_IMAGE_COUNT = 4;
 const LOAD_MORE_ROOT_MARGIN = "1200px 0px";
+const MOSAIC_RENDER_WIDTH = 1600;
+const MOSAIC_RENDER_QUALITY = 92;
 
 function displayOrFallback(value: string | null, fallback: string) {
   return value && value.trim().length > 0 ? value : fallback;
@@ -29,6 +32,12 @@ export default function PhotoMosaic({ photos }: PhotoMosaicProps) {
 
   const visiblePhotos = photos.slice(0, visibleCount);
   const hasMoreToLoad = visibleCount < photos.length;
+
+  const getMosaicTileUrl = (photo: PhotoCatalogItem) =>
+    buildPublicRenderUrl(photo.url, {
+      width: MOSAIC_RENDER_WIDTH,
+      quality: MOSAIC_RENDER_QUALITY
+    });
 
   useEffect(() => {
     if (!activePhoto) {
@@ -90,7 +99,7 @@ export default function PhotoMosaic({ photos }: PhotoMosaicProps) {
                 aria-label={`Open details for ${photo.alt}`}
               >
                 <img
-                  src={photo.url}
+                  src={getMosaicTileUrl(photo)}
                   alt={photo.alt}
                   loading={eager ? "eager" : "lazy"}
                   fetchPriority={eager ? "high" : "auto"}

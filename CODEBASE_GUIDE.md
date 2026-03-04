@@ -96,8 +96,8 @@ This means every route is rendered inside the same visual shell by default.
 
 - `/` (`app/page.tsx`): hero content, single-line collapsible Spotify + Duolingo activity ribbon, dynamic “latest writing” card sourced from published posts, and a “now” card.
 - `/experience` (`app/experience/page.tsx`): static, resume-style sections (education, professional experience, projects, technical skills, activities) rendered as cards.
-- `/travel` (`app/travel/page.tsx`): server-rendered gallery route that hydrates a client-side gapless mosaic (`PhotoMosaic`) built from storage images plus metadata from `public.photos`; the mosaic now renders an initial top batch and appends additional photos as the user scrolls.
-- `/travel/quality-lab` (`app/travel/quality-lab/page.tsx`): visual tuning route that renders the same sampled photos side-by-side as `High (q90)`, `Super High (q95)`, and `Original` to compare sharpness versus payload strategy.
+- `/travel` (`app/travel/page.tsx`): server-rendered gallery route that hydrates a client-side gapless mosaic (`PhotoMosaic`) built from storage images plus metadata from `public.photos`; the mosaic renders an initial top batch, appends additional photos as the user scrolls, and serves width-only transformed tile images at roughly `q92` so aspect ratio is preserved without crop.
+- `/travel/quality-lab` (`app/travel/quality-lab/page.tsx`): visual tuning route that renders the same sampled photos side-by-side as `Preferred (q92)`, `Fallback (q90)`, and `Original` to compare sharpness versus payload strategy.
 - `/photography` (`app/photography/page.tsx`): legacy compatibility route that redirects to `/travel`.
 - `/writings` (`app/writings/page.tsx`): server component fetching published posts from Supabase via `lib/posts.ts`.
 - `/writings/[slug]` (`app/writings/[slug]/page.tsx`): server component fetching one published post by slug; returns `notFound()` if missing.
@@ -421,6 +421,9 @@ If env vars are missing, helpers safely return empty/null data rather than throw
 - `fetchPublicPhotos()`:
   - wraps `listPhotoCatalog(...)` using public env credentials for server components
   - returns data used by the public `/travel` route and `PhotoMosaic`
+- `buildPublicRenderUrl(originalUrl, { width, quality })`:
+  - converts a public object URL into a Supabase image render URL
+  - uses width-only resize + quality params so displayed tiles stay proportional to original capture aspect ratio
 
 ## 9) Editor details (`app/admin/AdminEditor.tsx`, `app/admin/PostEditorPage.tsx`)
 
@@ -638,7 +641,8 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 6. Dashboard loads editable photo cards via `GET /api/travel`; metadata saves use `PATCH /api/travel`; photo deletions use `DELETE /api/travel`.
 7. Storage and table policies re-validate editor permission on write operations.
 8. `/travel` reads merged storage + metadata rows via `lib/photos.ts`; `PhotoMosaic` mounts only the first batch of photos at first paint and appends the next batches via an intersection sentinel so network fetches happen progressively during scroll.
-9. Clicking a photo opens metadata in the modal with the original image URL.
+9. Mosaic tiles use width-only transformed URLs (`q92` target) to keep captured aspect ratios while reducing transfer/decode cost.
+10. Clicking a photo opens metadata in the modal with the original image URL.
 
 ## 16) File-by-file quick reference
 
@@ -646,7 +650,7 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 - `app/page.tsx`: landing content + shared one-line activity ribbon.
   - latest writing card is dynamically populated from most recent published post
 - `app/travel/page.tsx`: travel route shell that loads photo catalog and renders `PhotoMosaic`.
-- `app/travel/quality-lab/page.tsx`: side-by-side travel image quality comparison route for evaluating delivery settings against originals.
+- `app/travel/quality-lab/page.tsx`: side-by-side travel image quality comparison route for evaluating `q92`, `q90`, and original delivery against the same photos.
 - `app/photography/page.tsx`: legacy redirect shim from `/photography` to `/travel`.
 - `app/writings/page.tsx`: archive list page for published posts.
 - `app/writings/[slug]/page.tsx`: individual published post renderer + metadata.
@@ -666,10 +670,10 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 - `components/ThemeToggle.tsx`: client-side light/dark theme switcher in the site header (persists selection and respects system preference when no explicit selection exists).
 - `components/SiteFooter.tsx`: footer with dynamic copyright year and external links to LinkedIn, GitHub, and Instagram.
 - `components/SiteNav.tsx`: primary navigation (includes `/travel` link).
-- `components/PhotoMosaic.tsx`: gapless masonry renderer with progressive top-down batch loading (initial batch + scroll-triggered append), plus click-to-open metadata modal on `/travel`.
+- `components/PhotoMosaic.tsx`: gapless masonry renderer with progressive top-down batch loading, width-only `q92` transformed tile URLs (aspect ratio preserved), and click-to-open metadata modal on `/travel`.
 - `lib/posts.ts`: public content fetch functions.
   - used by home page and writings pages for published content lists/details
-- `lib/photos.ts`: merged photo catalog helper (storage objects + metadata table rows).
+- `lib/photos.ts`: merged photo catalog helper (storage objects + metadata table rows) plus public render URL builder for display-sized image variants.
 - `lib/spotify.ts`: Spotify token refresh, API fetches, and payload shaping.
 - `lib/requireEditor.ts`: reusable editor authorization check.
 - `lib/date.ts`: date formatting helper.

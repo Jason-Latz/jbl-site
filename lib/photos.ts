@@ -34,6 +34,40 @@ export function encodeStoragePath(path: string) {
   return path.split("/").map(encodeURIComponent).join("/");
 }
 
+type PublicRenderOptions = {
+  width: number;
+  quality?: number;
+};
+
+export function buildPublicRenderUrl(
+  originalUrl: string,
+  options: PublicRenderOptions
+) {
+  const width = Math.max(1, Math.round(options.width));
+  const quality =
+    typeof options.quality === "number"
+      ? Math.min(100, Math.max(1, Math.round(options.quality)))
+      : null;
+
+  let url: URL;
+  try {
+    url = new URL(originalUrl);
+  } catch {
+    return originalUrl;
+  }
+
+  url.pathname = url.pathname.replace(
+    "/storage/v1/object/public/",
+    "/storage/v1/render/image/public/"
+  );
+  url.searchParams.set("width", String(width));
+  if (quality !== null) {
+    url.searchParams.set("quality", String(quality));
+  }
+
+  return url.toString();
+}
+
 function deriveAltFromFileName(name: string) {
   const withoutExt = name.replace(/\.[^.]+$/, "");
   return withoutExt
