@@ -879,27 +879,16 @@ button.primary:disabled {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.55rem;
+  gap: 0.65rem;
   padding: 0 0.85rem 0.75rem;
 }
 
-.photo-zoom-label {
-  margin: 0;
-  font-size: 0.84rem;
-  color: var(--muted);
-}
-
-.photo-zoom-range-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  font-size: 0.78rem;
-  color: var(--muted);
-}
-
 .photo-zoom-slider {
-  width: min(260px, 58vw);
+  flex: 1 1 320px;
+  width: min(560px, 74vw);
+  min-width: 180px;
   accent-color: var(--accent);
+  touch-action: pan-y;
 }
 
 .photo-justified-shell {

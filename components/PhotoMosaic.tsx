@@ -53,6 +53,7 @@ const MIN_TILE_RENDER_WIDTH = 320;
 const MAX_TILE_RENDER_WIDTH = 2200;
 const TILE_RENDER_PIXEL_RATIO = 2;
 const TILE_RENDER_WIDTH_STEP = 96;
+const DEFAULT_ZOOM_DENSITY_MULTIPLIER = 2;
 
 function clamp(value: number, min: number, max: number) {
   if (!Number.isFinite(value)) {
@@ -296,7 +297,10 @@ export default function PhotoMosaic({ photos }: PhotoMosaicProps) {
   const effectiveWidth = containerWidth > 0 ? containerWidth : LAYOUT_WIDTH_FALLBACK;
   const baseRowHeight = getAdaptiveBaseRowHeight(effectiveWidth);
   const deferredZoomPercent = useDeferredValue(zoomPercent);
-  const targetRowHeight = baseRowHeight * (deferredZoomPercent / 100);
+  const targetRowHeight =
+    baseRowHeight *
+    (deferredZoomPercent / 100) *
+    DEFAULT_ZOOM_DENSITY_MULTIPLIER;
 
   const onZoomChange = useCallback((nextValue: number) => {
     const normalized = normalizeZoomPercent(nextValue);
@@ -422,21 +426,17 @@ export default function PhotoMosaic({ photos }: PhotoMosaicProps) {
     <>
       <div className="photo-stage section">
         <div className="photo-zoom-toolbar" role="group" aria-label="Travel mosaic zoom controls">
-          <p className="photo-zoom-label">Zoom: {zoomPercent}%</p>
-          <label className="photo-zoom-range-label" htmlFor="travel-zoom-range">
-            <span>25%</span>
-            <input
-              id="travel-zoom-range"
-              className="photo-zoom-slider"
-              type="range"
-              min={MIN_ZOOM_PERCENT}
-              max={MAX_ZOOM_PERCENT}
-              step={1}
-              value={zoomPercent}
-              onInput={(event) => onZoomChange(event.currentTarget.valueAsNumber)}
-            />
-            <span>200%</span>
-          </label>
+          <input
+            id="travel-zoom-range"
+            className="photo-zoom-slider"
+            aria-label="Travel mosaic zoom"
+            type="range"
+            min={MIN_ZOOM_PERCENT}
+            max={MAX_ZOOM_PERCENT}
+            step={1}
+            value={zoomPercent}
+            onInput={(event) => onZoomChange(event.currentTarget.valueAsNumber)}
+          />
           <button
             type="button"
             className="secondary"
