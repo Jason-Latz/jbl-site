@@ -42,7 +42,7 @@ app/
   admin/PostEditorPage.tsx # Client-side markdown editor + live preview
   admin/new/page.tsx       # Dedicated route for creating new posts
   admin/[id]/page.tsx      # Dedicated route for editing existing posts
-  api/spotify/live/route.ts # Spotify now-playing + stats API proxy
+  api/spotify/live/route.ts # Spotify now-playing + listening history API proxy
   api/travel/route.ts      # GET list, POST upload batch, PATCH metadata, DELETE photo (editor-only)
   api/photos/route.ts      # Legacy compatibility alias to /api/travel
   api/posts/route.ts       # GET all posts (editor-only), POST create post
@@ -120,7 +120,8 @@ The home page includes `components/SpotifyNowPlaying.tsx` and `components/Duolin
 4. Same-day listening metrics (play count, minutes listened, unique artists)
 5. Most recent playlist context resolved from active playback or recent playback history (no static library fallback)
 6. A nested "Last 10 listened" dropdown inside the expanded panel (album art, track name, artists)
-7. Last successful fetch timestamp and resilient stale-data messaging on errors
+7. A second nested "Top 5 artists this week" dropdown with listen counts
+8. Last successful fetch timestamp and resilient stale-data messaging on errors
 
 `app/api/spotify/live/route.ts` is server-side and uses `lib/spotify.ts` to:
 
@@ -128,7 +129,9 @@ The home page includes `components/SpotifyNowPlaying.tsx` and `components/Duolin
 2. Read `/me/player/currently-playing` and `/me/player/recently-played`
 3. Compute "today" metrics in `SPOTIFY_TIMEZONE` (default `America/Chicago`)
 4. Resolve recent playlist metadata via active playback context (`/playlists/:id`) or most-recent recent-playback context
-5. Return last-10 recently played tracks for the expandable history list
+5. Sync recent playback rows into `public.spotify_recent_tracks` (when `SUPABASE_SERVICE_ROLE_KEY` is configured)
+6. Query weekly top artists via `public.spotify_top_artists_last_days(...)`
+7. Return nested dropdown payloads for both `recentTracks` and `topArtistsThisWeek`
 
 `DuolingoStreak.tsx` polls `/api/duolingo/streak` every 60 seconds and renders:
 
@@ -209,6 +212,25 @@ Index: `photos_created_at_idx` on `created_at DESC`.
 
 Trigger: `set_updated_at` updates `updated_at` automatically before updates.
 
+#### `public.spotify_recent_tracks`
+- `played_at` (timestamp with time zone, part of PK)
+- `track_id` (text, part of PK)
+- `track_name` (required)
+- `artists` (JSONB array of `{ id, name, url }`)
+- `album_name` (optional)
+- `album_image_url` (optional)
+- `track_url` (optional)
+- `created_at`
+
+Indexes:
+- `spotify_recent_tracks_played_at_idx` on `played_at DESC` for weekly aggregations and retention pruning.
+
+Purpose:
+- Stores deduplicated recent Spotify plays for exact time-window aggregations (for example weekly top artists).
+
+SQL helper:
+- `public.spotify_top_artists_last_days(window_days, max_results)` returns ranked artist counts from `spotify_recent_tracks` for server-side weekly summaries.
+
 ### 5.2 Storage bucket (`storage.buckets` and `storage.objects`)
 
 The schema also manages a public Supabase Storage bucket:
@@ -246,6 +268,8 @@ Policies:
 - Photos metadata (`public.photos`):
   - anyone can `select` metadata rows
   - editor users can perform all operations (`for all`)
+- Spotify history (`public.spotify_recent_tracks`):
+  - no public policies; table is used by server-side service-role operations only
 - Storage (`storage.objects`, bucket = `photos`):
   - anyone can `select` objects in `photos`
   - editor users can `insert`/`update`/`delete` objects in `photos`
@@ -293,8 +317,10 @@ This is an app-level guard layered on top of RLS.
   - `today` (same-day stats in configured timezone)
   - `recentPlaylist` (playlist from active playback context or latest recent-playback context; otherwise `null`)
   - `recentTracks` (up to 10 most recently played tracks with album art, track, and artist list)
+  - `topArtistsThisWeek` (up to 5 artists ranked by play count in the last 7 days)
 - Route is forced dynamic (`dynamic = "force-dynamic"`, `revalidate = 0`) and responds with `Cache-Control: no-store`
 - On upstream Spotify failures it returns `502` with a diagnostic message
+- If `SUPABASE_SERVICE_ROLE_KEY` is unavailable, weekly top artists fall back to `/me/player/recently-played` window data (best-effort only)
 
 ### `GET /api/posts` (`app/api/posts/route.ts`)
 
@@ -510,17 +536,18 @@ Optional env vars:
 
 - `NEXT_PUBLIC_DUOLINGO_STREAK_ICON_DONE` (custom icon URL for "streak completed today")
 - `NEXT_PUBLIC_DUOLINGO_STREAK_ICON_PENDING` (custom icon URL for "streak not completed today")
+- `SUPABASE_SERVICE_ROLE_KEY` (server-only key used by `/api/spotify/live` to persist recent plays and compute exact weekly top artists; without it, weekly artist ranking falls back to recent-play window data only)
 
 Setup sequence:
 
 1. `npm install`
-2. Create `.env` (or `.env.local`) and populate Supabase vars + Spotify `CLIENT_ID`, `CLIENT_SECRET`, `REDIRECT_URI`, and `TIMEZONE`
+2. Create `.env` (or `.env.local`) and populate Supabase vars + Spotify `CLIENT_ID`, `CLIENT_SECRET`, `REDIRECT_URI`, and `TIMEZONE` (add `SUPABASE_SERVICE_ROLE_KEY` if you want exact weekly top-artist aggregation)
 3. Generate Spotify refresh token:
    - Run `npm run spotify:token` and open the printed Spotify authorize URL
    - Approve the requested scopes and copy the `code` query parameter from the redirect URL
    - Run `SPOTIFY_AUTH_CODE="<code>" npm run spotify:token` and copy the printed `SPOTIFY_REFRESH_TOKEN`
    - Add that token to `.env`
-4. Run SQL in `supabase/schema.sql`
+4. Run SQL in `supabase/schema.sql` (includes `spotify_recent_tracks` and `spotify_top_artists_last_days(...)`)
 5. Create Supabase auth user
 6. Ensure `jasonlatz0@gmail.com` has a `public.profiles` row with `is_editor = true`
 7. `npm run dev`
@@ -567,6 +594,11 @@ The following infrastructure work has already been completed in this repository 
 11. Applied and verified photo metadata table infrastructure on March 4, 2026 (America/Chicago):
    - `public.photos` table exists with `storage_path`, `location`, `description`, `song_title`, `song_url`
    - `photos_created_at_idx` exists and `update_photos_updated_at` trigger is active
+12. Applied and verified Spotify history aggregation infrastructure on March 4, 2026 (America/Chicago):
+   - `public.spotify_recent_tracks` table exists
+   - `spotify_recent_tracks_played_at_idx` exists
+   - `public.spotify_top_artists_last_days(window_days, max_results)` exists
+   - `public.spotify_recent_tracks` has RLS enabled with no public policies
 
 ### 12.2 Supabase connectivity notes for future agents
 
@@ -606,7 +638,8 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 6. Site metadata is generic placeholders (`Your Name`) and should be customized.
 7. Spotify "today" stats are approximate because `/me/player/recently-played` returns only the latest 50 tracks.
 8. Spotify now-playing and recent-play endpoints depend on account/app permissions and may return `502` via `/api/spotify/live` when OAuth scope or account constraints are not satisfied.
-9. Travel mosaic now supports metadata and admin-side delete actions, but ordering is still based on storage object creation time and there is no manual ordering UI yet.
+9. Weekly top artists become fully accurate only after `public.spotify_recent_tracks` has accumulated at least a week of play data; new deployments start with partial week history.
+10. Travel mosaic now supports metadata and admin-side delete actions, but ordering is still based on storage object creation time and there is no manual ordering UI yet.
 
 ## 15) End-to-end request flow examples
 
@@ -660,12 +693,12 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 - `app/admin/PostEditorPage.tsx`: markdown editor form, toolbar shortcuts, and editable single-pane markdown/visual toggle.
 - `app/admin/new/page.tsx`: dedicated create route wrapping `PostEditorPage`.
 - `app/admin/[id]/page.tsx`: dedicated edit route wrapping `PostEditorPage`.
-- `app/api/spotify/live/route.ts`: server route for Spotify now-playing, daily stats, playlist context, and last-10 listening history.
+- `app/api/spotify/live/route.ts`: server route for Spotify now-playing, daily stats, playlist context, last-10 listening history, and weekly top artists.
 - `app/api/travel/route.ts`: editor-only photo API (`GET` list, `POST` upload, `PATCH` metadata, `DELETE` photo).
 - `app/api/photos/route.ts`: legacy compatibility alias that re-exports `/api/travel` handlers.
 - `app/api/posts/route.ts`: list/create post APIs (editor-only).
 - `app/api/posts/[id]/route.ts`: fetch/update single post API (editor-only).
-- `components/SpotifyNowPlaying.tsx`: resilient polling UI for the Spotify home-page ribbon row (with long-track marquee behavior) + expandable detail panel.
+- `components/SpotifyNowPlaying.tsx`: resilient polling UI for the Spotify home-page ribbon row (with long-track marquee behavior) + expandable detail panel with nested recent-tracks and top-artists dropdowns.
 - `components/DuolingoStreak.tsx`: resilient polling UI for the Duolingo home-page ribbon row + expandable detail panel.
 - `components/ThemeToggle.tsx`: client-side light/dark theme switcher in the site header (persists selection and respects system preference when no explicit selection exists).
 - `components/SiteFooter.tsx`: footer with dynamic copyright year and external links to LinkedIn, GitHub, and Instagram.

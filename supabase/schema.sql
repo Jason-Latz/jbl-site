@@ -30,8 +30,21 @@ create table if not exists public.photos (
   updated_at timestamptz default now()
 );
 
+create table if not exists public.spotify_recent_tracks (
+  played_at timestamptz not null,
+  track_id text not null,
+  track_name text not null,
+  artists jsonb not null default '[]'::jsonb,
+  album_name text,
+  album_image_url text,
+  track_url text,
+  created_at timestamptz default now(),
+  primary key (played_at, track_id)
+);
+
 create index if not exists posts_published_at_idx on public.posts (published_at desc);
 create index if not exists photos_created_at_idx on public.photos (created_at desc);
+create index if not exists spotify_recent_tracks_played_at_idx on public.spotify_recent_tracks (played_at desc);
 
 create or replace function public.set_updated_at()
 returns trigger as $$
@@ -49,6 +62,40 @@ as $$
   select lower(coalesce(auth.jwt() ->> 'email', '')) = 'jasonlatz0@gmail.com';
 $$;
 
+create or replace function public.spotify_top_artists_last_days(
+  window_days integer default 7,
+  max_results integer default 5
+)
+returns table (
+  artist_name text,
+  spotify_artist_id text,
+  play_count bigint,
+  artist_last_played_at timestamptz
+)
+language sql
+stable
+as $$
+  with artist_events as (
+    select
+      nullif(artist ->> 'name', '') as artist_name,
+      nullif(artist ->> 'id', '') as spotify_artist_id,
+      played_at
+    from public.spotify_recent_tracks
+    cross join lateral jsonb_array_elements(artists) as artist
+    where played_at >= now() - make_interval(days => greatest(window_days, 1))
+  )
+  select
+    artist_name,
+    spotify_artist_id,
+    count(*)::bigint as play_count,
+    max(played_at) as artist_last_played_at
+  from artist_events
+  where artist_name is not null
+  group by artist_name, spotify_artist_id
+  order by play_count desc, artist_last_played_at desc, artist_name asc
+  limit greatest(max_results, 1);
+$$;
+
 drop trigger if exists update_posts_updated_at on public.posts;
 create trigger update_posts_updated_at
 before update on public.posts
@@ -62,6 +109,7 @@ for each row execute procedure public.set_updated_at();
 alter table public.profiles enable row level security;
 alter table public.posts enable row level security;
 alter table public.photos enable row level security;
+alter table public.spotify_recent_tracks enable row level security;
 
 drop policy if exists "Profiles are viewable by owner" on public.profiles;
 create policy "Profiles are viewable by owner"

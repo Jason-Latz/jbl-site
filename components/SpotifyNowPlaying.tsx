@@ -37,6 +37,13 @@ type SpotifyRecentTrackPayload = {
   albumImageUrl: string | null;
 };
 
+type SpotifyTopArtistPayload = {
+  name: string;
+  artistUrl: string | null;
+  imageUrl: string | null;
+  playCount: number;
+};
+
 type SpotifyLiveResponse = {
   fetchedAt: string;
   isPlaying: boolean;
@@ -44,6 +51,7 @@ type SpotifyLiveResponse = {
   today: SpotifyTodayStatsPayload;
   recentPlaylist: SpotifyPlaylistPayload | null;
   recentTracks: SpotifyRecentTrackPayload[];
+  topArtistsThisWeek: SpotifyTopArtistPayload[];
 };
 
 const STORAGE_KEY = "spotify-live-cache-v1";
@@ -120,7 +128,8 @@ function isSpotifyLiveResponse(payload: unknown): payload is SpotifyLiveResponse
     typeof candidate.today?.playCount === "number" &&
     typeof candidate.today?.uniqueArtists === "number" &&
     typeof candidate.today?.minutesListened === "number" &&
-    Array.isArray(candidate.recentTracks)
+    Array.isArray(candidate.recentTracks) &&
+    Array.isArray(candidate.topArtistsThisWeek)
   );
 }
 
@@ -478,6 +487,52 @@ export default function SpotifyNowPlaying() {
                     </li>
                   ))}
                 </ul>
+              </details>
+            ) : null}
+
+            {data?.topArtistsThisWeek.length ? (
+              <details className="spotify-history-panel">
+                <summary className="spotify-history-summary">
+                  <p className="spotify-history-title">Top 5 artists this week</p>
+                  <span className="spotify-history-caret" aria-hidden="true" />
+                </summary>
+                <ol className="spotify-history-list">
+                  {data.topArtistsThisWeek.map((artist, index) => (
+                    <li
+                      key={`${artist.artistUrl ?? artist.name}-${index}`}
+                      className="spotify-history-item"
+                    >
+                      {artist.imageUrl ? (
+                        <img
+                          className="spotify-history-artwork"
+                          src={artist.imageUrl}
+                          alt={`Artist photo for ${artist.name}`}
+                          loading="lazy"
+                          decoding="async"
+                        />
+                      ) : (
+                        <span
+                          className="spotify-history-artwork spotify-history-artwork-placeholder"
+                          aria-hidden="true"
+                        />
+                      )}
+                      <div className="spotify-history-copy">
+                        <p className="spotify-history-track">
+                          {artist.artistUrl ? (
+                            <a href={artist.artistUrl} target="_blank" rel="noreferrer">
+                              {artist.name}
+                            </a>
+                          ) : (
+                            artist.name
+                          )}
+                        </p>
+                        <p className="spotify-meta">
+                          #{index + 1} • {artist.playCount} plays
+                        </p>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
               </details>
             ) : null}
 

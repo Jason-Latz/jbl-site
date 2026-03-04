@@ -1,3 +1,5 @@
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+
 type SpotifyTokenResponse = {
   access_token?: string;
   expires_in?: number;
@@ -8,10 +10,15 @@ type SpotifyImage = {
 };
 
 type SpotifyArtist = {
+  id?: string;
   name?: string;
+  external_urls?: {
+    spotify?: string;
+  };
 };
 
 type SpotifyTrack = {
+  id?: string;
   name?: string;
   duration_ms?: number;
   external_urls?: {
@@ -57,6 +64,17 @@ type SpotifyPlaylistResponse = {
   };
 };
 
+type SpotifyArtistsResponse = {
+  artists?: Array<{
+    id?: string;
+    name?: string;
+    images?: SpotifyImage[];
+    external_urls?: {
+      spotify?: string;
+    };
+  }>;
+};
+
 type SpotifyPlaylistSource =
   | "current-playback"
   | "recent-playback-context";
@@ -96,6 +114,13 @@ export type SpotifyRecentTrack = {
   albumImageUrl: string | null;
 };
 
+export type SpotifyTopArtist = {
+  name: string;
+  artistUrl: string | null;
+  imageUrl: string | null;
+  playCount: number;
+};
+
 export type SpotifyLivePayload = {
   fetchedAt: string;
   isPlaying: boolean;
@@ -103,13 +128,50 @@ export type SpotifyLivePayload = {
   today: SpotifyTodayStats;
   recentPlaylist: SpotifyPlaylist | null;
   recentTracks: SpotifyRecentTrack[];
+  topArtistsThisWeek: SpotifyTopArtist[];
 };
 
 const SPOTIFY_API_BASE_URL = "https://api.spotify.com/v1";
 const SPOTIFY_TOKEN_URL = "https://accounts.spotify.com/api/token";
 const ACCESS_TOKEN_BUFFER_MS = 30_000;
+const TOP_ARTISTS_WINDOW_DAYS = 7;
+const TOP_ARTISTS_LIMIT = 5;
+const SPOTIFY_HISTORY_RETENTION_DAYS = 120;
 
 let cachedAccessToken: { value: string; expiresAt: number } | null = null;
+let cachedSupabaseServiceClient: SupabaseClient | null | undefined;
+
+type StoredSpotifyArtist = {
+  id: string | null;
+  name: string;
+  url: string | null;
+};
+
+type SpotifyStoredTrackRow = {
+  played_at: string;
+  track_id: string;
+  track_name: string;
+  album_name: string | null;
+  album_image_url: string | null;
+  track_url: string | null;
+  artists: StoredSpotifyArtist[];
+};
+
+type SpotifyTopArtistCandidate = {
+  artistId: string | null;
+  name: string;
+  artistUrl: string | null;
+  imageUrl: string | null;
+  playCount: number;
+  lastPlayedMs: number;
+};
+
+type SpotifyTopArtistRow = {
+  artist_name?: string | null;
+  spotify_artist_id?: string | null;
+  play_count?: number | string | null;
+  artist_last_played_at?: string | null;
+};
 
 function getRequiredEnv(name: string) {
   const value = process.env[name]?.trim();
@@ -117,6 +179,33 @@ function getRequiredEnv(name: string) {
     throw new Error(`Missing ${name}.`);
   }
   return value;
+}
+
+function getOptionalEnv(name: string) {
+  const value = process.env[name]?.trim();
+  return value ? value : null;
+}
+
+function getSupabaseServiceClient() {
+  if (cachedSupabaseServiceClient !== undefined) {
+    return cachedSupabaseServiceClient;
+  }
+
+  const supabaseUrl = getOptionalEnv("NEXT_PUBLIC_SUPABASE_URL");
+  const serviceRoleKey = getOptionalEnv("SUPABASE_SERVICE_ROLE_KEY");
+  if (!supabaseUrl || !serviceRoleKey) {
+    cachedSupabaseServiceClient = null;
+    return null;
+  }
+
+  cachedSupabaseServiceClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  });
+
+  return cachedSupabaseServiceClient;
 }
 
 function getDateKey(date: Date, timeZone: string) {
@@ -148,6 +237,44 @@ function getPlaylistIdFromUri(uri: string | undefined) {
   }
 
   return match[1] ?? null;
+}
+
+function getTrackId(track: SpotifyTrack | undefined) {
+  if (track?.id && typeof track.id === "string") {
+    return track.id;
+  }
+
+  const url = track?.external_urls?.spotify;
+  if (!url) {
+    return null;
+  }
+
+  const match = url.match(/\/track\/([A-Za-z0-9]+)/);
+  return match?.[1] ?? null;
+}
+
+function normalizeArtists(artists: SpotifyArtist[] | undefined): StoredSpotifyArtist[] {
+  const normalizedArtists: StoredSpotifyArtist[] = [];
+
+  for (const artist of artists ?? []) {
+    const name =
+      typeof artist.name === "string" && artist.name.length > 0
+        ? artist.name
+        : null;
+
+    if (!name) {
+      continue;
+    }
+
+    normalizedArtists.push({
+      id:
+        typeof artist.id === "string" && artist.id.length > 0 ? artist.id : null,
+      name,
+      url: artist.external_urls?.spotify ?? null
+    });
+  }
+
+  return normalizedArtists;
 }
 
 async function fetchAccessToken() {
@@ -248,6 +375,21 @@ function mapArtists(artists: SpotifyArtist[] | undefined): string[] {
   );
 }
 
+function parsePlayCount(value: number | string | null | undefined) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return 0;
+}
+
 function mapNowPlaying(item: SpotifyTrack | null | undefined): SpotifyNowPlaying | null {
   if (!item?.name || typeof item.name !== "string") {
     return null;
@@ -294,6 +436,262 @@ function mapRecentTracks(
   }
 
   return tracks;
+}
+
+function mapTracksForStorage(recentlyPlayed: SpotifyRecentlyPlayedItem[]) {
+  const rows: SpotifyStoredTrackRow[] = [];
+
+  for (const item of recentlyPlayed) {
+    if (!item.played_at || !item.track?.name) {
+      continue;
+    }
+
+    const playedAtDate = new Date(item.played_at);
+    if (Number.isNaN(playedAtDate.getTime())) {
+      continue;
+    }
+
+    const trackId = getTrackId(item.track);
+    if (!trackId) {
+      continue;
+    }
+
+    rows.push({
+      played_at: item.played_at,
+      track_id: trackId,
+      track_name: item.track.name,
+      album_name: item.track.album?.name ?? null,
+      album_image_url: getImageUrl(item.track.album?.images),
+      track_url: item.track.external_urls?.spotify ?? null,
+      artists: normalizeArtists(item.track.artists)
+    });
+  }
+
+  return rows;
+}
+
+function buildTopArtistCandidatesFromRecentTracks(
+  recentlyPlayed: SpotifyRecentlyPlayedItem[],
+  windowDays: number,
+  limit: number
+) {
+  const cutoffMs = Date.now() - windowDays * 24 * 60 * 60 * 1000;
+  const entries = new Map<string, SpotifyTopArtistCandidate>();
+
+  for (const item of recentlyPlayed) {
+    if (!item.played_at) {
+      continue;
+    }
+
+    const playedAtDate = new Date(item.played_at);
+    if (Number.isNaN(playedAtDate.getTime()) || playedAtDate.getTime() < cutoffMs) {
+      continue;
+    }
+
+    const artists = normalizeArtists(item.track?.artists);
+    for (const artist of artists) {
+      const key = artist.id ?? `name:${artist.name.toLowerCase()}`;
+      const existing = entries.get(key);
+
+      if (existing) {
+        existing.playCount += 1;
+        if (playedAtDate.getTime() > existing.lastPlayedMs) {
+          existing.lastPlayedMs = playedAtDate.getTime();
+        }
+        continue;
+      }
+
+      entries.set(key, {
+        artistId: artist.id,
+        name: artist.name,
+        artistUrl: artist.url,
+        imageUrl: null,
+        playCount: 1,
+        lastPlayedMs: playedAtDate.getTime()
+      });
+    }
+  }
+
+  return [...entries.values()]
+    .sort((left, right) => {
+      if (right.playCount !== left.playCount) {
+        return right.playCount - left.playCount;
+      }
+
+      if (right.lastPlayedMs !== left.lastPlayedMs) {
+        return right.lastPlayedMs - left.lastPlayedMs;
+      }
+
+      return left.name.localeCompare(right.name);
+    })
+    .slice(0, limit);
+}
+
+async function syncSpotifyRecentTracks(recentlyPlayed: SpotifyRecentlyPlayedItem[]) {
+  const supabase = getSupabaseServiceClient();
+  if (!supabase) {
+    return false;
+  }
+
+  const rows = mapTracksForStorage(recentlyPlayed);
+  if (rows.length === 0) {
+    return true;
+  }
+
+  const { error: upsertError } = await supabase
+    .from("spotify_recent_tracks")
+    .upsert(rows, { onConflict: "played_at,track_id" });
+
+  if (upsertError) {
+    console.error("[Spotify] Failed to sync recent tracks to Supabase.", {
+      error: upsertError.message
+    });
+    return false;
+  }
+
+  const retentionCutoff = new Date(
+    Date.now() - SPOTIFY_HISTORY_RETENTION_DAYS * 24 * 60 * 60 * 1000
+  ).toISOString();
+
+  const { error: cleanupError } = await supabase
+    .from("spotify_recent_tracks")
+    .delete()
+    .lt("played_at", retentionCutoff);
+
+  if (cleanupError) {
+    console.error("[Spotify] Failed to prune old Spotify history.", {
+      error: cleanupError.message
+    });
+  }
+
+  return true;
+}
+
+async function fetchWeeklyTopArtistCandidatesFromSupabase(limit: number) {
+  const supabase = getSupabaseServiceClient();
+  if (!supabase) {
+    return [];
+  }
+
+  const { data, error } = await supabase.rpc("spotify_top_artists_last_days", {
+    window_days: TOP_ARTISTS_WINDOW_DAYS,
+    max_results: limit
+  });
+
+  if (error) {
+    console.error("[Spotify] Failed to query weekly top artists.", {
+      error: error.message
+    });
+    return [];
+  }
+
+  const rows = (data ?? []) as SpotifyTopArtistRow[];
+  const candidates: SpotifyTopArtistCandidate[] = [];
+
+  for (const row of rows) {
+    const name =
+      typeof row.artist_name === "string" && row.artist_name.length > 0
+        ? row.artist_name
+        : null;
+
+    if (!name) {
+      continue;
+    }
+
+    const playedAtValue = row.artist_last_played_at;
+    const lastPlayedMs =
+      typeof playedAtValue === "string"
+        ? new Date(playedAtValue).getTime()
+        : Number.NaN;
+
+    candidates.push({
+      artistId:
+        typeof row.spotify_artist_id === "string" &&
+        row.spotify_artist_id.length > 0
+          ? row.spotify_artist_id
+          : null,
+      name,
+      artistUrl: null,
+      imageUrl: null,
+      playCount: parsePlayCount(row.play_count),
+      lastPlayedMs: Number.isNaN(lastPlayedMs) ? 0 : lastPlayedMs
+    });
+  }
+
+  return candidates;
+}
+
+async function fetchArtistMetadataByIds(artistIds: string[]) {
+  const uniqueIds = [...new Set(artistIds)].filter((id) => id.length > 0);
+  if (uniqueIds.length === 0) {
+    return new Map<string, { name: string; artistUrl: string | null; imageUrl: string | null }>();
+  }
+
+  const response = await spotifyRequest(`/artists?ids=${uniqueIds.slice(0, 50).join(",")}`);
+  if (!response.ok) {
+    return new Map();
+  }
+
+  const payload = (await response.json()) as SpotifyArtistsResponse;
+  const artistMetadataById = new Map<
+    string,
+    { name: string; artistUrl: string | null; imageUrl: string | null }
+  >();
+
+  for (const artist of payload.artists ?? []) {
+    if (!artist?.id || !artist.name) {
+      continue;
+    }
+
+    artistMetadataById.set(artist.id, {
+      name: artist.name,
+      artistUrl: artist.external_urls?.spotify ?? null,
+      imageUrl: getImageUrl(artist.images)
+    });
+  }
+
+  return artistMetadataById;
+}
+
+async function toTopArtists(candidates: SpotifyTopArtistCandidate[]) {
+  const artistIds = candidates
+    .map((candidate) => candidate.artistId)
+    .filter((artistId): artistId is string => typeof artistId === "string");
+
+  const metadataById = await fetchArtistMetadataByIds(artistIds);
+
+  return candidates.map((candidate) => {
+    const metadata =
+      candidate.artistId ? metadataById.get(candidate.artistId) : undefined;
+
+    return {
+      name: metadata?.name ?? candidate.name,
+      artistUrl: metadata?.artistUrl ?? candidate.artistUrl ?? null,
+      imageUrl: metadata?.imageUrl ?? candidate.imageUrl ?? null,
+      playCount: candidate.playCount
+    };
+  });
+}
+
+async function resolveTopArtistsThisWeek(recentlyPlayed: SpotifyRecentlyPlayedItem[]) {
+  const didSyncSupabase = await syncSpotifyRecentTracks(recentlyPlayed);
+  if (didSyncSupabase) {
+    const topArtistsFromSupabase = await fetchWeeklyTopArtistCandidatesFromSupabase(
+      TOP_ARTISTS_LIMIT
+    );
+
+    if (topArtistsFromSupabase.length > 0) {
+      return toTopArtists(topArtistsFromSupabase);
+    }
+  }
+
+  const fallbackCandidates = buildTopArtistCandidatesFromRecentTracks(
+    recentlyPlayed,
+    TOP_ARTISTS_WINDOW_DAYS,
+    TOP_ARTISTS_LIMIT
+  );
+
+  return toTopArtists(fallbackCandidates);
 }
 
 async function fetchCurrentlyPlaying() {
@@ -438,6 +836,7 @@ export async function fetchSpotifyLivePayload(): Promise<SpotifyLivePayload> {
   const recentPlaylist = await resolveRecentPlaylist(currentPlayback, recentlyPlayed);
   const nowPlaying = mapNowPlaying(currentPlayback?.item);
   const recentTracks = mapRecentTracks(recentlyPlayed, 10);
+  const topArtistsThisWeek = await resolveTopArtistsThisWeek(recentlyPlayed);
 
   if (nowPlaying && typeof currentPlayback?.progress_ms === "number") {
     nowPlaying.progressMs = currentPlayback.progress_ms;
@@ -449,6 +848,7 @@ export async function fetchSpotifyLivePayload(): Promise<SpotifyLivePayload> {
     nowPlaying,
     today: buildTodayStats(recentlyPlayed, timeZone),
     recentPlaylist,
-    recentTracks
+    recentTracks,
+    topArtistsThisWeek
   };
 }
