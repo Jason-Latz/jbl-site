@@ -3,6 +3,8 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { requireEditor } from "@/lib/requireEditor";
 
+const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
 export async function PATCH(
   request: Request,
   { params }: { params: { id: string } }
@@ -17,9 +19,15 @@ export async function PATCH(
     );
   }
 
-  const payload = await request.json();
-  const title = payload?.title?.trim();
-  const slug = payload?.slug?.trim();
+  let payload: Record<string, unknown>;
+  try {
+    payload = (await request.json()) as Record<string, unknown>;
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
+  }
+
+  const title = typeof payload.title === "string" ? payload.title.trim() : "";
+  const slug = typeof payload.slug === "string" ? payload.slug.trim() : "";
 
   if (!title || !slug) {
     return NextResponse.json(
@@ -28,16 +36,29 @@ export async function PATCH(
     );
   }
 
-  const published = Boolean(payload?.published);
+  if (!SLUG_PATTERN.test(slug)) {
+    return NextResponse.json(
+      {
+        error:
+          "Slug must use lowercase letters, numbers, and single hyphens only."
+      },
+      { status: 400 }
+    );
+  }
+
+  const published = Boolean(payload.published);
   const now = new Date().toISOString();
+  const excerpt =
+    typeof payload.excerpt === "string" ? payload.excerpt.trim() || null : null;
+  const content = typeof payload.content === "string" ? payload.content : null;
 
   const { data, error } = await supabase
     .from("posts")
     .update({
       title,
       slug,
-      excerpt: payload?.excerpt ?? null,
-      content: payload?.content ?? null,
+      excerpt,
+      content,
       published,
       published_at: published ? now : null
     })
@@ -46,6 +67,17 @@ export async function PATCH(
     .single();
 
   if (error) {
+    if (error.code === "PGRST116") {
+      return NextResponse.json({ error: "Post not found." }, { status: 404 });
+    }
+
+    if (error.code === "23505") {
+      return NextResponse.json(
+        { error: "A post with this slug already exists." },
+        { status: 409 }
+      );
+    }
+
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 

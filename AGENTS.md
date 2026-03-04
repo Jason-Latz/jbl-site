@@ -67,3 +67,11 @@ Err on the side of more commits, not fewer.
 2. Keep commits modular so each commit has one clear purpose.
 3. Use explicit commit messages that describe exactly what changed and why.
 4. Avoid bundling unrelated changes into one commit.
+
+## 9) Jason Preference: Simplicity with Reliability
+
+When choosing between solutions:
+
+1. Prefer the simplest implementation that keeps core user flows working reliably.
+2. Prioritize fixes for user-facing breakage or confusing behavior before adding theoretical hardening.
+3. If a risk is low-probability and editor-only, it may be deferred when documented clearly.

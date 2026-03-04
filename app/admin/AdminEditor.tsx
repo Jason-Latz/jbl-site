@@ -62,7 +62,7 @@ export default function AdminEditor() {
     if (editorContent !== content) {
       editor.commands.setContent(content || "");
     }
-  }, [editor, activePostId]);
+  }, [editor, activePostId, content]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {

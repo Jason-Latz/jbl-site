@@ -175,20 +175,30 @@ This is an app-level guard layered on top of RLS.
 
 - Requires editor role
 - Validates `title` and `slug`
+- Requires slug format: lowercase letters, numbers, and single hyphens (`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
 - Inserts post with provided fields
 - Sets `published_at` to now if `published === true`, else `null`
+- Returns:
+  - `400` for invalid JSON, missing required fields, or invalid slug format
+  - `409` when slug uniqueness is violated
+  - `500` for unexpected database/server errors
 
 ### `PATCH /api/posts/:id` (`app/api/posts/[id]/route.ts`)
 
 - Requires editor role
 - Same validation as POST
 - Updates post fields and publication timestamp
+- Returns:
+  - `400` for invalid JSON, missing required fields, or invalid slug format
+  - `404` if the target post id does not exist
+  - `409` when slug uniqueness is violated
+  - `500` for unexpected database/server errors
 
 Important current behavior:
 
 - If an already-published post is edited while still published, `published_at` is reset to “now”.
 - There is no DELETE route currently.
-- API does not do server-side slug normalization; UI generates slugs but API trusts input.
+- API validates slug shape server-side but does not normalize malformed values into a canonical slug.
 
 ## 8) Public data-fetching helpers (`lib/posts.ts`)
 
@@ -235,11 +245,12 @@ When typing title:
 
 - slug auto-updates until user manually edits slug (`slugEdited` flag)
 - after manual edit, title no longer overrides slug
+- API routes still enforce slug format server-side, so invalid manual slugs are rejected with `400`
 
 ### 9.3 TipTap syncing
 
 TipTap is initialized with current `content`.
-There is a synchronization effect that resets editor content when active post changes.
+There is a synchronization effect keyed to `activePostId` and `content`, so reset/edit actions keep visible editor content aligned with React state.
 
 This avoids stale editor text when switching between posts/drafts.
 
