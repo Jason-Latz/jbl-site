@@ -97,6 +97,7 @@ When the working tree shows unrelated modifications:
 2. Surface direct conflicts clearly once, then proceed based on Jason's instruction.
 3. Ignore unrelated files by default and do not stage or commit them unless Jason explicitly asks.
 4. When committing, include only files changed for the current request.
+5. Do not pause to ask about unrelated local edits; treat concurrent edits across chats as normal in this project and continue unless there is a direct same-region conflict.
 
 ## 12) Jason Preference: Editor Access Must Stay Owner-Only
 
@@ -162,3 +163,18 @@ For the public travel gallery and admin photo workflow:
 2. Clicking a photo on `/travel` should show user-entered metadata: location, description, and optional song link.
 3. Keep that metadata editable in `/admin` so gallery details can be updated without CLI or SQL work.
 4. For travel gallery performance tuning, preserve visual quality first; prefer progressive/top-down loading deferral before reducing image quality.
+
+## 20) Jason Preference: Spotify History Must Reflect Real Playback
+
+For Spotify activity behavior on `/`:
+
+1. Do not use static library playlist fallbacks as a stand-in for "recent playlist."
+2. Prefer playback-context or recently-played context only when labeling recent listening context.
+3. Keep an expandable "last listened" history list sourced from actual recently played tracks (target: latest 10).
+
+## 21) Jason Preference: Dark Mode Should Stay Warm
+
+For site-wide dark theme styling:
+
+1. Prefer warm, earthy dark palettes over cool blue-gray tones.
+2. Keep dark surfaces, borders, accents, and focus states visually warm while preserving readability and contrast.
