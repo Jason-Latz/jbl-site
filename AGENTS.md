@@ -69,6 +69,7 @@ Err on the side of more commits, not fewer.
 3. Use explicit commit messages that describe exactly what changed and why.
 4. Avoid bundling unrelated changes into one commit.
 5. Keep `AGENTS.md` updates in their own commit, separate from `CODEBASE_GUIDE.md` and code changes.
+6. Run git staging/commit commands sequentially (not in parallel) to avoid `.git/index.lock` conflicts.
 
 ## 9) Jason Preference: Simplicity with Reliability
 
@@ -160,3 +161,4 @@ For the public photography and admin photo workflow:
 1. Keep the public photography mosaic gapless (no spacing/gutters between photos).
 2. Clicking a photo on `/photography` should show user-entered metadata: location, description, and optional song link.
 3. Keep that metadata editable in `/admin` so gallery details can be updated without CLI or SQL work.
+4. For photography performance tuning, preserve visual quality first; prefer progressive/top-down loading deferral before reducing image quality.
