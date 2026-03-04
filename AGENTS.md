@@ -75,3 +75,26 @@ When choosing between solutions:
 1. Prefer the simplest implementation that keeps core user flows working reliably.
 2. Prioritize fixes for user-facing breakage or confusing behavior before adding theoretical hardening.
 3. If a risk is low-probability and editor-only, it may be deferred when documented clearly.
+
+## 10) Jason Preference: Keep AGENTS.md Lean
+
+For AGENTS maintenance:
+
+1. Record only durable, cross-task preferences and learnings.
+2. Do not add one-off content values (for example single URL/handle tweaks) unless they affect security, access control, or recurring workflow.
+3. Prefer keeping implementation-specific facts in code or `CODEBASE_GUIDE.md` instead of expanding AGENTS.md.
+
+## 11) Jason Preference: Work Through Unrelated Diffs
+
+When the working tree shows unrelated modifications:
+
+1. Continue with the current task unless there is a direct conflict in the same files/regions being edited.
+2. Surface direct conflicts clearly once, then proceed based on Jason's instruction.
+
+## 12) Jason Preference: Editor Access Must Stay Owner-Only
+
+For admin/editor permissions:
+
+1. Default to owner-only editing for `jasonlatz0@gmail.com` unless Jason explicitly asks to broaden access.
+2. Do not rely only on UI gating; enforce this in Supabase policies and app-level route/API checks.
+3. If changing auth or profile policies, verify non-owner users cannot self-promote to `is_editor = true`.
