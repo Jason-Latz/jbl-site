@@ -421,6 +421,38 @@ button.primary:disabled {
   font-weight: 600;
 }
 
+.photo-upload-panel {
+  max-width: 640px;
+}
+
+.photography-section {
+  width: 100%;
+}
+
+.photo-stage {
+  margin-left: calc(50% - 50vw + 1.5rem);
+  margin-right: calc(50% - 50vw + 1.5rem);
+}
+
+.photo-masonry {
+  columns: 1;
+  column-gap: 0.8rem;
+}
+
+.photo-tile {
+  margin: 0 0 0.8rem;
+  break-inside: avoid;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #eee7de;
+}
+
+.photo-tile img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
 .content {
   max-width: 720px;
 }
@@ -522,6 +554,39 @@ button.primary:disabled {
   .post-row {
     flex-direction: column;
     align-items: flex-start;
+  }
+}
+
+@media (min-width: 640px) {
+  .photo-masonry {
+    columns: 2;
+    column-gap: 1rem;
+  }
+
+  .photo-tile {
+    margin-bottom: 1rem;
+  }
+}
+
+@media (min-width: 980px) {
+  .photo-masonry {
+    columns: 3;
+  }
+}
+
+@media (min-width: 1320px) {
+  .photo-stage {
+    margin-left: calc(50% - 50vw + 2rem);
+    margin-right: calc(50% - 50vw + 2rem);
+  }
+
+  .photo-masonry {
+    columns: 4;
+    column-gap: 1.1rem;
+  }
+
+  .photo-tile {
+    margin-bottom: 1.1rem;
   }
 }
 

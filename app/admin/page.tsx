@@ -25,8 +25,10 @@ export default async function AdminPage() {
 
   return (
     <section className="section">
-      <h1>Writing admin</h1>
-      <p className="post-meta">Create, edit, and publish your articles.</p>
+      <h1>Content admin</h1>
+      <p className="post-meta">
+        Create and publish articles, then upload photography for the mosaic page.
+      </p>
       <AdminEditor />
     </section>
   );

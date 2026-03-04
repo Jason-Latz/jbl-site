@@ -4,7 +4,8 @@ import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import type { Session } from "@supabase/supabase-js";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { ChangeEvent } from "react";
 
 type Post = {
   id: string;
@@ -16,6 +17,13 @@ type Post = {
   published_at: string | null;
   created_at: string;
   updated_at: string | null;
+};
+
+type PhotoUploadResponse = {
+  error?: string;
+  uploadedCount?: number;
+  failedCount?: number;
+  failed?: { name: string; reason: string }[];
 };
 
 function formatPostDate(value: string | null) {
@@ -46,6 +54,11 @@ export default function AdminEditor() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(false);
   const [postsError, setPostsError] = useState("");
+  const [selectedPhotos, setSelectedPhotos] = useState<File[]>([]);
+  const [photoUploadMessage, setPhotoUploadMessage] = useState("");
+  const [photoUploadError, setPhotoUploadError] = useState("");
+  const [uploadingPhotos, setUploadingPhotos] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -121,6 +134,70 @@ export default function AdminEditor() {
     await supabase.auth.signOut();
     setPosts([]);
     setPostsError("");
+    setSelectedPhotos([]);
+    setPhotoUploadError("");
+    setPhotoUploadMessage("");
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const handlePhotoSelect = (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []);
+    setSelectedPhotos(files);
+    setPhotoUploadError("");
+    setPhotoUploadMessage("");
+  };
+
+  const handlePhotoUpload = async () => {
+    if (selectedPhotos.length === 0 || uploadingPhotos) {
+      return;
+    }
+
+    setUploadingPhotos(true);
+    setPhotoUploadError("");
+    setPhotoUploadMessage("");
+
+    const formData = new FormData();
+    selectedPhotos.forEach((file) => {
+      formData.append("files", file);
+    });
+
+    try {
+      const response = await fetch("/api/photos", {
+        method: "POST",
+        body: formData
+      });
+
+      const data = (await response.json()) as PhotoUploadResponse;
+
+      if (!response.ok) {
+        setPhotoUploadError(data.error ?? "Unable to upload photos.");
+        return;
+      }
+
+      const uploadedCount = data.uploadedCount ?? 0;
+      const failedCount = data.failedCount ?? 0;
+      const failedNames = (data.failed ?? [])
+        .slice(0, 5)
+        .map((item) => item.name)
+        .join(", ");
+
+      let summary = `Uploaded ${uploadedCount} photo${uploadedCount === 1 ? "" : "s"}.`;
+      if (failedCount > 0) {
+        summary += ` ${failedCount} failed${failedNames ? ` (${failedNames})` : ""}.`;
+      }
+
+      setPhotoUploadMessage(summary);
+      setSelectedPhotos([]);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    } catch {
+      setPhotoUploadError("Unable to upload photos.");
+    } finally {
+      setUploadingPhotos(false);
+    }
   };
 
   if (!session) {
@@ -154,6 +231,9 @@ export default function AdminEditor() {
       <div className="editor-toolbar">
         <Link className="secondary" href="/admin/new">
           New article
+        </Link>
+        <Link className="secondary" href="/photography" target="_blank">
+          View photography page
         </Link>
         <button className="secondary" onClick={handleSignOut}>
           Sign out
@@ -200,6 +280,44 @@ export default function AdminEditor() {
         {posts.length === 0 && !loadingPosts && !postsError && (
           <p className="post-meta">No posts yet.</p>
         )}
+      </div>
+
+      <div className="section">
+        <h3>Photography uploads</h3>
+        <p className="post-meta">
+          Select multiple images and upload them in one batch. They will appear on
+          the photography page automatically.
+        </p>
+        <div className="card photo-upload-panel">
+          <div className="form-grid">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handlePhotoSelect}
+              disabled={uploadingPhotos}
+            />
+            <div className="editor-toolbar">
+              <button
+                className="primary"
+                onClick={handlePhotoUpload}
+                disabled={uploadingPhotos || selectedPhotos.length === 0}
+              >
+                {uploadingPhotos
+                  ? "Uploading..."
+                  : `Upload ${
+                      selectedPhotos.length > 0 ? selectedPhotos.length : ""
+                    } photo${selectedPhotos.length === 1 ? "" : "s"}`}
+              </button>
+            </div>
+            <p className="post-meta">
+              Recommended: JPG, PNG, or WebP. Keep files under 25MB each.
+            </p>
+            {photoUploadMessage && <p className="post-meta">{photoUploadMessage}</p>}
+            {photoUploadError && <p className="post-meta">{photoUploadError}</p>}
+          </div>
+        </div>
       </div>
     </div>
   );
