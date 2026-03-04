@@ -15,17 +15,7 @@ const USERNAME = "jasoneeee";
 const STORAGE_KEY = `duolingo-streak-cache-${USERNAME}`;
 const POLL_INTERVAL_MS = 60_000;
 const ERROR_RETRY_DELAYS_MS = [5_000, 15_000, 30_000];
-const DEFAULT_STREAK_ICON_DONE_URL =
-  "https://d35aaqx5ub95lt.cloudfront.net/images/streakCalendar/4e0a0177dbfbbcf30f6a633d825a1460.svg";
-const DEFAULT_STREAK_ICON_PENDING_URL =
-  "https://d35aaqx5ub95lt.cloudfront.net/images/streakCalendar/fbdc5a60b0f33c7d4beb3af40f2287d5.svg";
-
-const STREAK_ICON_DONE_URL =
-  process.env.NEXT_PUBLIC_DUOLINGO_STREAK_ICON_DONE?.trim() ||
-  DEFAULT_STREAK_ICON_DONE_URL;
-const STREAK_ICON_PENDING_URL =
-  process.env.NEXT_PUBLIC_DUOLINGO_STREAK_ICON_PENDING?.trim() ||
-  DEFAULT_STREAK_ICON_PENDING_URL;
+const STREAK_ICON_URL = "/duolingo-streak-fire.svg";
 
 type ParsedResponsePayload =
   | { type: "empty" }
@@ -117,15 +107,6 @@ function formatCheckedAt(value: string) {
     hour: "numeric",
     minute: "2-digit"
   });
-}
-
-function getTodayKey(timeZone: string) {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit"
-  }).format(new Date());
 }
 
 export default function DuolingoStreak() {
@@ -257,31 +238,14 @@ export default function DuolingoStreak() {
       ? "Loading streak..."
       : "Streak temporarily unavailable";
 
-  const streakCompletedToday = useMemo(() => {
-    if (!data?.streakEndDate) {
-      return false;
-    }
-
-    const localTimeZone =
-      Intl.DateTimeFormat().resolvedOptions().timeZone || "America/Chicago";
-    return data.streakEndDate === getTodayKey(localTimeZone);
-  }, [data?.streakEndDate]);
-
-  const streakIconUrl = streakCompletedToday
-    ? STREAK_ICON_DONE_URL
-    : STREAK_ICON_PENDING_URL;
-  const streakIconAlt = streakCompletedToday
-    ? "Duolingo streak completed today"
-    : "Duolingo streak not completed for today";
-
   return (
     <section className="duolingo-tracker card" aria-live="polite">
       <div className="duolingo-head">
         <div className="duolingo-label-row">
           <img
             className="duolingo-fire-icon"
-            src={streakIconUrl}
-            alt={streakIconAlt}
+            src={STREAK_ICON_URL}
+            alt="Duolingo streak flame"
             loading="lazy"
             decoding="async"
           />
