@@ -314,6 +314,8 @@ export default function SpotifyNowPlaying() {
     return `Today: ${data.today.playCount} plays, ${data.today.minutesListened} min, ${data.today.uniqueArtists} artists${approximateTag}.${lastPlayedSegment}`;
   }, [data]);
 
+  const shouldScrollTrackLine = trackLine.length > 38;
+
   return (
     <section className="activity-item" aria-live="polite">
       <details className="activity-panel">
@@ -322,8 +324,21 @@ export default function SpotifyNowPlaying() {
             <SpotifyGlyph />
             <span className="activity-summary-label">Spotify</span>
           </span>
-          <span className="activity-summary-value">{trackLine}</span>
-          <span className="activity-summary-hint">Details</span>
+          <span
+            className={`activity-summary-value ${
+              shouldScrollTrackLine ? "activity-summary-value-marquee" : ""
+            }`}
+          >
+            {shouldScrollTrackLine ? (
+              <span className="activity-marquee-track">
+                <span>{trackLine}</span>
+                <span aria-hidden>{trackLine}</span>
+              </span>
+            ) : (
+              trackLine
+            )}
+          </span>
+          <span className="activity-summary-caret" aria-hidden="true" />
         </summary>
 
         <div className="activity-details">

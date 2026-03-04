@@ -7,7 +7,7 @@ This document explains how the site is structured, how data and auth flow throug
 This is a **Next.js 14 App Router** project for a personal website with:
 
 - Public pages: home, writings archive, photography mosaic, individual writing pages, and experience
-- A live home-page activity ribbon with Spotify now-playing and Duolingo streak summaries that expand to full details
+- A single-line home activity ribbon that shows compact Spotify now-playing + Duolingo streak summaries with expandable details
 - A protected admin editor at `/admin`
 - Supabase-backed storage for posts, photography media, and editor permissions
 - A markdown-first writing flow with live preview and formatting shortcuts
@@ -88,7 +88,7 @@ This means every route is rendered inside the same visual shell by default.
 
 ### 4.2 Public pages
 
-- `/` (`app/page.tsx`): hero content, collapsible Spotify + Duolingo activity ribbon, dynamic “latest writing” card sourced from published posts, and a “now” card.
+- `/` (`app/page.tsx`): hero content, single-line collapsible Spotify + Duolingo activity ribbon, dynamic “latest writing” card sourced from published posts, and a “now” card.
 - `/experience` (`app/experience/page.tsx`): static, resume-style sections (education, professional experience, projects, technical skills, activities) rendered as cards.
 - `/photography` (`app/photography/page.tsx`): server-rendered masonry mosaic built from images in the Supabase Storage `photos` bucket.
 - `/writings` (`app/writings/page.tsx`): server component fetching published posts from Supabase via `lib/posts.ts`.
@@ -98,15 +98,15 @@ This means every route is rendered inside the same visual shell by default.
 
 ### 4.3 Home activity ribbon (Spotify + Duolingo)
 
-The home page includes `components/SpotifyNowPlaying.tsx` and `components/DuolingoStreak.tsx` (both client components) inside a compact `activity-ribbon` container. Each component is rendered as a `<details>` panel:
+The home page includes `components/SpotifyNowPlaying.tsx` and `components/DuolingoStreak.tsx` (both client components) inside one shared horizontal `activity-ribbon` container. Each component is rendered as a `<details>` panel:
 
-- closed panel = compact one-line summary
+- closed panel = compact one-line summary with a caret indicator (no "Details" text)
 - expanded panel = full detail card content
 
 `SpotifyNowPlaying.tsx` polls `/api/spotify/live` every 45 seconds and renders:
 
 1. Spotify-branded label icon in the card header
-2. Current track and playback state (if active)
+2. Current track summary in the ribbon row, with marquee-style horizontal scroll when text is long
 3. Album art thumbnail for the currently playing track (when available)
 4. Same-day listening metrics (play count, minutes listened, unique artists)
 5. Most recent playlist context (playback context first, library fallback second)
@@ -562,7 +562,7 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 ## 16) File-by-file quick reference
 
 - `app/layout.tsx`: global app shell and typography setup.
-- `app/page.tsx`: landing content + activity ribbon.
+- `app/page.tsx`: landing content + shared one-line activity ribbon.
   - latest writing card is dynamically populated from most recent published post
 - `app/photography/page.tsx`: public masonry-style photo gallery page.
 - `app/writings/page.tsx`: archive list page for published posts.
@@ -577,7 +577,7 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 - `app/api/photos/route.ts`: editor-only multipart photo upload API to Supabase Storage.
 - `app/api/posts/route.ts`: list/create post APIs (editor-only).
 - `app/api/posts/[id]/route.ts`: fetch/update single post API (editor-only).
-- `components/SpotifyNowPlaying.tsx`: resilient polling UI for the Spotify home-page ribbon row + expandable detail panel.
+- `components/SpotifyNowPlaying.tsx`: resilient polling UI for the Spotify home-page ribbon row (with long-track marquee behavior) + expandable detail panel.
 - `components/DuolingoStreak.tsx`: resilient polling UI for the Duolingo home-page ribbon row + expandable detail panel.
 - `components/SiteFooter.tsx`: footer with dynamic copyright year and external links to LinkedIn, GitHub, and Instagram.
 - `components/SiteNav.tsx`: primary navigation (includes `/photography` link).

@@ -254,7 +254,7 @@ export default function DuolingoStreak() {
             <span className="activity-summary-label">Duolingo</span>
           </span>
           <span className="activity-summary-value">{streakLine}</span>
-          <span className="activity-summary-hint">Details</span>
+          <span className="activity-summary-caret" aria-hidden="true" />
         </summary>
 
         <div className="activity-details">
