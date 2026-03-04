@@ -13,7 +13,7 @@ const newsreader = Newsreader({
 });
 
 export const metadata: Metadata = {
-  title: "Your Name",
+  title: "Jason Latz",
   description: "Minimalist personal website and writing archive."
 };
 
@@ -28,7 +28,7 @@ export default function RootLayout({
         <header className="site-header">
           <div className="container">
             <div className="site-header-top">
-              <div className="site-title">Your Name</div>
+              <div className="site-title">Jason Latz</div>
               <SiteNav />
             </div>
             <SpotifyNowPlaying />
