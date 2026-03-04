@@ -169,7 +169,7 @@ For the public travel gallery and admin photo workflow:
 8. Keep travel zoom UI minimal: a draggable zoom control from 25% to 200% plus a single reset action (no separate plus/minus or pan toggle buttons).
 9. Travel zoom must reflow/repack photos for best fit (showing more or fewer photos by zoom level), not scale one fixed block of tiles.
 10. Avoid fixed-column travel layouts that disproportionately shrink horizontal photos; use best-fit wrapping behavior.
-11. Calibrate travel zoom so `100%` is visually close to the prior default mosaic density and keep displayed zoom percentage aligned with perceived zoom changes.
+11. Calibrate travel zoom so `100%` matches the denser look that was previously around `200%`; avoid showing on-screen percentage labels in the travel zoom toolbar.
 12. Keep travel tiles resilient to transform edge cases: quantize requested render widths for cache reuse and fall back to original image URLs when a transformed tile request fails.
 
 ## 20) Jason Preference: Spotify History Must Reflect Real Playback
