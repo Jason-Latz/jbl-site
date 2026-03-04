@@ -35,10 +35,12 @@ const MIN_ZOOM_PERCENT = 25;
 const MAX_ZOOM_PERCENT = 200;
 const DEFAULT_ZOOM_PERCENT = 100;
 
-const BASE_ROW_HEIGHT_PX = 240;
 const LAYOUT_WIDTH_FALLBACK = 1200;
 const RATIO_FALLBACK = 4 / 3;
 const TILE_GAP = 0;
+const MIN_ROW_HEIGHT_PX = 72;
+const MAX_ROW_HEIGHT_PX = 520;
+const LANDSCAPE_BASE_RATIO = 1.5;
 
 const MOSAIC_RENDER_QUALITY = 92;
 const MIN_TILE_RENDER_WIDTH = 320;
@@ -48,8 +50,61 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
+function normalizeZoomPercent(value: number) {
+  return clamp(Math.round(value), MIN_ZOOM_PERCENT, MAX_ZOOM_PERCENT);
+}
+
+function getLegacyColumnCount(containerWidth: number) {
+  if (containerWidth >= 1320) {
+    return 4;
+  }
+
+  if (containerWidth >= 980) {
+    return 3;
+  }
+
+  if (containerWidth >= 640) {
+    return 2;
+  }
+
+  return 1;
+}
+
+function getAdaptiveBaseRowHeight(containerWidth: number) {
+  const columns = getLegacyColumnCount(containerWidth);
+  const legacyColumnWidth = containerWidth / columns;
+  const baselineHeight = legacyColumnWidth / LANDSCAPE_BASE_RATIO;
+  return clamp(baselineHeight, MIN_ROW_HEIGHT_PX, MAX_ROW_HEIGHT_PX);
+}
+
 function displayOrFallback(value: string | null, fallback: string) {
   return value && value.trim().length > 0 ? value : fallback;
+}
+
+function getRowBaseWidth(
+  items: Array<{ photo: PhotoCatalogItem; ratio: number }>,
+  targetRowHeight: number
+) {
+  return items.reduce((sum, item) => sum + item.ratio * targetRowHeight, 0);
+}
+
+function getJustifiedScale(
+  items: Array<{ photo: PhotoCatalogItem; ratio: number }>,
+  containerWidth: number,
+  targetRowHeight: number
+) {
+  if (items.length === 0) {
+    return 1;
+  }
+
+  const baseWidth = getRowBaseWidth(items, targetRowHeight);
+  if (baseWidth <= 0) {
+    return 1;
+  }
+
+  const gapWidth = TILE_GAP * Math.max(0, items.length - 1);
+  const availableWidth = Math.max(0, containerWidth - gapWidth);
+  return availableWidth / baseWidth;
 }
 
 function buildJustifiedRows(
@@ -61,38 +116,33 @@ function buildJustifiedRows(
   const rows: LayoutRow[] = [];
 
   let pending: Array<{ photo: PhotoCatalogItem; ratio: number }> = [];
-  let pendingWidth = 0;
-
-  const flushPending = (justify: boolean) => {
-    if (pending.length === 0) {
+  const pushRow = (
+    items: Array<{ photo: PhotoCatalogItem; ratio: number }>,
+    justify: boolean
+  ) => {
+    if (items.length === 0) {
       return;
     }
 
-    const baseWidth = pending.reduce(
-      (sum, item) => sum + item.ratio * targetRowHeight,
-      0
-    );
-
-    const gapWidth = TILE_GAP * Math.max(0, pending.length - 1);
-
     const scale =
-      justify && baseWidth > 0
-        ? clamp((containerWidth - gapWidth) / baseWidth, 0.35, 1.75)
+      justify
+        ? clamp(
+            getJustifiedScale(items, containerWidth, targetRowHeight),
+            0.72,
+            1.36
+          )
         : 1;
 
     const rowHeight = Math.max(56, targetRowHeight * scale);
 
     rows.push({
       height: rowHeight,
-      items: pending.map((item) => ({
+      items: items.map((item) => ({
         photo: item.photo,
         width: Math.max(48, item.ratio * rowHeight),
         height: rowHeight
       }))
     });
-
-    pending = [];
-    pendingWidth = 0;
   };
 
   photos.forEach((photo) => {
@@ -101,20 +151,49 @@ function buildJustifiedRows(
         ? ratioByPath[photo.path]
         : RATIO_FALLBACK;
 
-    const itemWidth = ratio * targetRowHeight;
-    const projectedWidth =
-      pendingWidth + itemWidth + TILE_GAP * Math.max(0, pending.length);
-
     pending.push({ photo, ratio });
-    pendingWidth += itemWidth;
+    const projectedWidth =
+      getRowBaseWidth(pending, targetRowHeight) +
+      TILE_GAP * Math.max(0, pending.length - 1);
 
     if (projectedWidth >= containerWidth) {
-      flushPending(true);
+      if (pending.length === 1) {
+        pushRow(pending, true);
+        pending = [];
+        return;
+      }
+
+      const withCurrent = pending;
+      const withoutCurrent = pending.slice(0, -1);
+      const overflowItem = pending[pending.length - 1];
+
+      const withCurrentScale = getJustifiedScale(
+        withCurrent,
+        containerWidth,
+        targetRowHeight
+      );
+      const withoutCurrentScale = getJustifiedScale(
+        withoutCurrent,
+        containerWidth,
+        targetRowHeight
+      );
+
+      const withCurrentDelta = Math.abs(1 - withCurrentScale);
+      const withoutCurrentDelta = Math.abs(1 - withoutCurrentScale);
+
+      if (withoutCurrentDelta < withCurrentDelta) {
+        pushRow(withoutCurrent, true);
+        pending = [overflowItem];
+        return;
+      }
+
+      pushRow(withCurrent, true);
+      pending = [];
     }
   });
 
   // Last row should not be stretched edge-to-edge.
-  flushPending(false);
+  pushRow(pending, false);
 
   return rows;
 }
@@ -168,7 +247,11 @@ export default function PhotoMosaic({ photos }: PhotoMosaicProps) {
   const visiblePhotos = photos.slice(0, visibleCount);
   const hasMoreToLoad = visibleCount < photos.length;
   const effectiveWidth = containerWidth > 0 ? containerWidth : LAYOUT_WIDTH_FALLBACK;
-  const targetRowHeight = BASE_ROW_HEIGHT_PX * (zoomPercent / 100);
+  const baseRowHeight = getAdaptiveBaseRowHeight(effectiveWidth);
+  const targetRowHeight = baseRowHeight * (zoomPercent / 100);
+  const onZoomChange = useCallback((nextValue: number) => {
+    setZoomPercent(normalizeZoomPercent(nextValue));
+  }, []);
 
   const eagerPaths = useMemo(
     () => new Set(visiblePhotos.slice(0, PRIORITY_IMAGE_COUNT).map((photo) => photo.path)),
@@ -283,7 +366,8 @@ export default function PhotoMosaic({ photos }: PhotoMosaicProps) {
               max={MAX_ZOOM_PERCENT}
               step={1}
               value={zoomPercent}
-              onChange={(event) => setZoomPercent(Number(event.target.value))}
+              onInput={(event) => onZoomChange(event.currentTarget.valueAsNumber)}
+              onChange={(event) => onZoomChange(event.currentTarget.valueAsNumber)}
             />
             <span>200%</span>
           </label>

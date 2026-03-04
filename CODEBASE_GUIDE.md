@@ -96,7 +96,7 @@ This means every route is rendered inside the same visual shell by default.
 
 - `/` (`app/page.tsx`): hero content, single-line collapsible Spotify + Duolingo activity ribbon, dynamic “latest writing” card sourced from published posts, and a “now” card.
 - `/experience` (`app/experience/page.tsx`): static, resume-style sections (education, professional experience, projects, technical skills, activities) rendered as cards.
-- `/travel` (`app/travel/page.tsx`): server-rendered gallery route that hydrates a client-side gapless mosaic (`PhotoMosaic`) built from storage images plus metadata from `public.photos`; the mosaic renders an initial top batch, appends additional photos as the user scrolls, uses justified row packing (not fixed columns) so photos rewrap for best fit, and serves width-only transformed tile images at roughly `q92` so aspect ratio is preserved without crop.
+- `/travel` (`app/travel/page.tsx`): server-rendered gallery route that hydrates a client-side gapless mosaic (`PhotoMosaic`) built from storage images plus metadata from `public.photos`; the mosaic renders an initial top batch, appends additional photos as the user scrolls, uses justified row packing (not fixed columns) so photos rewrap for best fit, calibrates `100%` zoom to legacy masonry density per breakpoint, and serves width-only transformed tile images at roughly `q92` so aspect ratio is preserved without crop.
 - `/travel/quality-lab` (`app/travel/quality-lab/page.tsx`): visual tuning route that renders the same sampled photos side-by-side as `Preferred (q92)`, `Fallback (q90)`, and `Original` to compare sharpness versus payload strategy.
 - `/photography` (`app/photography/page.tsx`): legacy compatibility route that redirects to `/travel`.
 - `/writings` (`app/writings/page.tsx`): server component fetching published posts from Supabase via `lib/posts.ts`.
@@ -674,9 +674,9 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 6. Dashboard loads editable photo cards via `GET /api/travel`; metadata saves use `PATCH /api/travel`; photo deletions use `DELETE /api/travel`.
 7. Storage and table policies re-validate editor permission on write operations.
 8. `/travel` reads merged storage + metadata rows via `lib/photos.ts`; `PhotoMosaic` mounts only the first batch of photos at first paint and appends the next batches via an intersection sentinel so network fetches happen progressively during scroll.
-9. `PhotoMosaic` computes justified rows from per-photo aspect ratios so visible photos rewrap for best fit as viewport or zoom changes.
+9. `PhotoMosaic` computes justified rows from per-photo aspect ratios so visible photos rewrap for best fit as viewport or zoom changes, and chooses row breaks that keep visual scale close to the selected zoom value.
 10. Mosaic tiles use width-only transformed URLs (`q92` target, `resize=contain`) to keep captured aspect ratios while reducing transfer/decode cost.
-11. `/travel` includes a draggable zoom slider (25% to 200%) with a single Reset action; zoom changes row target height and triggers reflow (instead of scaling one fixed block).
+11. `/travel` includes a draggable zoom slider (25% to 200%) with a single Reset action; zoom changes row target height and triggers reflow (instead of scaling one fixed block), with `100%` tuned to match the prior masonry baseline across responsive breakpoints.
 12. Clicking a photo opens metadata in the modal with the original image URL.
 
 ## 16) File-by-file quick reference
@@ -705,7 +705,7 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 - `components/ThemeToggle.tsx`: client-side light/dark theme switcher in the site header (persists selection and respects system preference when no explicit selection exists).
 - `components/SiteFooter.tsx`: footer with dynamic copyright year and external links to LinkedIn, GitHub, and Instagram.
 - `components/SiteNav.tsx`: primary navigation (includes `/travel` link).
-- `components/PhotoMosaic.tsx`: justified row packer with progressive top-down batch loading, width-only `q92` transformed tile URLs (`resize=contain`), draggable 25%-200% zoom + reset that reflows rows, and click-to-open metadata modal on `/travel`.
+- `components/PhotoMosaic.tsx`: justified row packer with progressive top-down batch loading, width-only `q92` transformed tile URLs (`resize=contain`), draggable 25%-200% zoom + reset that reflows rows (with a legacy-calibrated `100%` baseline), and click-to-open metadata modal on `/travel`.
 - `lib/posts.ts`: public content fetch functions.
   - used by home page and writings pages for published content lists/details
 - `lib/photos.ts`: merged photo catalog helper (storage objects + metadata table rows) plus public render URL builder for display-sized image variants.
