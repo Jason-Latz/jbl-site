@@ -171,6 +171,7 @@ For Spotify activity behavior on `/`:
 1. Do not use static library playlist fallbacks as a stand-in for "recent playlist."
 2. Prefer playback-context or recently-played context only when labeling recent listening context.
 3. Keep an expandable "last listened" history list sourced from actual recently played tracks (target: latest 10).
+4. Keep that "last listened" list collapsed by default as a nested dropdown and omit per-track timestamps unless explicitly requested.
 
 ## 21) Jason Preference: Dark Mode Should Stay Warm
 
