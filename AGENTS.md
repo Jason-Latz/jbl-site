@@ -58,3 +58,12 @@ Assume a future agent has no chat context. `CODEBASE_GUIDE.md` must be sufficien
 2. Configure the environment
 3. Run the app locally
 4. Continue work safely
+
+## 8) Commit Strategy (Mandatory)
+
+Err on the side of more commits, not fewer.
+
+1. If changes represent different features, fixes, refactors, or docs updates, commit them separately.
+2. Keep commits modular so each commit has one clear purpose.
+3. Use explicit commit messages that describe exactly what changed and why.
+4. Avoid bundling unrelated changes into one commit.
