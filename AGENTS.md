@@ -163,6 +163,8 @@ For the public travel gallery and admin photo workflow:
 2. Clicking a photo on `/travel` should show user-entered metadata: location, description, and optional song link.
 3. Keep that metadata editable in `/admin` so gallery details can be updated without CLI or SQL work.
 4. For travel gallery performance tuning, preserve visual quality first; prefer progressive/top-down loading deferral before reducing image quality.
+5. Preserve each photo's captured aspect ratio in the travel mosaic; do not crop into fixed-ratio tiles.
+6. Prefer display-sized travel mosaic delivery at approximately `q92` quality, with `q90` as fallback if needed; keep full-quality originals for detail views.
 
 ## 20) Jason Preference: Spotify History Must Reflect Real Playback
 
