@@ -20,6 +20,7 @@ The site is intentionally minimal and server-rendered where possible.
 - UI: React 18 + plain CSS (`app/globals.css`)
 - DB/Auth: Supabase (`@supabase/supabase-js`, `@supabase/auth-helpers-nextjs`)
 - Rich text editor: TipTap (`@tiptap/react`, `@tiptap/starter-kit`, link extension)
+- Infra tooling used locally: Supabase CLI (`supabase`) + PostgreSQL CLI (`psql`)
 
 ## 3) Directory map
 
@@ -49,6 +50,13 @@ supabase/
   schema.sql               # Tables, trigger, indexes, RLS policies
 
 middleware.ts              # Initializes Supabase auth session for /admin and /api
+
+# Root config / infra files
+.env                       # Local runtime secrets/config (ignored by git)
+.env.example               # Minimal env template
+.gitignore                 # Ignore rules incl. env + Supabase temp artifacts
+package-lock.json          # NPM dependency lockfile
+tsconfig.json              # TS config incl. @/* alias and Next plugin metadata
 ```
 
 ## 4) Runtime architecture
@@ -258,20 +266,55 @@ No Tailwind or CSS Modules are used.
 
 ## 12) Environment and setup contract
 
-Required env vars (in `.env.local`):
+The app reads standard Next.js env files. In this workspace, a root `.env` is used.
+
+Required env vars:
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `DATABASE_URL` (server-side Postgres connection convenience)
+- `SUPABASE_DB_URL` (session pooler DSN for SQL tooling)
+- `SUPABASE_DB_URL_TRANSACTION` (transaction pooler DSN for SQL tooling)
 
 Setup sequence:
 
 1. `npm install`
-2. Copy `.env.example` to `.env.local`
+2. Create `.env` (or `.env.local`) and populate the vars above
 3. Run SQL in `supabase/schema.sql`
 4. Create Supabase auth user
 5. Insert/update profile row with `is_editor = true`
 6. `npm run dev`
 7. Use `/admin` to manage posts
+
+### 12.1 Current provisioned state (completed on March 3, 2026 local time)
+
+The following infrastructure work has already been completed in this repository session:
+
+1. Supabase CLI installed locally (`supabase 2.75.0`).
+2. Remote database schema applied successfully from `supabase/schema.sql`.
+3. Verified remote tables exist:
+   - `public.posts`
+   - `public.profiles`
+4. Verified RLS policies exist:
+   - `Editors can manage posts`
+   - `Public can read published posts`
+   - `Profiles are editable by owner`
+   - `Profiles are viewable by owner`
+   - `Profiles insert by owner`
+5. Local `.env` populated with project URL + anon key + DB connection URLs.
+6. `.gitignore` updated to ignore:
+   - `.env`
+   - `supabase/.temp`
+
+### 12.2 Supabase connectivity notes for future agents
+
+For this project reference (`qllalbklzxtsvqzszigo`):
+
+1. Direct host `db.<project-ref>.supabase.co` resolved to IPv6 in this environment and was not reliably routable.
+2. Pooler host worked for schema/application tasks:
+   - `aws-1-us-east-1.pooler.supabase.com:5432` (session pooler)
+   - `aws-1-us-east-1.pooler.supabase.com:6543` (transaction pooler)
+3. If direct DB host fails with route/DNS issues, prefer pooler DSNs for CLI and `psql` operations.
 
 ## 13) Security model summary
 
@@ -340,3 +383,29 @@ Even if an API check were missed, RLS still limits unauthorized post mutations.
    - slug behavior
 5. Add better authoring UX (autosave, unsaved change warning, formatting toolbar buttons).
 
+## 18) Repository and git context
+
+1. Remote repository exists and is public:
+   - `https://github.com/Jason-Latz/jbl-site`
+2. Primary branch:
+   - `main`
+3. Local `main` is configured to track `origin/main`.
+
+## 19) Local runtime gotchas and resolved issues
+
+1. Initial local run failed with `Module not found: Can't resolve '@/components/...` because path aliases were not configured.
+2. `tsconfig.json` now includes:
+   - `baseUrl: "."`
+   - `paths: { "@/*": ["./*"] }`
+3. Next.js dev startup auto-adjusted TS metadata:
+   - `include` contains `.next/types/**/*.ts`
+   - `plugins` contains `{ "name": "next" }`
+4. Dependency install (`npm install`) generated `package-lock.json` and is required before first run.
+
+## 20) Agent checklist (quick start)
+
+1. Confirm env file exists (`.env` or `.env.local`) with all Supabase keys/URLs.
+2. Confirm `npm install` has been run (lockfile + `node_modules` present).
+3. Start dev server with `npm run dev`.
+4. If `/admin` access is needed, ensure an auth user exists and `profiles.is_editor = true`.
+5. If DB schema drift is suspected, re-run `supabase/schema.sql` against pooler endpoint.
