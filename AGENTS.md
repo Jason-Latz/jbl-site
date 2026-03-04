@@ -174,6 +174,7 @@ For Spotify activity behavior on `/`:
 2. Prefer playback-context or recently-played context only when labeling recent listening context.
 3. Keep an expandable "last listened" history list sourced from actual recently played tracks (target: latest 10).
 4. Keep that "last listened" list collapsed by default as a nested dropdown and omit per-track timestamps unless explicitly requested.
+5. Keep weekly top artists in its own nested Spotify dropdown and source rankings from the rolling last 7 days of stored playback history.
 
 ## 21) Jason Preference: Dark Mode Should Stay Warm
 
