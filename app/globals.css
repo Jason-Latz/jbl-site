@@ -36,37 +36,37 @@
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #0f1419;
-  --fg: #ecf2f7;
-  --muted: #afbbc6;
-  --accent: #8bc2ff;
-  --border: #2a3744;
-  --surface: #162029;
-  --surface-raised: #1c2731;
-  --surface-soft: #202c36;
-  --surface-muted: #25323e;
-  --input-bg: #121b23;
-  --thumb-bg: #24303a;
-  --control-hover-bg: #2a3743;
-  --control-hover-border: #3a4b5b;
-  --overlay: rgba(3, 7, 11, 0.82);
-  --focus-ring: #7aa88b;
-  --preview-focus-ring: #55708a;
-  --theme-toggle-bg: #202c36;
-  --theme-toggle-hover-bg: #2b3945;
-  --theme-toggle-fg: #dbe7f2;
-  --mode-active-bg: #8bc2ff;
-  --mode-active-fg: #08131f;
-  --on-accent: #07111a;
-  --danger-bg: #3a1f22;
-  --danger-fg: #ffc7c0;
-  --danger-border: #6f393f;
-  --danger-bg-hover: #4a272b;
-  --danger-border-hover: #875158;
-  --activity-spotify-start: #162822;
-  --activity-spotify-end: #214038;
-  --activity-duolingo-start: #2a2d1c;
-  --activity-duolingo-end: #394626;
+  --bg: #18130f;
+  --fg: #f3e8dd;
+  --muted: #c8b5a3;
+  --accent: #dca46a;
+  --border: #4a392f;
+  --surface: #231b15;
+  --surface-raised: #2a211a;
+  --surface-soft: #31261f;
+  --surface-muted: #3a2d24;
+  --input-bg: #1f1813;
+  --thumb-bg: #3b2e24;
+  --control-hover-bg: #3a2d24;
+  --control-hover-border: #5a473a;
+  --overlay: rgba(9, 6, 3, 0.84);
+  --focus-ring: #b58f66;
+  --preview-focus-ring: #8d6f55;
+  --theme-toggle-bg: #31261f;
+  --theme-toggle-hover-bg: #3a2d24;
+  --theme-toggle-fg: #ead8c6;
+  --mode-active-bg: #dca46a;
+  --mode-active-fg: #20150d;
+  --on-accent: #20150d;
+  --danger-bg: #442423;
+  --danger-fg: #ffc8bf;
+  --danger-border: #7b4541;
+  --danger-bg-hover: #55302e;
+  --danger-border-hover: #95605a;
+  --activity-spotify-start: #2b2419;
+  --activity-spotify-end: #3f3525;
+  --activity-duolingo-start: #322814;
+  --activity-duolingo-end: #4a3b20;
 }
 
 * {
@@ -521,13 +521,15 @@ img {
 }
 
 .spotify-head a,
-.spotify-meta a {
+.spotify-meta a,
+.spotify-history-track a {
   font-size: 0.9rem;
   color: var(--accent);
 }
 
 .spotify-head a:hover,
-.spotify-meta a:hover {
+.spotify-meta a:hover,
+.spotify-history-track a:hover {
   text-decoration: underline;
 }
 
@@ -543,6 +545,65 @@ img {
   margin: 0;
   font-size: 0.95rem;
   color: var(--muted);
+}
+
+.spotify-history {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.spotify-history-title {
+  margin: 0;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.spotify-history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.spotify-history-item {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-width: 0;
+}
+
+.spotify-history-artwork {
+  width: 2.3rem;
+  height: 2.3rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border);
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--surface-raised);
+}
+
+.spotify-history-artwork-placeholder {
+  background: var(--surface-muted);
+}
+
+.spotify-history-copy {
+  min-width: 0;
+  display: grid;
+  gap: 0.08rem;
+}
+
+.spotify-history-track {
+  margin: 0;
+  color: var(--fg);
+  font-size: 0.95rem;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .site-footer {
