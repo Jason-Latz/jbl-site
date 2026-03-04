@@ -48,7 +48,7 @@ After relevant changes, validate at minimum:
 3. HTTP success for:
    - `/`
    - `/writings`
-   - `/photography`
+   - `/travel`
    - `/admin`
 
 ## 7) Handoff Standard
@@ -154,11 +154,11 @@ For Spotify and Duolingo surfaces on `/`:
 3. Use caret-only affordances for expand/collapse; avoid extra "Details" label text in the ribbon row.
 4. For Spotify summary text, prefer overflow-safe behavior (for example marquee-style scrolling) instead of growing ribbon height.
 
-## 19) Jason Preference: Photography Should Be Gapless and Metadata-Driven
+## 19) Jason Preference: Travel Gallery Should Be Gapless and Metadata-Driven
 
-For the public photography and admin photo workflow:
+For the public travel gallery and admin photo workflow:
 
-1. Keep the public photography mosaic gapless (no spacing/gutters between photos).
-2. Clicking a photo on `/photography` should show user-entered metadata: location, description, and optional song link.
+1. Keep the public travel mosaic gapless (no spacing/gutters between photos).
+2. Clicking a photo on `/travel` should show user-entered metadata: location, description, and optional song link.
 3. Keep that metadata editable in `/admin` so gallery details can be updated without CLI or SQL work.
-4. For photography performance tuning, preserve visual quality first; prefer progressive/top-down loading deferral before reducing image quality.
+4. For travel gallery performance tuning, preserve visual quality first; prefer progressive/top-down loading deferral before reducing image quality.
