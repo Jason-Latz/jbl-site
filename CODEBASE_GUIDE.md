@@ -7,7 +7,7 @@ This document explains how the site is structured, how data and auth flow throug
 This is a **Next.js 14 App Router** project for a personal website with:
 
 - Public pages: home, writings archive, photography mosaic, individual writing pages, and experience
-- A live Spotify header card showing now-playing status, same-day listening stats, and recent playlist context
+- A live Spotify home-page card showing now-playing status, same-day listening stats, and recent playlist context
 - A protected admin editor at `/admin`
 - Supabase-backed storage for posts, photography media, and editor permissions
 - A markdown-first writing flow with live preview and formatting shortcuts
@@ -48,7 +48,7 @@ app/
 components/
   SiteNav.tsx              # Main nav links
   SiteFooter.tsx           # Footer copyright + social links
-  SpotifyNowPlaying.tsx    # Header card polling /api/spotify/live
+  SpotifyNowPlaying.tsx    # Home-page card polling /api/spotify/live
   DuolingoStreak.tsx       # Home-page Duolingo streak widget
 
 lib/
@@ -76,20 +76,19 @@ scripts/spotify-refresh-token.mjs # Local helper to generate Spotify refresh tok
 
 ### 4.1 App shell and layout
 
-`app/layout.tsx` is the root layout and does six key things:
+`app/layout.tsx` is the root layout and does five key things:
 
 1. Loads Google fonts (`Inter`, `Newsreader`) and exposes them as CSS variables.
 2. Disables `adjustFontFallback` for `Newsreader` to avoid noisy dev-time font override warnings in Next.js.
 3. Defines base metadata (`title`, `description`) for the whole site.
-4. Renders global chrome: header with site title + nav, Spotify live card, main content container, and footer with social links.
+4. Renders global chrome: header with site title + nav, main content container, and footer with social links.
 5. Applies shared container widths and spacing through global CSS classes.
-6. Keeps Spotify widget client-side while the surrounding layout stays server-rendered.
 
 This means every route is rendered inside the same visual shell by default.
 
 ### 4.2 Public pages
 
-- `/` (`app/page.tsx`): static hero content, a sample “latest writing” card, and a “now” card.
+- `/` (`app/page.tsx`): static hero content, Spotify and Duolingo live widgets, a sample “latest writing” card, and a “now” card.
 - `/experience` (`app/experience/page.tsx`): static, resume-style sections (education, professional experience, projects, technical skills, activities) rendered as cards.
 - `/photography` (`app/photography/page.tsx`): server-rendered masonry mosaic built from images in the Supabase Storage `photos` bucket.
 - `/writings` (`app/writings/page.tsx`): server component fetching published posts from Supabase via `lib/posts.ts`.
@@ -97,9 +96,9 @@ This means every route is rendered inside the same visual shell by default.
 
 `/photography` and both writings routes set `export const revalidate = 60`, so page data is ISR-cached for up to 60 seconds.
 
-### 4.3 Spotify activity header
+### 4.3 Spotify activity widget
 
-The site header now includes `components/SpotifyNowPlaying.tsx` (client component), which polls `/api/spotify/live` every 45 seconds and renders:
+The home page now includes `components/SpotifyNowPlaying.tsx` (client component), which polls `/api/spotify/live` every 45 seconds and renders:
 
 1. Spotify-branded label icon in the card header
 2. Current track and playback state (if active)
@@ -115,7 +114,7 @@ The site header now includes `components/SpotifyNowPlaying.tsx` (client componen
 3. Compute "today" metrics in `SPOTIFY_TIMEZONE` (default `America/Chicago`)
 4. Resolve playlist metadata via playback context (`/playlists/:id`) or `/me/playlists?limit=1`
 
-Response caching is disabled (`Cache-Control: no-store`) so header data is always fresh. The client poller also guards against transient non-JSON route responses (for example, dev-time HTML error pages) and falls back to status-based retry messaging instead of JSON parse errors.
+Response caching is disabled (`Cache-Control: no-store`) so widget data is always fresh. The client poller also guards against transient non-JSON route responses (for example, dev-time HTML error pages) and falls back to status-based retry messaging instead of JSON parse errors.
 
 ### 4.4 Admin area
 
@@ -384,7 +383,7 @@ If env vars are missing, helpers safely return empty/null data rather than throw
 
 - Most public pages are server components.
 - Writings and photography pages use ISR (`revalidate = 60`).
-- Spotify header data is client-polled and backed by a dynamic no-store API route.
+- Home-page Spotify data is client-polled and backed by a dynamic no-store API route.
 - Admin routes are dynamic/interactive:
   - `export const dynamic = "force-dynamic"` on `app/admin/page.tsx`, `app/admin/new/page.tsx`, and `app/admin/[id]/page.tsx`
   - runtime auth + fetch-based state updates in browser clients
@@ -564,7 +563,7 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 - `app/api/photos/route.ts`: editor-only multipart photo upload API to Supabase Storage.
 - `app/api/posts/route.ts`: list/create post APIs (editor-only).
 - `app/api/posts/[id]/route.ts`: fetch/update single post API (editor-only).
-- `components/SpotifyNowPlaying.tsx`: resilient polling UI for Spotify header card.
+- `components/SpotifyNowPlaying.tsx`: resilient polling UI for the Spotify home-page card.
 - `components/SiteFooter.tsx`: footer with dynamic copyright year and external links to LinkedIn, GitHub, and Instagram.
 - `components/SiteNav.tsx`: primary navigation (includes `/photography` link).
 - `lib/posts.ts`: public content fetch functions.
@@ -615,7 +614,7 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 
 1. Confirm env file exists (`.env` or `.env.local`) with all Supabase keys/URLs.
 2. Confirm `npm install` has been run (lockfile + `node_modules` present).
-3. If Spotify header is expected to work, ensure `SPOTIFY_REFRESH_TOKEN` is populated (use `npm run spotify:token` to bootstrap it).
+3. If Spotify home-page activity is expected to work, ensure `SPOTIFY_REFRESH_TOKEN` is populated (use `npm run spotify:token` to bootstrap it).
 4. Start dev server with `npm run dev`.
 5. If `/admin` access is needed, ensure `jasonlatz0@gmail.com` exists in `auth.users` and has `profiles.is_editor = true` (unless policy is intentionally changed).
 6. Validate key routes: `/`, `/writings`, `/photography`, and `/admin`.

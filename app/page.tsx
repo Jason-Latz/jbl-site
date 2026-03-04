@@ -1,9 +1,11 @@
 import Link from "next/link";
 import DuolingoStreak from "@/components/DuolingoStreak";
+import SpotifyNowPlaying from "@/components/SpotifyNowPlaying";
 
 export default function HomePage() {
   return (
     <div className="hero">
+      <SpotifyNowPlaying />
       <DuolingoStreak />
       <div className="pill">Research, product, and thoughtful writing</div>
       <h1>Building calm, deliberate products and ideas.</h1>

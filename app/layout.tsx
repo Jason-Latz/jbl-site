@@ -3,7 +3,6 @@ import { Inter, Newsreader } from "next/font/google";
 import "./globals.css";
 import SiteFooter from "@/components/SiteFooter";
 import SiteNav from "@/components/SiteNav";
-import SpotifyNowPlaying from "@/components/SpotifyNowPlaying";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 const newsreader = Newsreader({
@@ -31,7 +30,6 @@ export default function RootLayout({
               <div className="site-title">Jason Latz</div>
               <SiteNav />
             </div>
-            <SpotifyNowPlaying />
           </div>
         </header>
         <main>

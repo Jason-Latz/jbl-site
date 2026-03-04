@@ -129,3 +129,10 @@ When adding or changing media workflows:
 
 1. Prefer upload flows inside the website admin UI over CLI-only workflows.
 2. Support selecting and uploading multiple files in one action through the browser picker.
+
+## 17) Jason Preference: Spotify Widget Should Be Home-Only
+
+For Spotify surface placement:
+
+1. Render `SpotifyNowPlaying` on `/` only, not in global layout.
+2. Keep site-wide pages free of Spotify status cards unless Jason explicitly asks to re-enable global placement.
