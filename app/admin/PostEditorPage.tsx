@@ -4,7 +4,7 @@ import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import type { Session } from "@supabase/supabase-js";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import TurndownService from "turndown";
@@ -19,6 +19,14 @@ type Post = {
   published_at: string | null;
   created_at: string;
   updated_at: string | null;
+};
+
+type SavePayload = {
+  title: string;
+  slug: string;
+  excerpt: string | null;
+  content: string;
+  published: boolean;
 };
 
 const slugify = (value: string) =>
@@ -43,6 +51,10 @@ function getNextFootnoteIndex(markdown: string) {
   return max + 1;
 }
 
+const getPayloadSignature = (payload: SavePayload) => JSON.stringify(payload);
+const AUTOSAVE_DELAY_MS = 1500;
+const PREVIEW_SYNC_DELAY_MS = 180;
+
 export default function PostEditorPage({
   postId
 }: {
@@ -53,6 +65,8 @@ export default function PostEditorPage({
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const previewEditableRef = useRef<HTMLDivElement | null>(null);
   const previewMarkdownSourceRef = useRef<HTMLDivElement | null>(null);
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const previewSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const turndown = useMemo(
     () =>
       new TurndownService({
@@ -71,6 +85,7 @@ export default function PostEditorPage({
   const [loadError, setLoadError] = useState("");
   const [saving, setSaving] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
+  const [autosaveMessage, setAutosaveMessage] = useState("");
 
   const [title, setTitle] = useState("");
   const [slug, setSlug] = useState("");
@@ -79,8 +94,9 @@ export default function PostEditorPage({
   const [content, setContent] = useState("");
   const [slugEdited, setSlugEdited] = useState(false);
   const [editorMode, setEditorMode] = useState<"write" | "preview">("write");
-  const [previewDirty, setPreviewDirty] = useState(false);
+  const [visualDirty, setVisualDirty] = useState(false);
   const [visualHtml, setVisualHtml] = useState("");
+  const [savedSignature, setSavedSignature] = useState<string | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -109,6 +125,8 @@ export default function PostEditorPage({
     if (!postId) {
       setLoadingPost(false);
       setLoadError("");
+      setSavedSignature(null);
+      setAutosaveMessage("");
       return;
     }
 
@@ -144,8 +162,19 @@ export default function PostEditorPage({
         setSlug(data.post.slug);
         setExcerpt(data.post.excerpt ?? "");
         setPublished(data.post.published);
-        setContent(data.post.content ?? "");
+        const nextContent = data.post.content ?? "";
+        setContent(nextContent);
         setSlugEdited(true);
+        setVisualDirty(false);
+        const loadedPayload: SavePayload = {
+          title: data.post.title.trim(),
+          slug: data.post.slug.trim(),
+          excerpt: (data.post.excerpt ?? "").trim() || null,
+          content: nextContent,
+          published: data.post.published
+        };
+        setSavedSignature(getPayloadSignature(loadedPayload));
+        setAutosaveMessage("All changes saved.");
       } catch {
         setLoadError("Unable to load this post.");
       } finally {
@@ -169,8 +198,18 @@ export default function PostEditorPage({
   };
 
   const handleSignOut = async () => {
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    }
+    if (previewSyncTimerRef.current) {
+      clearTimeout(previewSyncTimerRef.current);
+      previewSyncTimerRef.current = null;
+    }
     await supabase.auth.signOut();
     setStatusMessage("");
+    setAutosaveMessage("");
+    setSavedSignature(null);
   };
 
   const handleTitleChange = (value: string) => {
@@ -179,6 +218,22 @@ export default function PostEditorPage({
       setSlug(slugify(value));
     }
   };
+
+  const buildPayload = useCallback(
+    (contentValue = content): SavePayload => ({
+      title: title.trim(),
+      slug: slug.trim(),
+      excerpt: excerpt.trim() || null,
+      content: contentValue,
+      published
+    }),
+    [content, excerpt, published, slug, title]
+  );
+
+  const currentPayloadSignature = useMemo(
+    () => getPayloadSignature(buildPayload()),
+    [buildPayload]
+  );
 
   const insertAroundSelection = (
     before: string,
@@ -262,81 +317,178 @@ export default function PostEditorPage({
   };
 
   useEffect(() => {
-    if (editorMode !== "preview" || previewDirty) {
+    if (editorMode !== "preview" || visualDirty) {
       return;
     }
 
     const sourceHtml = previewMarkdownSourceRef.current?.innerHTML ?? "";
     setVisualHtml(sourceHtml);
-  }, [content, editorMode, previewDirty]);
+  }, [content, editorMode, visualDirty]);
 
-  const applyPreviewEdits = () => {
+  const syncPreviewEditsToMarkdown = useCallback(() => {
     const editable = previewEditableRef.current;
     if (!editable) {
       return content;
     }
 
     const nextMarkdown = turndown.turndown(editable.innerHTML).trim();
-
-    if (nextMarkdown !== content) {
-      setContent(nextMarkdown);
-      setStatusMessage("Preview edits applied. Save to persist.");
-    }
-
-    setPreviewDirty(false);
+    setContent((current) => (current === nextMarkdown ? current : nextMarkdown));
     return nextMarkdown;
-  };
+  }, [content, turndown]);
 
-  const handleSave = async () => {
-    setStatusMessage("");
-
-    let nextContent = content;
-    if (editorMode === "preview" && previewDirty) {
-      nextContent = applyPreviewEdits();
-    }
-
-    const payload = {
-      title,
-      slug,
-      excerpt: excerpt || null,
-      content: nextContent,
-      published
-    };
-
-    setSaving(true);
-
-    try {
-      const response = await fetch(postId ? `/api/posts/${postId}` : "/api/posts", {
-        method: postId ? "PATCH" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-
-      const data = (await response.json()) as { error?: string; post?: Post };
-
-      if (!response.ok) {
-        setStatusMessage(data.error ?? "Unable to save post.");
-
-        if (response.status === 401) {
-          await supabase.auth.signOut();
-        } else if (response.status === 403) {
-          router.replace("/writings");
-        }
-
+  const persistPost = useCallback(
+    async ({
+      source,
+      contentOverride
+    }: {
+      source: "manual" | "autosave";
+      contentOverride?: string;
+    }) => {
+      if (saving || (source === "autosave" && !postId)) {
         return;
       }
 
-      setStatusMessage(postId ? "Post updated." : "Post created.");
-
-      if (!postId && data.post?.id) {
-        router.replace(`/admin/${data.post.id}`);
-        router.refresh();
+      const payload = buildPayload(contentOverride);
+      if (!payload.title || !payload.slug) {
+        if (source === "manual") {
+          setStatusMessage("Title and slug are required.");
+        } else {
+          setAutosaveMessage("Autosave paused until title and slug are filled.");
+        }
+        return;
       }
-    } catch {
-      setStatusMessage("Unable to save post.");
-    } finally {
-      setSaving(false);
+
+      if (source === "manual") {
+        setStatusMessage("");
+      } else {
+        setAutosaveMessage("Autosaving...");
+      }
+
+      setSaving(true);
+
+      try {
+        const response = await fetch(postId ? `/api/posts/${postId}` : "/api/posts", {
+          method: postId ? "PATCH" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        const data = (await response.json()) as { error?: string; post?: Post };
+
+        if (!response.ok) {
+          const message = data.error ?? "Unable to save post.";
+          if (source === "manual") {
+            setStatusMessage(message);
+          } else {
+            setAutosaveMessage(`Autosave failed: ${message}`);
+          }
+
+          if (response.status === 401) {
+            await supabase.auth.signOut();
+          } else if (response.status === 403) {
+            router.replace("/writings");
+          }
+
+          return;
+        }
+
+        setSavedSignature(getPayloadSignature(payload));
+
+        if (source === "manual") {
+          setStatusMessage(postId ? "Post updated." : "Post created.");
+        } else {
+          const savedAt = new Date().toLocaleTimeString([], {
+            hour: "numeric",
+            minute: "2-digit"
+          });
+          setAutosaveMessage(`Autosaved at ${savedAt}.`);
+        }
+
+        if (!postId && data.post?.id) {
+          router.replace(`/admin/${data.post.id}`);
+          router.refresh();
+        }
+      } catch {
+        if (source === "manual") {
+          setStatusMessage("Unable to save post.");
+        } else {
+          setAutosaveMessage("Autosave failed.");
+        }
+      } finally {
+        setSaving(false);
+      }
+    },
+    [buildPayload, postId, router, saving, supabase]
+  );
+
+  useEffect(() => {
+    return () => {
+      if (autosaveTimerRef.current) {
+        clearTimeout(autosaveTimerRef.current);
+        autosaveTimerRef.current = null;
+      }
+      if (previewSyncTimerRef.current) {
+        clearTimeout(previewSyncTimerRef.current);
+        previewSyncTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!postId || !session || loadingPost || !savedSignature || saving) {
+      return;
     }
+
+    if (currentPayloadSignature === savedSignature) {
+      setAutosaveMessage("All changes saved.");
+      return;
+    }
+
+    const payload = buildPayload();
+    if (!payload.title || !payload.slug) {
+      setAutosaveMessage("Autosave paused until title and slug are filled.");
+      return;
+    }
+
+    setAutosaveMessage("Unsaved changes...");
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current);
+    }
+    autosaveTimerRef.current = setTimeout(() => {
+      autosaveTimerRef.current = null;
+      void persistPost({ source: "autosave" });
+    }, AUTOSAVE_DELAY_MS);
+
+    return () => {
+      if (autosaveTimerRef.current) {
+        clearTimeout(autosaveTimerRef.current);
+        autosaveTimerRef.current = null;
+      }
+    };
+  }, [
+    buildPayload,
+    currentPayloadSignature,
+    loadingPost,
+    persistPost,
+    postId,
+    savedSignature,
+    saving,
+    session
+  ]);
+
+  const handleSave = async () => {
+    let nextContent = content;
+    if (previewSyncTimerRef.current) {
+      clearTimeout(previewSyncTimerRef.current);
+      previewSyncTimerRef.current = null;
+    }
+
+    if (editorMode === "preview") {
+      nextContent = syncPreviewEditsToMarkdown();
+      setVisualDirty(false);
+    }
+
+    await persistPost({ source: "manual", contentOverride: nextContent });
   };
 
   if (!session) {
@@ -441,9 +593,14 @@ export default function PostEditorPage({
             type="button"
             className={editorMode === "write" ? "mode-active" : ""}
             onClick={() => {
-              if (editorMode === "preview" && previewDirty) {
-                applyPreviewEdits();
+              if (previewSyncTimerRef.current) {
+                clearTimeout(previewSyncTimerRef.current);
+                previewSyncTimerRef.current = null;
               }
+              if (editorMode === "preview") {
+                syncPreviewEditsToMarkdown();
+              }
+              setVisualDirty(false);
               setEditorMode("write");
             }}
           >
@@ -453,7 +610,7 @@ export default function PostEditorPage({
             type="button"
             className={editorMode === "preview" ? "mode-active" : ""}
             onClick={() => {
-              setPreviewDirty(false);
+              setVisualDirty(false);
               setEditorMode("preview");
             }}
           >
@@ -554,7 +711,7 @@ export default function PostEditorPage({
             <p className="post-meta">{published ? "Published" : "Draft"}</p>
             {excerpt && <p className="editor-preview-excerpt">{excerpt}</p>}
             <p className="post-meta preview-edit-hint">
-              You can edit directly here. Click “Apply preview edits” before saving.
+              Edit directly here. Changes sync back to markdown automatically.
             </p>
             <div className="preview-markdown-source" aria-hidden ref={previewMarkdownSourceRef}>
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
@@ -575,22 +732,24 @@ export default function PostEditorPage({
                   event.preventDefault();
                 }
               }}
-              onInput={() =>
-                setPreviewDirty((currentValue) =>
-                  currentValue ? currentValue : true
-                )
-              }
+              onInput={() => {
+                setVisualDirty(true);
+                if (previewSyncTimerRef.current) {
+                  clearTimeout(previewSyncTimerRef.current);
+                }
+                previewSyncTimerRef.current = setTimeout(() => {
+                  previewSyncTimerRef.current = null;
+                  syncPreviewEditsToMarkdown();
+                }, PREVIEW_SYNC_DELAY_MS);
+              }}
+              onBlur={() => {
+                if (previewSyncTimerRef.current) {
+                  clearTimeout(previewSyncTimerRef.current);
+                  previewSyncTimerRef.current = null;
+                }
+                syncPreviewEditsToMarkdown();
+              }}
             />
-            <div className="editor-toolbar">
-              <button
-                className="secondary"
-                type="button"
-                onClick={applyPreviewEdits}
-                disabled={!previewDirty}
-              >
-                Apply preview edits
-              </button>
-            </div>
           </article>
         )}
 
@@ -599,6 +758,7 @@ export default function PostEditorPage({
             {saving ? "Saving..." : postId ? "Save changes" : "Create article"}
           </button>
           {statusMessage && <p className="post-meta">{statusMessage}</p>}
+          {postId && autosaveMessage && <p className="post-meta">{autosaveMessage}</p>}
         </div>
         <p className="post-meta">
           Markdown supported, including footnotes (`[^1]` with `[^1]: note`).

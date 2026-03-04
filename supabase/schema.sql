@@ -19,7 +19,19 @@ create table if not exists public.posts (
   updated_at timestamptz default now()
 );
 
+create table if not exists public.photos (
+  id uuid primary key default gen_random_uuid(),
+  storage_path text not null unique,
+  location text,
+  description text,
+  song_title text,
+  song_url text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
 create index if not exists posts_published_at_idx on public.posts (published_at desc);
+create index if not exists photos_created_at_idx on public.photos (created_at desc);
 
 create or replace function public.set_updated_at()
 returns trigger as $$
@@ -42,8 +54,14 @@ create trigger update_posts_updated_at
 before update on public.posts
 for each row execute procedure public.set_updated_at();
 
+drop trigger if exists update_photos_updated_at on public.photos;
+create trigger update_photos_updated_at
+before update on public.photos
+for each row execute procedure public.set_updated_at();
+
 alter table public.profiles enable row level security;
 alter table public.posts enable row level security;
+alter table public.photos enable row level security;
 
 drop policy if exists "Profiles are viewable by owner" on public.profiles;
 create policy "Profiles are viewable by owner"
@@ -81,6 +99,27 @@ create policy "Public can read published posts"
 drop policy if exists "Editors can manage posts" on public.posts;
 create policy "Editors can manage posts"
   on public.posts for all
+  using (
+    exists (
+      select 1 from public.profiles
+      where id = auth.uid() and is_editor = true
+    )
+  )
+  with check (
+    exists (
+      select 1 from public.profiles
+      where id = auth.uid() and is_editor = true
+    )
+  );
+
+drop policy if exists "Public can read photos metadata" on public.photos;
+create policy "Public can read photos metadata"
+  on public.photos for select
+  using (true);
+
+drop policy if exists "Editors can manage photos metadata" on public.photos;
+create policy "Editors can manage photos metadata"
+  on public.photos for all
   using (
     exists (
       select 1 from public.profiles

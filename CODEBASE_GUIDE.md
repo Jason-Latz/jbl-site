@@ -41,7 +41,7 @@ app/
   admin/new/page.tsx       # Dedicated route for creating new posts
   admin/[id]/page.tsx      # Dedicated route for editing existing posts
   api/spotify/live/route.ts # Spotify now-playing + stats API proxy
-  api/photos/route.ts      # POST multi-file photo uploads (editor-only)
+  api/photos/route.ts      # GET list, POST upload batch, PATCH metadata (editor-only)
   api/posts/route.ts       # GET all posts (editor-only), POST create post
   api/posts/[id]/route.ts  # GET one post + PATCH update post (editor-only)
 
@@ -50,11 +50,12 @@ components/
   SiteFooter.tsx           # Footer copyright + social links
   SpotifyNowPlaying.tsx    # Home-page Spotify ribbon panel polling /api/spotify/live
   DuolingoStreak.tsx       # Home-page Duolingo ribbon panel polling /api/duolingo/streak
+  PhotoMosaic.tsx          # Client-side gapless mosaic + click-to-view metadata modal
 
 lib/
   spotify.ts               # Spotify OAuth token refresh + data aggregation
   posts.ts                 # Supabase public-read helpers for published content
-  photos.ts                # Public photo listing helper from Supabase Storage
+  photos.ts                # Shared photo catalog helper (storage objects + metadata)
   requireEditor.ts         # Shared authorization check for API routes
   date.ts                  # Date formatting helper
 
@@ -90,7 +91,7 @@ This means every route is rendered inside the same visual shell by default.
 
 - `/` (`app/page.tsx`): hero content, single-line collapsible Spotify + Duolingo activity ribbon, dynamic “latest writing” card sourced from published posts, and a “now” card.
 - `/experience` (`app/experience/page.tsx`): static, resume-style sections (education, professional experience, projects, technical skills, activities) rendered as cards.
-- `/photography` (`app/photography/page.tsx`): server-rendered masonry mosaic built from images in the Supabase Storage `photos` bucket.
+- `/photography` (`app/photography/page.tsx`): server-rendered gallery route that hydrates a client-side gapless mosaic (`PhotoMosaic`) built from storage images plus metadata from `public.photos`.
 - `/writings` (`app/writings/page.tsx`): server component fetching published posts from Supabase via `lib/posts.ts`.
 - `/writings/[slug]` (`app/writings/[slug]/page.tsx`): server component fetching one published post by slug; returns `notFound()` if missing.
 
@@ -102,6 +103,7 @@ The home page includes `components/SpotifyNowPlaying.tsx` and `components/Duolin
 
 - closed panel = compact one-line summary with a caret indicator (no "Details" text)
 - expanded panel = full detail card content
+- panel expansion is independent, so opening one panel does not reserve dropdown height for the other panel
 
 `SpotifyNowPlaying.tsx` polls `/api/spotify/live` every 45 seconds and renders:
 
@@ -138,7 +140,8 @@ Response caching is disabled (`Cache-Control: no-store`) on the Spotify route so
   - browser auth session state
   - live post listing and dashboard actions
   - photo file selection from the browser and multipart upload dispatch
-  - direct API calls for list/auth/upload actions
+  - photo metadata editing controls (location, description, optional Spotify song link)
+  - direct API calls for list/auth/upload/metadata actions
 - `PostEditorPage.tsx` is a client component because it needs:
   - markdown editing in a textarea
   - single-pane write/preview mode toggling
@@ -151,10 +154,12 @@ Admin UI behavior:
 3. Dashboard route (`/admin`) loads posts from `/api/posts` with explicit `401/403` handling and a `New article` action that immediately creates a draft post, then routes to `/admin/[id]`.
 4. Compose routes (`/admin/new`, `/admin/[id]`) provide metadata fields, markdown body editing, toolbar shortcuts (bold/italic/headings/lists/links/code), and a single-pane `Markdown/Visual` toggle.
 5. Markdown supports GFM features, including footnotes (`[^1]` and `[^1]: ...`).
-6. `Visual` mode is editable (contenteditable); `Apply preview edits` converts the edited visual HTML back into markdown before save.
-7. Dashboard route supports selecting multiple image files and uploading them in one batch through `POST /api/photos`.
-8. On `401/403` API responses, editor clients sign out or route away instead of silently showing empty data.
-9. Sign-out clears local editor/session state.
+6. `Visual` mode is editable (`contenteditable`) and converts inline edits back into markdown automatically while typing.
+7. On existing post routes (`/admin/[id]`), compose changes autosave after a short idle delay; explicit Save remains available.
+8. Dashboard route supports selecting multiple image files and uploading them in one batch through `POST /api/photos`.
+9. Dashboard route loads photo catalog rows through `GET /api/photos` and allows per-photo metadata saves through `PATCH /api/photos`.
+10. On `401/403` API responses, editor clients sign out or route away instead of silently showing empty data.
+11. Sign-out clears local editor/session state.
 
 ## 5) Data layer and Supabase model
 
@@ -182,6 +187,19 @@ Index: `posts_published_at_idx` on `published_at DESC` for archive ordering.
 
 Trigger: `set_updated_at` updates `updated_at` automatically before updates.
 
+#### `public.photos`
+- `id` (UUID PK)
+- `storage_path` (required, unique; maps to object key in Storage bucket `photos`)
+- `location` (optional)
+- `description` (optional)
+- `song_title` (optional)
+- `song_url` (optional Spotify link)
+- `created_at`, `updated_at`
+
+Index: `photos_created_at_idx` on `created_at DESC`.
+
+Trigger: `set_updated_at` updates `updated_at` automatically before updates.
+
 ### 5.2 Storage bucket (`storage.buckets` and `storage.objects`)
 
 The schema also manages a public Supabase Storage bucket:
@@ -206,7 +224,7 @@ Storage object policies for bucket `photos`:
 
 ### 5.3 Row-Level Security
 
-RLS is enabled on both app tables and storage objects.
+RLS is enabled on all app tables and storage objects.
 
 Policies:
 
@@ -216,6 +234,9 @@ Policies:
 - Posts:
   - anyone can `select` rows where `published = true`
   - editor users can perform all operations (`for all`) if their profile has `is_editor = true`
+- Photos metadata (`public.photos`):
+  - anyone can `select` metadata rows
+  - editor users can perform all operations (`for all`)
 - Storage (`storage.objects`, bucket = `photos`):
   - anyone can `select` objects in `photos`
   - editor users can `insert`/`update`/`delete` objects in `photos`
@@ -303,6 +324,14 @@ This is an app-level guard layered on top of RLS.
   - `409` when slug uniqueness is violated
   - `500` for unexpected database/server errors
 
+### `GET /api/photos` (`app/api/photos/route.ts`)
+
+- Requires editor role (`requireEditor`)
+- Returns photo catalog for admin metadata editing:
+  - storage object path/url
+  - metadata from `public.photos` (location, description, song title/url)
+- Used by `/admin` to render editable metadata cards
+
 ### `POST /api/photos` (`app/api/photos/route.ts`)
 
 - Requires editor role (`requireEditor`)
@@ -314,10 +343,23 @@ This is an app-level guard layered on top of RLS.
 - Uploads accepted files to Supabase Storage bucket `photos`
   - object path format: `{timestamp}-{index}-{uuid}-{normalized-name}.{ext}`
   - cache header: `cacheControl = "31536000"`
+- Creates/upserts matching metadata rows in `public.photos` using `storage_path`
 - Returns per-batch summary:
   - `uploadedCount`
   - `failedCount`
   - `failed[]` with file-level reasons
+
+### `PATCH /api/photos` (`app/api/photos/route.ts`)
+
+- Requires editor role (`requireEditor`)
+- Expects JSON payload with:
+  - `storagePath` (required)
+  - `location` (optional)
+  - `description` (optional)
+  - `songTitle` (optional)
+  - `songUrl` (optional, validated as `open.spotify.com` or `spotify.link`)
+- Upserts metadata into `public.photos` by `storage_path`
+- Returns updated metadata row + public storage URL
 
 Important current behavior:
 
@@ -349,11 +391,13 @@ If env vars are missing, helpers safely return empty/null data rather than throw
 
 `lib/photos.ts` creates a Supabase client from the same public env vars and provides:
 
+- `listPhotoCatalog(supabase, baseUrl)`:
+  - lists objects in Storage bucket `photos`
+  - fetches matching metadata rows from `public.photos` by `storage_path`
+  - merges both into one ordered catalog with public URL + metadata fields
 - `fetchPublicPhotos()`:
-  - lists files from Supabase Storage bucket `photos`
-  - filters to image extensions
-  - maps each object to a public URL (`/storage/v1/object/public/photos/...`)
-  - derives a fallback alt string from file name
+  - wraps `listPhotoCatalog(...)` using public env credentials for server components
+  - returns data used by the public `/photography` route and `PhotoMosaic`
 
 ## 9) Editor details (`app/admin/AdminEditor.tsx`, `app/admin/PostEditorPage.tsx`)
 
@@ -364,6 +408,8 @@ If env vars are missing, helpers safely return empty/null data rather than throw
 - Handles auth state and sign-in form when logged out
 - Loads posts via `GET /api/posts` for editors
 - Supports selecting multiple local image files and uploading in one batch via `POST /api/photos`
+- Loads photo catalog via `GET /api/photos`
+- Supports per-photo metadata saves (location, description, song title/url) via `PATCH /api/photos`
 - Shows post list with status/slug and actions:
   - `New article` -> creates draft via `POST /api/posts` and routes to `/admin/[id]`
   - `Edit` -> `/admin/[id]`
@@ -389,7 +435,8 @@ If env vars are missing, helpers safely return empty/null data rather than throw
   - links, inline code, code block
   - bulleted/numbered lists
   - footnote insertion
-- Visual mode renders markdown with `react-markdown` + `remark-gfm`, allows direct inline editing, and converts edits back to markdown using `turndown` when applied
+- Visual mode renders markdown with `react-markdown` + `remark-gfm`, allows direct inline editing, and converts edits back to markdown using `turndown` automatically
+- Existing posts (`/admin/[id]`) autosave after idle typing and show save-state feedback in the editor toolbar
 
 ## 10) Rendering and caching model
 
@@ -409,7 +456,7 @@ All styles are in `app/globals.css` with a lightweight class-based approach:
 - CSS variables for palette/sizing (`--bg`, `--fg`, `--border`, etc.)
 - Shared layout helpers: `container`, `section`, `card`
 - Typographic distinction via sans + serif fonts
-- Specific classes for editor/auth/forms and photography mosaic (`editor-shell`, `editor-mode-toggle`, `markdown-editor`, `checkbox-row`, `post-row`, `photo-stage`, `photo-masonry`, `photo-tile`, etc.)
+- Specific classes for editor/auth/forms and photography views (`editor-shell`, `editor-mode-toggle`, `markdown-editor`, `checkbox-row`, `post-row`, `photo-stage`, `photo-masonry`, `photo-tile`, `photo-modal`, `photo-admin-grid`, etc.)
 
 No Tailwind or CSS Modules are used.
 
@@ -459,6 +506,7 @@ The following infrastructure work has already been completed in this repository 
 3. Verified remote tables exist:
    - `public.posts`
    - `public.profiles`
+   - `public.photos`
 4. Verified RLS policies exist:
    - `Editors can manage posts`
    - `Public can read published posts`
@@ -469,6 +517,8 @@ The following infrastructure work has already been completed in this repository 
    - `Editors can upload photos bucket`
    - `Editors can update photos bucket`
    - `Editors can delete photos bucket`
+   - `Public can read photos metadata`
+   - `Editors can manage photos metadata`
 5. Local `.env` populated with project URL + anon key + DB connection URLs.
 6. `.gitignore` updated to ignore:
    - `.env`
@@ -485,6 +535,9 @@ The following infrastructure work has already been completed in this repository 
    - `storage.buckets` contains `photos` (`public = true`, `file_size_limit = 26214400`)
    - `allowed_mime_types` for `photos`: jpeg/png/webp/gif/avif/heic/heif
    - storage policies for `photos` confirmed in `pg_policies`
+11. Applied and verified photo metadata table infrastructure on March 4, 2026 (America/Chicago):
+   - `public.photos` table exists with `storage_path`, `location`, `description`, `song_title`, `song_url`
+   - `photos_created_at_idx` exists and `update_photos_updated_at` trigger is active
 
 ### 12.2 Supabase connectivity notes for future agents
 
@@ -524,7 +577,7 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 6. Site metadata is generic placeholders (`Your Name`) and should be customized.
 7. Spotify "today" stats are approximate because `/me/player/recently-played` returns only the latest 50 tracks.
 8. Spotify now-playing and recent-play endpoints depend on account/app permissions and may return `502` via `/api/spotify/live` when OAuth scope or account constraints are not satisfied.
-9. Photography mosaic currently derives alt text from file names and orders by storage object creation time; there is no caption/manual ordering UI yet.
+9. Photography mosaic now supports metadata (location/description/song), but ordering is still based on storage object creation time and there is no delete/manual-order UI yet.
 
 ## 15) End-to-end request flow examples
 
@@ -541,7 +594,7 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 1. User opens `/admin`; signed-in non-editors are redirected to `/writings`.
 2. Editor signs in via Supabase auth client (if not already signed in).
 3. Editor clicks `New article`; dashboard creates a draft and routes to `/admin/:id`.
-4. Editor writes in markdown mode or visual mode, then applies visual edits if needed.
+4. Editor writes in markdown mode or visual mode; visual edits sync back to markdown automatically.
 5. Client submits JSON to `PATCH /api/posts/:id` (or `POST /api/posts` when using `/admin/new` fallback).
 6. Route handler creates Supabase route client from request cookies.
 7. `requireEditor` checks authenticated user + `profiles.is_editor`.
@@ -555,40 +608,42 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 2. Editor chooses multiple files from the browser file picker.
 3. Client sends multipart request to `POST /api/photos` with `files[]`.
 4. Route handler builds Supabase route client from cookies and runs `requireEditor`.
-5. Accepted files upload to bucket `photos`; invalid files are reported in `failed[]`.
-6. Storage policies re-validate editor permission on object insert/update/delete.
-7. `/photography` reads bucket objects via `lib/photos.ts` and renders them in the masonry grid.
+5. Accepted files upload to bucket `photos`; matching metadata rows are created/upserted in `public.photos`.
+6. Dashboard loads editable photo cards via `GET /api/photos`; metadata saves use `PATCH /api/photos`.
+7. Storage and table policies re-validate editor permission on write operations.
+8. `/photography` reads merged storage + metadata rows via `lib/photos.ts`; clicking a photo opens metadata in the modal.
 
 ## 16) File-by-file quick reference
 
 - `app/layout.tsx`: global app shell and typography setup.
 - `app/page.tsx`: landing content + shared one-line activity ribbon.
   - latest writing card is dynamically populated from most recent published post
-- `app/photography/page.tsx`: public masonry-style photo gallery page.
+- `app/photography/page.tsx`: photography route shell that loads photo catalog and renders `PhotoMosaic`.
 - `app/writings/page.tsx`: archive list page for published posts.
 - `app/writings/[slug]/page.tsx`: individual published post renderer + metadata.
 - `app/experience/page.tsx`: static resume-style profile sections for education, work, projects, skills, and activities.
 - `app/admin/page.tsx`: admin route wrapper, forced dynamic render, and signed-in non-editor redirect to `/writings`.
-- `app/admin/AdminEditor.tsx`: auth UI + dashboard post list with create/edit/view actions and multi-photo upload.
+- `app/admin/AdminEditor.tsx`: auth UI + dashboard post list, multi-photo upload, and per-photo metadata editing.
 - `app/admin/PostEditorPage.tsx`: markdown editor form, toolbar shortcuts, and editable single-pane markdown/visual toggle.
 - `app/admin/new/page.tsx`: dedicated create route wrapping `PostEditorPage`.
 - `app/admin/[id]/page.tsx`: dedicated edit route wrapping `PostEditorPage`.
 - `app/api/spotify/live/route.ts`: server route for Spotify now-playing, daily stats, and playlist context.
-- `app/api/photos/route.ts`: editor-only multipart photo upload API to Supabase Storage.
+- `app/api/photos/route.ts`: editor-only photo API (`GET` list, `POST` upload, `PATCH` metadata).
 - `app/api/posts/route.ts`: list/create post APIs (editor-only).
 - `app/api/posts/[id]/route.ts`: fetch/update single post API (editor-only).
 - `components/SpotifyNowPlaying.tsx`: resilient polling UI for the Spotify home-page ribbon row (with long-track marquee behavior) + expandable detail panel.
 - `components/DuolingoStreak.tsx`: resilient polling UI for the Duolingo home-page ribbon row + expandable detail panel.
 - `components/SiteFooter.tsx`: footer with dynamic copyright year and external links to LinkedIn, GitHub, and Instagram.
 - `components/SiteNav.tsx`: primary navigation (includes `/photography` link).
+- `components/PhotoMosaic.tsx`: gapless masonry renderer + click-to-open metadata modal on `/photography`.
 - `lib/posts.ts`: public content fetch functions.
   - used by home page and writings pages for published content lists/details
-- `lib/photos.ts`: public photo listing helper for the photography mosaic.
+- `lib/photos.ts`: merged photo catalog helper (storage objects + metadata table rows).
 - `lib/spotify.ts`: Spotify token refresh, API fetches, and payload shaping.
 - `lib/requireEditor.ts`: reusable editor authorization check.
 - `lib/date.ts`: date formatting helper.
 - `middleware.ts`: Supabase session middleware on admin/api routes.
-- `supabase/schema.sql`: complete DB schema + trigger + RLS policies.
+- `supabase/schema.sql`: complete DB schema + triggers + RLS policies (including `public.photos` metadata table + storage policies).
 - `scripts/spotify-refresh-token.mjs`: local command-line helper for Spotify OAuth token bootstrap.
 
 ## 17) Practical next improvements (if you extend this code)
@@ -600,8 +655,8 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
    - `requireEditor`
    - API route auth/validation
    - slug behavior
-5. Add better authoring UX (autosave and unsaved-change warning on compose routes).
-6. Add photography management controls (manual ordering, captions/alt editing, and delete controls) in `/admin`.
+5. Add unsaved-change leave warnings on compose routes.
+6. Add advanced photography controls (manual ordering, tag-based filtering, and delete/archive controls) in `/admin`.
 
 ## 18) Repository and git context
 
@@ -623,8 +678,8 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 4. Dependency install (`npm install`) generated `package-lock.json` and is required before first run.
 5. During March 3, 2026 validation, forcing a fixed dev port avoided auto-port fallback (`npm run dev -- --port 3100`) and returned HTTP `200` for `/`, `/writings`, and `/admin`.
 6. During March 3, 2026 photography rollout validation, `/photography` also returned HTTP `200` with ISR enabled.
-6. Current article body format is markdown-first; legacy HTML bodies still render via fallback in `app/writings/[slug]/page.tsx`.
-7. If dev logs show `Failed to find font override values for font Newsreader`, ensure `app/layout.tsx` keeps `adjustFontFallback: false` on the `Newsreader(...)` config.
+7. Current article body format is markdown-first; legacy HTML bodies still render via fallback in `app/writings/[slug]/page.tsx`.
+8. If dev logs show `Failed to find font override values for font Newsreader`, ensure `app/layout.tsx` keeps `adjustFontFallback: false` on the `Newsreader(...)` config.
 
 ## 20) Agent checklist (quick start)
 

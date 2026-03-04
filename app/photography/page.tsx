@@ -1,4 +1,5 @@
 import { fetchPublicPhotos } from "@/lib/photos";
+import PhotoMosaic from "@/components/PhotoMosaic";
 
 export const revalidate = 60;
 
@@ -15,20 +16,7 @@ export default async function PhotographyPage() {
           <p>No photos published yet.</p>
         </div>
       ) : (
-        <div className="photo-stage section">
-          <div className="photo-masonry">
-            {photos.map((photo) => (
-              <figure key={photo.path} className="photo-tile">
-                <img
-                  src={photo.url}
-                  alt={photo.alt}
-                  loading="lazy"
-                  decoding="async"
-                />
-              </figure>
-            ))}
-          </div>
-        </div>
+        <PhotoMosaic photos={photos} />
       )}
     </section>
   );

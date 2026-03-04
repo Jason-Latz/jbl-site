@@ -4,7 +4,7 @@ import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import type { Session } from "@supabase/supabase-js";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
 
 type Post = {
@@ -26,6 +26,38 @@ type PhotoUploadResponse = {
   failed?: { name: string; reason: string }[];
 };
 
+type PhotoApiItem = {
+  id: string | null;
+  path: string;
+  url: string | null;
+  location: string | null;
+  description: string | null;
+  songTitle: string | null;
+  songUrl: string | null;
+  createdAt: string | null;
+};
+
+type EditablePhoto = {
+  id: string | null;
+  path: string;
+  url: string;
+  location: string;
+  description: string;
+  songTitle: string;
+  songUrl: string;
+  createdAt: string | null;
+};
+
+type PhotosListResponse = {
+  error?: string;
+  photos?: PhotoApiItem[];
+};
+
+type PhotoMetadataResponse = {
+  error?: string;
+  photo?: PhotoApiItem;
+};
+
 function formatPostDate(value: string | null) {
   if (!value) {
     return null;
@@ -43,6 +75,19 @@ function formatPostDate(value: string | null) {
   });
 }
 
+function toEditablePhoto(photo: PhotoApiItem): EditablePhoto {
+  return {
+    id: photo.id ?? null,
+    path: photo.path,
+    url: photo.url ?? "",
+    location: photo.location ?? "",
+    description: photo.description ?? "",
+    songTitle: photo.songTitle ?? "",
+    songUrl: photo.songUrl ?? "",
+    createdAt: photo.createdAt ?? null
+  };
+}
+
 export default function AdminEditor() {
   const router = useRouter();
   const supabase = useMemo(() => createClientComponentClient(), []);
@@ -55,11 +100,19 @@ export default function AdminEditor() {
   const [loadingPosts, setLoadingPosts] = useState(false);
   const [postsError, setPostsError] = useState("");
   const [creatingDraft, setCreatingDraft] = useState(false);
+
   const [selectedPhotos, setSelectedPhotos] = useState<File[]>([]);
   const [photoUploadMessage, setPhotoUploadMessage] = useState("");
   const [photoUploadError, setPhotoUploadError] = useState("");
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const [photos, setPhotos] = useState<EditablePhoto[]>([]);
+  const [loadingPhotos, setLoadingPhotos] = useState(false);
+  const [photosError, setPhotosError] = useState("");
+  const [photoMetadataMessage, setPhotoMetadataMessage] = useState("");
+  const [photoMetadataError, setPhotoMetadataError] = useState("");
+  const [savingPhotoPath, setSavingPhotoPath] = useState<string | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -80,44 +133,77 @@ export default function AdminEditor() {
     };
   }, [router, supabase]);
 
+  const loadPosts = useCallback(async () => {
+    setLoadingPosts(true);
+    setPostsError("");
+
+    try {
+      const response = await fetch("/api/posts", { cache: "no-store" });
+      const data = (await response.json()) as { error?: string; posts?: Post[] };
+
+      if (!response.ok) {
+        const message = data.error ?? "Unable to load posts.";
+        setPosts([]);
+        setPostsError(message);
+
+        if (response.status === 401) {
+          await supabase.auth.signOut();
+        } else if (response.status === 403) {
+          router.replace("/writings");
+        }
+
+        return;
+      }
+
+      setPosts(data.posts ?? []);
+    } catch {
+      setPosts([]);
+      setPostsError("Unable to load posts.");
+    } finally {
+      setLoadingPosts(false);
+    }
+  }, [router, supabase]);
+
+  const loadPhotos = useCallback(async () => {
+    setLoadingPhotos(true);
+    setPhotosError("");
+
+    try {
+      const response = await fetch("/api/photos", { cache: "no-store" });
+      const data = (await response.json()) as PhotosListResponse;
+
+      if (!response.ok) {
+        const message = data.error ?? "Unable to load photos.";
+        setPhotos([]);
+        setPhotosError(message);
+
+        if (response.status === 401) {
+          await supabase.auth.signOut();
+        } else if (response.status === 403) {
+          router.replace("/writings");
+        }
+
+        return;
+      }
+
+      const nextPhotos = (data.photos ?? []).map(toEditablePhoto);
+      setPhotos(nextPhotos);
+    } catch {
+      setPhotos([]);
+      setPhotosError("Unable to load photos.");
+    } finally {
+      setLoadingPhotos(false);
+    }
+  }, [router, supabase]);
+
   useEffect(() => {
     if (!session) {
       return;
     }
 
-    const loadPosts = async () => {
-      setLoadingPosts(true);
-      setPostsError("");
-
-      try {
-        const response = await fetch("/api/posts", { cache: "no-store" });
-        const data = (await response.json()) as { error?: string; posts?: Post[] };
-
-        if (!response.ok) {
-          const message = data.error ?? "Unable to load posts.";
-          setPosts([]);
-          setPostsError(message);
-
-          if (response.status === 401) {
-            await supabase.auth.signOut();
-          } else if (response.status === 403) {
-            router.replace("/writings");
-          }
-
-          return;
-        }
-
-        setPosts(data.posts ?? []);
-      } catch {
-        setPosts([]);
-        setPostsError("Unable to load posts.");
-      } finally {
-        setLoadingPosts(false);
-      }
-    };
-
     void loadPosts();
-  }, [router, session, supabase]);
+    void loadPhotos();
+  }, [session, loadPosts, loadPhotos]);
 
   const handleSignIn = async () => {
     setAuthMessage("");
@@ -139,6 +225,12 @@ export default function AdminEditor() {
     setSelectedPhotos([]);
     setPhotoUploadError("");
     setPhotoUploadMessage("");
+    setPhotos([]);
+    setPhotosError("");
+    setPhotoMetadataError("");
+    setPhotoMetadataMessage("");
+    setSavingPhotoPath(null);
+
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -207,6 +299,8 @@ export default function AdminEditor() {
     setUploadingPhotos(true);
     setPhotoUploadError("");
     setPhotoUploadMessage("");
+    setPhotoMetadataError("");
+    setPhotoMetadataMessage("");
 
     const formData = new FormData();
     selectedPhotos.forEach((file) => {
@@ -243,10 +337,69 @@ export default function AdminEditor() {
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
+
+      await loadPhotos();
     } catch {
       setPhotoUploadError("Unable to upload photos.");
     } finally {
       setUploadingPhotos(false);
+    }
+  };
+
+  const handlePhotoFieldChange = (
+    path: string,
+    field: "location" | "description" | "songTitle" | "songUrl",
+    value: string
+  ) => {
+    setPhotos((current) =>
+      current.map((photo) =>
+        photo.path === path ? { ...photo, [field]: value } : photo
+      )
+    );
+  };
+
+  const handleSavePhotoMetadata = async (path: string) => {
+    const target = photos.find((photo) => photo.path === path);
+    if (!target || savingPhotoPath) {
+      return;
+    }
+
+    setSavingPhotoPath(path);
+    setPhotoMetadataMessage("");
+    setPhotoMetadataError("");
+
+    try {
+      const response = await fetch("/api/photos", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          storagePath: target.path,
+          location: target.location,
+          description: target.description,
+          songTitle: target.songTitle,
+          songUrl: target.songUrl
+        })
+      });
+
+      const data = (await response.json()) as PhotoMetadataResponse;
+
+      if (!response.ok) {
+        setPhotoMetadataError(data.error ?? "Unable to save metadata.");
+        return;
+      }
+
+      if (data.photo) {
+        const next = toEditablePhoto(data.photo);
+        setPhotos((current) =>
+          current.map((photo) => (photo.path === path ? next : photo))
+        );
+      }
+
+      setPhotoMetadataMessage("Photo metadata saved.");
+    } catch {
+      setPhotoMetadataError("Unable to save metadata.");
+    } finally {
+      setSavingPhotoPath(null);
     }
   };
 
@@ -362,12 +515,81 @@ export default function AdminEditor() {
               </button>
             </div>
             <p className="post-meta">
-              Recommended: JPG, PNG, or WebP. Keep files under 25MB each.
+              Recommended: JPG, PNG, WebP, or HEIC. Keep files under 25MB each.
             </p>
             {photoUploadMessage && <p className="post-meta">{photoUploadMessage}</p>}
             {photoUploadError && <p className="post-meta">{photoUploadError}</p>}
           </div>
         </div>
+      </div>
+
+      <div className="section">
+        <h3>Photo metadata</h3>
+        <p className="post-meta">
+          Click a photo on the public photography page to see this metadata.
+        </p>
+        {photosError && <p className="post-meta">{photosError}</p>}
+        {photoMetadataMessage && <p className="post-meta">{photoMetadataMessage}</p>}
+        {photoMetadataError && <p className="post-meta">{photoMetadataError}</p>}
+
+        {loadingPhotos ? (
+          <p className="post-meta">Loading photos...</p>
+        ) : photos.length === 0 ? (
+          <p className="post-meta">No photos uploaded yet.</p>
+        ) : (
+          <div className="photo-admin-grid">
+            {photos.map((photo) => (
+              <div key={photo.path} className="card photo-admin-card">
+                <img src={photo.url} alt={photo.path} className="photo-admin-thumb" />
+                <p className="post-meta photo-admin-path">{photo.path}</p>
+                <div className="form-grid">
+                  <input
+                    type="text"
+                    placeholder="Location"
+                    value={photo.location}
+                    onChange={(event) =>
+                      handlePhotoFieldChange(photo.path, "location", event.target.value)
+                    }
+                  />
+                  <textarea
+                    placeholder="Description"
+                    value={photo.description}
+                    onChange={(event) =>
+                      handlePhotoFieldChange(
+                        photo.path,
+                        "description",
+                        event.target.value
+                      )
+                    }
+                  />
+                  <input
+                    type="text"
+                    placeholder="Song title (optional)"
+                    value={photo.songTitle}
+                    onChange={(event) =>
+                      handlePhotoFieldChange(photo.path, "songTitle", event.target.value)
+                    }
+                  />
+                  <input
+                    type="url"
+                    placeholder="Spotify URL (optional)"
+                    value={photo.songUrl}
+                    onChange={(event) =>
+                      handlePhotoFieldChange(photo.path, "songUrl", event.target.value)
+                    }
+                  />
+                  <button
+                    className="secondary"
+                    onClick={() => handleSavePhotoMetadata(photo.path)}
+                    disabled={savingPhotoPath === photo.path}
+                  >
+                    {savingPhotoPath === photo.path ? "Saving..." : "Save metadata"}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

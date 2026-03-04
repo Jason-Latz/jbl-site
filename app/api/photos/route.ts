@@ -1,9 +1,13 @@
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import {
+  PHOTO_BUCKET,
+  encodeStoragePath,
+  listPhotoCatalog
+} from "@/lib/photos";
 import { requireEditor } from "@/lib/requireEditor";
 
-const PHOTO_BUCKET = "photos";
 const MAX_FILES_PER_REQUEST = 40;
 const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024;
 
@@ -17,6 +21,15 @@ function normalizeFileName(name: string) {
     .replace(/^-+|-+$/g, "");
 
   return cleanBase || "photo";
+}
+
+function normalizeNullableText(value: unknown) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
 }
 
 function extensionFromFile(file: File) {
@@ -47,8 +60,48 @@ function extensionFromFile(file: File) {
   }
 }
 
-function encodeStoragePath(path: string) {
-  return path.split("/").map(encodeURIComponent).join("/");
+function validateSpotifyUrl(value: string | null) {
+  if (!value) {
+    return { valid: true as const, url: null };
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    return { valid: false as const, error: "Song URL must be a valid URL." };
+  }
+
+  const host = parsed.hostname.toLowerCase();
+  const isSpotifyHost = host === "open.spotify.com" || host === "spotify.link";
+
+  if (!isSpotifyHost) {
+    return {
+      valid: false as const,
+      error: "Song URL must be a Spotify link (open.spotify.com or spotify.link)."
+    };
+  }
+
+  return { valid: true as const, url: parsed.toString() };
+}
+
+export async function GET() {
+  const supabase = createRouteHandlerClient({ cookies });
+  const access = await requireEditor(supabase);
+
+  if (!access.allowed) {
+    return NextResponse.json(
+      { error: access.message },
+      { status: access.status }
+    );
+  }
+
+  const photos = await listPhotoCatalog(
+    supabase,
+    process.env.NEXT_PUBLIC_SUPABASE_URL
+  );
+
+  return NextResponse.json({ photos });
 }
 
 export async function POST(request: Request) {
@@ -96,7 +149,10 @@ export async function POST(request: Request) {
 
   for (const [index, file] of files.entries()) {
     if (!file.type.startsWith("image/")) {
-      failed.push({ name: file.name || `file-${index + 1}`, reason: "Not an image file." });
+      failed.push({
+        name: file.name || `file-${index + 1}`,
+        reason: "Not an image file."
+      });
       continue;
     }
 
@@ -128,6 +184,24 @@ export async function POST(request: Request) {
       continue;
     }
 
+    const { error: metadataError } = await supabase.from("photos").upsert(
+      {
+        storage_path: objectPath
+      },
+      {
+        onConflict: "storage_path"
+      }
+    );
+
+    if (metadataError) {
+      await supabase.storage.from(PHOTO_BUCKET).remove([objectPath]);
+      failed.push({
+        name: file.name || `file-${index + 1}`,
+        reason: `Uploaded image metadata failed: ${metadataError.message}`
+      });
+      continue;
+    }
+
     uploadedPaths.push(objectPath);
   }
 
@@ -152,4 +226,83 @@ export async function POST(request: Request) {
     },
     { status }
   );
+}
+
+export async function PATCH(request: Request) {
+  const supabase = createRouteHandlerClient({ cookies });
+  const access = await requireEditor(supabase);
+
+  if (!access.allowed) {
+    return NextResponse.json(
+      { error: access.message },
+      { status: access.status }
+    );
+  }
+
+  let payload: Record<string, unknown>;
+  try {
+    payload = (await request.json()) as Record<string, unknown>;
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
+  }
+
+  const storagePath =
+    typeof payload.storagePath === "string" ? payload.storagePath.trim() : "";
+
+  if (!storagePath) {
+    return NextResponse.json(
+      { error: "storagePath is required." },
+      { status: 400 }
+    );
+  }
+
+  const location = normalizeNullableText(payload.location);
+  const description = normalizeNullableText(payload.description);
+  const songTitle = normalizeNullableText(payload.songTitle);
+  const songUrlInput = normalizeNullableText(payload.songUrl);
+
+  const spotifyValidation = validateSpotifyUrl(songUrlInput);
+  if (!spotifyValidation.valid) {
+    return NextResponse.json({ error: spotifyValidation.error }, { status: 400 });
+  }
+
+  const { data, error } = await supabase
+    .from("photos")
+    .upsert(
+      {
+        storage_path: storagePath,
+        location,
+        description,
+        song_title: songTitle,
+        song_url: spotifyValidation.url
+      },
+      { onConflict: "storage_path" }
+    )
+    .select(
+      "id, storage_path, location, description, song_title, song_url, created_at"
+    )
+    .single();
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+
+  return NextResponse.json({
+    photo: {
+      id: data.id,
+      path: data.storage_path,
+      url: baseUrl
+        ? `${baseUrl}/storage/v1/object/public/${PHOTO_BUCKET}/${encodeStoragePath(
+            data.storage_path
+          )}`
+        : null,
+      location: normalizeNullableText(data.location),
+      description: normalizeNullableText(data.description),
+      songTitle: normalizeNullableText(data.song_title),
+      songUrl: normalizeNullableText(data.song_url),
+      createdAt: data.created_at
+    }
+  });
 }
