@@ -143,5 +143,7 @@ For Spotify surface placement:
 
 For Spotify and Duolingo surfaces on `/`:
 
-1. Default to compact ribbon rows rather than always-expanded cards.
+1. Keep both widgets in one shared horizontal ribbon row on desktop (not stacked cards).
 2. Keep full widget details available via click-to-expand dropdown panels.
+3. Use caret-only affordances for expand/collapse; avoid extra "Details" label text in the ribbon row.
+4. For Spotify summary text, prefer overflow-safe behavior (for example marquee-style scrolling) instead of growing ribbon height.
