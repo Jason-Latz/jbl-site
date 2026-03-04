@@ -357,7 +357,7 @@ This is an app-level guard layered on top of RLS.
   - `location` (optional)
   - `description` (optional)
   - `songTitle` (optional)
-  - `songUrl` (optional, validated as `open.spotify.com` or `spotify.link`)
+  - `songUrl` (optional, validated as `https://open.spotify.com/...` or `https://spotify.link/...`)
 - Upserts metadata into `public.photos` by `storage_path`
 - Returns updated metadata row + public storage URL
 

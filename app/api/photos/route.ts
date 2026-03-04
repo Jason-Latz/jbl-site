@@ -74,11 +74,13 @@ function validateSpotifyUrl(value: string | null) {
 
   const host = parsed.hostname.toLowerCase();
   const isSpotifyHost = host === "open.spotify.com" || host === "spotify.link";
+  const isHttps = parsed.protocol === "https:";
 
-  if (!isSpotifyHost) {
+  if (!isSpotifyHost || !isHttps) {
     return {
       valid: false as const,
-      error: "Song URL must be a Spotify link (open.spotify.com or spotify.link)."
+      error:
+        "Song URL must be an https Spotify link (open.spotify.com or spotify.link)."
     };
   }
 
