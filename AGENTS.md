@@ -165,6 +165,10 @@ For the public travel gallery and admin photo workflow:
 4. For travel gallery performance tuning, preserve visual quality first; prefer progressive/top-down loading deferral before reducing image quality.
 5. Preserve each photo's captured aspect ratio in the travel mosaic; do not crop into fixed-ratio tiles.
 6. Prefer display-sized travel mosaic delivery at approximately `q92` quality, with `q90` as fallback if needed; keep full-quality originals for detail views.
+7. Keep travel tile placement stable on first load (avoid auto-balancing layouts that reshuffle while images decode).
+8. Keep travel zoom UI minimal: a draggable zoom control from 25% to 200% plus a single reset action (no separate plus/minus or pan toggle buttons).
+9. Travel zoom must reflow/repack photos for best fit (showing more or fewer photos by zoom level), not scale one fixed block of tiles.
+10. Avoid fixed-column travel layouts that disproportionately shrink horizontal photos; use best-fit wrapping behavior.
 
 ## 20) Jason Preference: Spotify History Must Reflect Real Playback
 
@@ -182,3 +186,10 @@ For site-wide dark theme styling:
 
 1. Prefer warm, earthy dark palettes over cool blue-gray tones.
 2. Keep dark surfaces, borders, accents, and focus states visually warm while preserving readability and contrast.
+
+## 22) Jason Preference: Confirm UX Behavior Before Building
+
+For feature interactions and visual behavior changes:
+
+1. Confirm expected interaction semantics up front (for example, whether zoom should reflow layout vs scale canvas) before implementing substantial UI behavior changes.
+2. If behavior requirements are ambiguous, ask for clarification first instead of iterating through multiple incorrect implementations.
