@@ -454,6 +454,10 @@ The following infrastructure work has already been completed in this repository 
    - `Profiles are editable by owner`
    - `Profiles are viewable by owner`
    - `Profiles insert by owner`
+   - `Public can read photos bucket`
+   - `Editors can upload photos bucket`
+   - `Editors can update photos bucket`
+   - `Editors can delete photos bucket`
 5. Local `.env` populated with project URL + anon key + DB connection URLs.
 6. `.gitignore` updated to ignore:
    - `.env`
@@ -466,6 +470,10 @@ The following infrastructure work has already been completed in this repository 
    - upserted `public.profiles` row for `jasonlatz0@gmail.com` with `is_editor = true`
 9. Verified current role state:
    - `jasonlatz0@gmail.com` resolves to editor (`is_editor = true`)
+10. Applied and verified photography storage infrastructure on March 3, 2026 (America/Chicago):
+   - `storage.buckets` contains `photos` (`public = true`, `file_size_limit = 26214400`)
+   - `allowed_mime_types` for `photos`: jpeg/png/webp/gif/avif/heic/heif
+   - storage policies for `photos` confirmed in `pg_policies`
 
 ### 12.2 Supabase connectivity notes for future agents
 

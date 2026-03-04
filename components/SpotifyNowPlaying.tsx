@@ -222,9 +222,13 @@ export default function SpotifyNowPlaying() {
         // Ignore cache write errors.
       }
     } catch (err) {
-      const message =
+      const technicalMessage =
         err instanceof Error ? err.message : "Unable to refresh Spotify data.";
-      setError(message);
+      // Keep detailed diagnostics in dev tools without surfacing API internals in UI.
+      console.error("[SpotifyNowPlaying] Failed to refresh live data.", {
+        error: technicalMessage
+      });
+      setError("refresh-failed");
 
       const nextErrorCount = consecutiveErrorsRef.current + 1;
       consecutiveErrorsRef.current = nextErrorCount;
@@ -283,10 +287,10 @@ export default function SpotifyNowPlaying() {
       if (data) {
         return `Showing last known data (checked ${formatCheckedAt(
           data.fetchedAt
-        )}). ${error} Retrying in ${retryDelay}.`;
+        )}). Retrying in ${retryDelay}.`;
       }
 
-      return `Could not load Spotify data yet. ${error} Retrying in ${retryDelay}.`;
+      return `Could not load Spotify data yet. Retrying in ${retryDelay}.`;
     }
 
     if (!data) {
