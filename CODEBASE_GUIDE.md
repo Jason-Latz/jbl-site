@@ -7,7 +7,7 @@ This document explains how the site is structured, how data and auth flow throug
 This is a **Next.js 14 App Router** project for a personal website with:
 
 - Public pages: home, writings archive, photography mosaic, individual writing pages, and experience
-- A live Spotify home-page card showing now-playing status, same-day listening stats, and recent playlist context
+- A live home-page activity ribbon with Spotify now-playing and Duolingo streak summaries that expand to full details
 - A protected admin editor at `/admin`
 - Supabase-backed storage for posts, photography media, and editor permissions
 - A markdown-first writing flow with live preview and formatting shortcuts
@@ -48,8 +48,8 @@ app/
 components/
   SiteNav.tsx              # Main nav links
   SiteFooter.tsx           # Footer copyright + social links
-  SpotifyNowPlaying.tsx    # Home-page card polling /api/spotify/live
-  DuolingoStreak.tsx       # Home-page Duolingo streak widget
+  SpotifyNowPlaying.tsx    # Home-page Spotify ribbon panel polling /api/spotify/live
+  DuolingoStreak.tsx       # Home-page Duolingo ribbon panel polling /api/duolingo/streak
 
 lib/
   spotify.ts               # Spotify OAuth token refresh + data aggregation
@@ -88,7 +88,7 @@ This means every route is rendered inside the same visual shell by default.
 
 ### 4.2 Public pages
 
-- `/` (`app/page.tsx`): hero content, Spotify and Duolingo live widgets, dynamic “latest writing” card sourced from published posts, and a “now” card.
+- `/` (`app/page.tsx`): hero content, collapsible Spotify + Duolingo activity ribbon, dynamic “latest writing” card sourced from published posts, and a “now” card.
 - `/experience` (`app/experience/page.tsx`): static, resume-style sections (education, professional experience, projects, technical skills, activities) rendered as cards.
 - `/photography` (`app/photography/page.tsx`): server-rendered masonry mosaic built from images in the Supabase Storage `photos` bucket.
 - `/writings` (`app/writings/page.tsx`): server component fetching published posts from Supabase via `lib/posts.ts`.
@@ -96,9 +96,14 @@ This means every route is rendered inside the same visual shell by default.
 
 `/photography` and both writings routes set `export const revalidate = 60`, so page data is ISR-cached for up to 60 seconds.
 
-### 4.3 Spotify activity widget
+### 4.3 Home activity ribbon (Spotify + Duolingo)
 
-The home page now includes `components/SpotifyNowPlaying.tsx` (client component), which polls `/api/spotify/live` every 45 seconds and renders:
+The home page includes `components/SpotifyNowPlaying.tsx` and `components/DuolingoStreak.tsx` (both client components) inside a compact `activity-ribbon` container. Each component is rendered as a `<details>` panel:
+
+- closed panel = compact one-line summary
+- expanded panel = full detail card content
+
+`SpotifyNowPlaying.tsx` polls `/api/spotify/live` every 45 seconds and renders:
 
 1. Spotify-branded label icon in the card header
 2. Current track and playback state (if active)
@@ -114,7 +119,13 @@ The home page now includes `components/SpotifyNowPlaying.tsx` (client component)
 3. Compute "today" metrics in `SPOTIFY_TIMEZONE` (default `America/Chicago`)
 4. Resolve playlist metadata via playback context (`/playlists/:id`) or `/me/playlists?limit=1`
 
-Response caching is disabled (`Cache-Control: no-store`) so widget data is always fresh. The client poller also guards against transient non-JSON route responses (for example, dev-time HTML error pages) and falls back to status-based retry messaging instead of JSON parse errors.
+`DuolingoStreak.tsx` polls `/api/duolingo/streak` every 60 seconds and renders:
+
+1. Compact streak summary in the ribbon row
+2. Profile link, streak count, and status details in the expanded panel
+3. Last-known cached data and retry messaging when the API is temporarily unavailable
+
+Response caching is disabled (`Cache-Control: no-store`) on the Spotify route so the widget data is always fresh. Both client pollers guard against transient non-JSON route responses (for example, dev-time HTML error pages) and fall back to status-based retry messaging instead of JSON parse errors.
 
 ### 4.4 Admin area
 
@@ -551,7 +562,7 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 ## 16) File-by-file quick reference
 
 - `app/layout.tsx`: global app shell and typography setup.
-- `app/page.tsx`: static landing content.
+- `app/page.tsx`: landing content + activity ribbon.
   - latest writing card is dynamically populated from most recent published post
 - `app/photography/page.tsx`: public masonry-style photo gallery page.
 - `app/writings/page.tsx`: archive list page for published posts.
@@ -566,7 +577,8 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 - `app/api/photos/route.ts`: editor-only multipart photo upload API to Supabase Storage.
 - `app/api/posts/route.ts`: list/create post APIs (editor-only).
 - `app/api/posts/[id]/route.ts`: fetch/update single post API (editor-only).
-- `components/SpotifyNowPlaying.tsx`: resilient polling UI for the Spotify home-page card.
+- `components/SpotifyNowPlaying.tsx`: resilient polling UI for the Spotify home-page ribbon row + expandable detail panel.
+- `components/DuolingoStreak.tsx`: resilient polling UI for the Duolingo home-page ribbon row + expandable detail panel.
 - `components/SiteFooter.tsx`: footer with dynamic copyright year and external links to LinkedIn, GitHub, and Instagram.
 - `components/SiteNav.tsx`: primary navigation (includes `/photography` link).
 - `lib/posts.ts`: public content fetch functions.

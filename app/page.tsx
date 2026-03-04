@@ -10,8 +10,10 @@ export default async function HomePage() {
 
   return (
     <div className="hero">
-      <SpotifyNowPlaying />
-      <DuolingoStreak />
+      <div className="activity-ribbon" aria-label="Live activity">
+        <SpotifyNowPlaying />
+        <DuolingoStreak />
+      </div>
       <div className="pill">Research, product, and thoughtful writing</div>
       <h1>Building calm, deliberate products and ideas.</h1>
       <p>

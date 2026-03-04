@@ -138,3 +138,10 @@ For Spotify surface placement:
 
 1. Render `SpotifyNowPlaying` on `/` only, not in global layout.
 2. Keep site-wide pages free of Spotify status cards unless Jason explicitly asks to re-enable global placement.
+
+## 18) Jason Preference: Keep Home Activity Widgets Compact
+
+For Spotify and Duolingo surfaces on `/`:
+
+1. Default to compact ribbon rows rather than always-expanded cards.
+2. Keep full widget details available via click-to-expand dropdown panels.

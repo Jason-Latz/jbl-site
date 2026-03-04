@@ -239,28 +239,50 @@ export default function DuolingoStreak() {
       : "Streak temporarily unavailable";
 
   return (
-    <section className="duolingo-tracker card" aria-live="polite">
-      <div className="duolingo-head">
-        <div className="duolingo-label-row">
-          <img
-            className="duolingo-fire-icon"
-            src={STREAK_ICON_URL}
-            alt="Duolingo streak flame"
-            loading="lazy"
-            decoding="async"
-          />
-          <p className="duolingo-label">Live Duolingo streak</p>
+    <section className="activity-item" aria-live="polite">
+      <details className="activity-panel">
+        <summary className="activity-summary activity-summary-duolingo">
+          <span className="activity-summary-label-row">
+            <img
+              className="duolingo-fire-icon"
+              src={STREAK_ICON_URL}
+              alt=""
+              loading="lazy"
+              decoding="async"
+              aria-hidden="true"
+            />
+            <span className="activity-summary-label">Duolingo</span>
+          </span>
+          <span className="activity-summary-value">{streakLine}</span>
+          <span className="activity-summary-hint">Details</span>
+        </summary>
+
+        <div className="activity-details">
+          <div className="duolingo-tracker card">
+            <div className="duolingo-head">
+              <div className="duolingo-label-row">
+                <img
+                  className="duolingo-fire-icon"
+                  src={STREAK_ICON_URL}
+                  alt="Duolingo streak flame"
+                  loading="lazy"
+                  decoding="async"
+                />
+                <p className="duolingo-label">Live Duolingo streak</p>
+              </div>
+              <a
+                href={data?.profileUrl ?? `https://www.duolingo.com/profile/${USERNAME}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Open profile ↗
+              </a>
+            </div>
+            <p className="duolingo-streak-value">{streakLine}</p>
+            <p className="duolingo-meta">{statusLine}</p>
+          </div>
         </div>
-        <a
-          href={data?.profileUrl ?? `https://www.duolingo.com/profile/${USERNAME}`}
-          target="_blank"
-          rel="noreferrer"
-        >
-          Open profile ↗
-        </a>
-      </div>
-      <p className="duolingo-streak-value">{streakLine}</p>
-      <p className="duolingo-meta">{statusLine}</p>
+      </details>
     </section>
   );
 }

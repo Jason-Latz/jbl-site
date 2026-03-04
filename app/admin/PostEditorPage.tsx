@@ -52,6 +52,7 @@ export default function PostEditorPage({
   const supabase = useMemo(() => createClientComponentClient(), []);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const previewEditableRef = useRef<HTMLDivElement | null>(null);
+  const previewMarkdownSourceRef = useRef<HTMLDivElement | null>(null);
   const turndown = useMemo(
     () =>
       new TurndownService({
@@ -79,6 +80,7 @@ export default function PostEditorPage({
   const [slugEdited, setSlugEdited] = useState(false);
   const [editorMode, setEditorMode] = useState<"write" | "preview">("write");
   const [previewDirty, setPreviewDirty] = useState(false);
+  const [visualHtml, setVisualHtml] = useState("");
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -259,10 +261,19 @@ export default function PostEditorPage({
     });
   };
 
+  useEffect(() => {
+    if (editorMode !== "preview" || previewDirty) {
+      return;
+    }
+
+    const sourceHtml = previewMarkdownSourceRef.current?.innerHTML ?? "";
+    setVisualHtml(sourceHtml);
+  }, [content, editorMode, previewDirty]);
+
   const applyPreviewEdits = () => {
     const editable = previewEditableRef.current;
     if (!editable) {
-      return;
+      return content;
     }
 
     const nextMarkdown = turndown.turndown(editable.innerHTML).trim();
@@ -273,16 +284,22 @@ export default function PostEditorPage({
     }
 
     setPreviewDirty(false);
+    return nextMarkdown;
   };
 
   const handleSave = async () => {
     setStatusMessage("");
 
+    let nextContent = content;
+    if (editorMode === "preview" && previewDirty) {
+      nextContent = applyPreviewEdits();
+    }
+
     const payload = {
       title,
       slug,
       excerpt: excerpt || null,
-      content,
+      content: nextContent,
       published
     };
 
@@ -423,14 +440,22 @@ export default function PostEditorPage({
           <button
             type="button"
             className={editorMode === "write" ? "mode-active" : ""}
-            onClick={() => setEditorMode("write")}
+            onClick={() => {
+              if (editorMode === "preview" && previewDirty) {
+                applyPreviewEdits();
+              }
+              setEditorMode("write");
+            }}
           >
             Markdown
           </button>
           <button
             type="button"
             className={editorMode === "preview" ? "mode-active" : ""}
-            onClick={() => setEditorMode("preview")}
+            onClick={() => {
+              setPreviewDirty(false);
+              setEditorMode("preview");
+            }}
           >
             Visual
           </button>
@@ -531,21 +556,31 @@ export default function PostEditorPage({
             <p className="post-meta preview-edit-hint">
               You can edit directly here. Click “Apply preview edits” before saving.
             </p>
+            <div className="preview-markdown-source" aria-hidden ref={previewMarkdownSourceRef}>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {content || " "}
+              </ReactMarkdown>
+            </div>
             <div
               ref={previewEditableRef}
               className="content preview-editable-area"
               contentEditable
               suppressContentEditableWarning
+              dangerouslySetInnerHTML={{
+                __html: visualHtml || "<p>Start writing in Markdown mode.</p>"
+              }}
+              onClick={(event) => {
+                const target = event.target as HTMLElement;
+                if (target.closest("a")) {
+                  event.preventDefault();
+                }
+              }}
               onInput={() =>
                 setPreviewDirty((currentValue) =>
                   currentValue ? currentValue : true
                 )
               }
-            >
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {content || " "}
-              </ReactMarkdown>
-            </div>
+            />
             <div className="editor-toolbar">
               <button
                 className="secondary"

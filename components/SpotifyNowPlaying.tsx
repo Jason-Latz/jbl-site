@@ -315,63 +315,78 @@ export default function SpotifyNowPlaying() {
   }, [data]);
 
   return (
-    <section className="spotify-tracker card" aria-live="polite">
-      <div className="spotify-head">
-        <div className="spotify-label-row">
-          <SpotifyGlyph />
-          <p className="spotify-label">Spotify live</p>
+    <section className="activity-item" aria-live="polite">
+      <details className="activity-panel">
+        <summary className="activity-summary activity-summary-spotify">
+          <span className="activity-summary-label-row">
+            <SpotifyGlyph />
+            <span className="activity-summary-label">Spotify</span>
+          </span>
+          <span className="activity-summary-value">{trackLine}</span>
+          <span className="activity-summary-hint">Details</span>
+        </summary>
+
+        <div className="activity-details">
+          <div className="spotify-tracker card">
+            <div className="spotify-head">
+              <div className="spotify-label-row">
+                <SpotifyGlyph />
+                <p className="spotify-label">Spotify live</p>
+              </div>
+              {data?.nowPlaying?.trackUrl ? (
+                <a href={data.nowPlaying.trackUrl} target="_blank" rel="noreferrer">
+                  Open track ↗
+                </a>
+              ) : data?.recentPlaylist?.url ? (
+                <a href={data.recentPlaylist.url} target="_blank" rel="noreferrer">
+                  Open playlist ↗
+                </a>
+              ) : null}
+            </div>
+
+            <div className="spotify-track-row">
+              {data?.nowPlaying?.albumImageUrl ? (
+                <img
+                  className="spotify-artwork"
+                  src={data.nowPlaying.albumImageUrl}
+                  alt={`Album cover for ${
+                    data.nowPlaying.albumName ?? data.nowPlaying.trackName
+                  }`}
+                  loading="lazy"
+                  decoding="async"
+                />
+              ) : null}
+              <div className="spotify-track-copy">
+                <p className="spotify-track">{trackLine}</p>
+                {data?.nowPlaying?.albumName ? (
+                  <p className="spotify-meta">Album: {data.nowPlaying.albumName}</p>
+                ) : null}
+              </div>
+            </div>
+
+            <p className="spotify-meta">{todayLine}</p>
+
+            {data?.recentPlaylist ? (
+              <p className="spotify-meta">
+                Recent playlist:{" "}
+                {data.recentPlaylist.url ? (
+                  <a href={data.recentPlaylist.url} target="_blank" rel="noreferrer">
+                    {data.recentPlaylist.name}
+                  </a>
+                ) : (
+                  data.recentPlaylist.name
+                )}
+                {data.recentPlaylist.ownerName
+                  ? ` by ${data.recentPlaylist.ownerName}`
+                  : ""}
+                .
+              </p>
+            ) : null}
+
+            <p className="spotify-meta">{statusLine}</p>
+          </div>
         </div>
-        {data?.nowPlaying?.trackUrl ? (
-          <a href={data.nowPlaying.trackUrl} target="_blank" rel="noreferrer">
-            Open track ↗
-          </a>
-        ) : data?.recentPlaylist?.url ? (
-          <a href={data.recentPlaylist.url} target="_blank" rel="noreferrer">
-            Open playlist ↗
-          </a>
-        ) : null}
-      </div>
-
-      <div className="spotify-track-row">
-        {data?.nowPlaying?.albumImageUrl ? (
-          <img
-            className="spotify-artwork"
-            src={data.nowPlaying.albumImageUrl}
-            alt={`Album cover for ${
-              data.nowPlaying.albumName ?? data.nowPlaying.trackName
-            }`}
-            loading="lazy"
-            decoding="async"
-          />
-        ) : null}
-        <div className="spotify-track-copy">
-          <p className="spotify-track">{trackLine}</p>
-          {data?.nowPlaying?.albumName ? (
-            <p className="spotify-meta">Album: {data.nowPlaying.albumName}</p>
-          ) : null}
-        </div>
-      </div>
-
-      <p className="spotify-meta">{todayLine}</p>
-
-      {data?.recentPlaylist ? (
-        <p className="spotify-meta">
-          Recent playlist:{" "}
-          {data.recentPlaylist.url ? (
-            <a href={data.recentPlaylist.url} target="_blank" rel="noreferrer">
-              {data.recentPlaylist.name}
-            </a>
-          ) : (
-            data.recentPlaylist.name
-          )}
-          {data.recentPlaylist.ownerName
-            ? ` by ${data.recentPlaylist.ownerName}`
-            : ""}
-          .
-        </p>
-      ) : null}
-
-      <p className="spotify-meta">{statusLine}</p>
+      </details>
     </section>
   );
 }
