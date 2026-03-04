@@ -25,10 +25,8 @@ export default async function AdminPage() {
 
   return (
     <section className="section">
-      <h1>Editor</h1>
-      <p className="post-meta">
-        Sign in to draft, edit, and publish your writing.
-      </p>
+      <h1>Writing admin</h1>
+      <p className="post-meta">Create, edit, and publish your articles.</p>
       <AdminEditor />
     </section>
   );

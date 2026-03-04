@@ -5,6 +5,39 @@ import { requireEditor } from "@/lib/requireEditor";
 
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
+export async function GET(
+  _request: Request,
+  { params }: { params: { id: string } }
+) {
+  const supabase = createRouteHandlerClient({ cookies });
+  const access = await requireEditor(supabase);
+
+  if (!access.allowed) {
+    return NextResponse.json(
+      { error: access.message },
+      { status: access.status }
+    );
+  }
+
+  const { data, error } = await supabase
+    .from("posts")
+    .select(
+      "id, title, slug, excerpt, content, published, published_at, created_at, updated_at"
+    )
+    .eq("id", params.id)
+    .single();
+
+  if (error) {
+    if (error.code === "PGRST116") {
+      return NextResponse.json({ error: "Post not found." }, { status: 404 });
+    }
+
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ post: data });
+}
+
 export async function PATCH(
   request: Request,
   { params }: { params: { id: string } }

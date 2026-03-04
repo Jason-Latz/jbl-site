@@ -1,4 +1,6 @@
 import { notFound } from "next/navigation";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { formatDate } from "@/lib/date";
 import { fetchPostBySlug } from "@/lib/posts";
 
@@ -27,13 +29,20 @@ export default async function WritingPage({
     notFound();
   }
 
+  const content = post.content ?? "";
+  const looksLikeHtml = /<\/?[a-z][\s\S]*>/i.test(content);
+
   return (
     <article className="section content">
       <h1>{post.title}</h1>
       <p className="post-meta">
         {post.published_at ? formatDate(post.published_at) : "Draft"}
       </p>
-      <div dangerouslySetInnerHTML={{ __html: post.content ?? "" }} />
+      {looksLikeHtml ? (
+        <div dangerouslySetInnerHTML={{ __html: content }} />
+      ) : (
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+      )}
     </article>
   );
 }
