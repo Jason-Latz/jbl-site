@@ -62,6 +62,7 @@ as $$
   select lower(coalesce(auth.jwt() ->> 'email', '')) = 'jasonlatz0@gmail.com';
 $$;
 
+drop function if exists public.spotify_top_artists_last_days(integer, integer);
 create or replace function public.spotify_top_artists_last_days(
   window_days integer default 7,
   max_results integer default 5
@@ -70,7 +71,9 @@ returns table (
   artist_name text,
   spotify_artist_id text,
   play_count bigint,
-  artist_last_played_at timestamptz
+  artist_last_played_at timestamptz,
+  artist_url text,
+  artist_image_url text
 )
 language sql
 stable
@@ -79,20 +82,54 @@ as $$
     select
       nullif(artist ->> 'name', '') as artist_name,
       nullif(artist ->> 'id', '') as spotify_artist_id,
-      played_at
+      coalesce(
+        nullif(artist ->> 'id', ''),
+        'name:' || lower(coalesce(nullif(artist ->> 'name', ''), ''))
+      ) as artist_key,
+      nullif(artist ->> 'url', '') as artist_url,
+      nullif(spotify_recent_tracks.album_image_url, '') as artist_image_url,
+      spotify_recent_tracks.played_at
     from public.spotify_recent_tracks
     cross join lateral jsonb_array_elements(artists) as artist
-    where played_at >= now() - make_interval(days => greatest(window_days, 1))
+    where spotify_recent_tracks.played_at >= now() - make_interval(days => greatest(window_days, 1))
+  ),
+  filtered_events as (
+    select *
+    from artist_events
+    where artist_name is not null
+  ),
+  artist_rollup as (
+    select
+      artist_key,
+      max(artist_name) as artist_name,
+      max(spotify_artist_id) as spotify_artist_id,
+      count(*)::bigint as play_count,
+      max(played_at) as artist_last_played_at
+    from filtered_events
+    group by artist_key
+  ),
+  latest_artist_media as (
+    select distinct on (artist_key)
+      artist_key,
+      artist_url,
+      artist_image_url
+    from filtered_events
+    order by artist_key, played_at desc
   )
   select
-    artist_name,
-    spotify_artist_id,
-    count(*)::bigint as play_count,
-    max(played_at) as artist_last_played_at
-  from artist_events
-  where artist_name is not null
-  group by artist_name, spotify_artist_id
-  order by play_count desc, artist_last_played_at desc, artist_name asc
+    artist_rollup.artist_name,
+    artist_rollup.spotify_artist_id,
+    artist_rollup.play_count,
+    artist_rollup.artist_last_played_at,
+    latest_artist_media.artist_url,
+    latest_artist_media.artist_image_url
+  from artist_rollup
+  left join latest_artist_media
+    on latest_artist_media.artist_key = artist_rollup.artist_key
+  order by
+    artist_rollup.play_count desc,
+    artist_rollup.artist_last_played_at desc,
+    artist_rollup.artist_name asc
   limit greatest(max_results, 1);
 $$;
 

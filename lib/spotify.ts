@@ -64,17 +64,6 @@ type SpotifyPlaylistResponse = {
   };
 };
 
-type SpotifyArtistsResponse = {
-  artists?: Array<{
-    id?: string;
-    name?: string;
-    images?: SpotifyImage[];
-    external_urls?: {
-      spotify?: string;
-    };
-  }>;
-};
-
 type SpotifyPlaylistSource =
   | "current-playback"
   | "recent-playback-context";
@@ -171,6 +160,8 @@ type SpotifyTopArtistRow = {
   spotify_artist_id?: string | null;
   play_count?: number | string | null;
   artist_last_played_at?: string | null;
+  artist_url?: string | null;
+  artist_image_url?: string | null;
 };
 
 function getRequiredEnv(name: string) {
@@ -489,6 +480,7 @@ function buildTopArtistCandidatesFromRecentTracks(
     }
 
     const artists = normalizeArtists(item.track?.artists);
+    const trackImageUrl = getImageUrl(item.track?.album?.images);
     for (const artist of artists) {
       const key = artist.id ?? `name:${artist.name.toLowerCase()}`;
       const existing = entries.get(key);
@@ -497,6 +489,12 @@ function buildTopArtistCandidatesFromRecentTracks(
         existing.playCount += 1;
         if (playedAtDate.getTime() > existing.lastPlayedMs) {
           existing.lastPlayedMs = playedAtDate.getTime();
+          if (trackImageUrl) {
+            existing.imageUrl = trackImageUrl;
+          }
+          if (artist.url) {
+            existing.artistUrl = artist.url;
+          }
         }
         continue;
       }
@@ -505,7 +503,7 @@ function buildTopArtistCandidatesFromRecentTracks(
         artistId: artist.id,
         name: artist.name,
         artistUrl: artist.url,
-        imageUrl: null,
+        imageUrl: trackImageUrl,
         playCount: 1,
         lastPlayedMs: playedAtDate.getTime()
       });
@@ -611,8 +609,15 @@ async function fetchWeeklyTopArtistCandidatesFromSupabase(limit: number) {
           ? row.spotify_artist_id
           : null,
       name,
-      artistUrl: null,
-      imageUrl: null,
+      artistUrl:
+        typeof row.artist_url === "string" && row.artist_url.length > 0
+          ? row.artist_url
+          : null,
+      imageUrl:
+        typeof row.artist_image_url === "string" &&
+        row.artist_image_url.length > 0
+          ? row.artist_image_url
+          : null,
       playCount: parsePlayCount(row.play_count),
       lastPlayedMs: Number.isNaN(lastPlayedMs) ? 0 : lastPlayedMs
     });
@@ -621,53 +626,12 @@ async function fetchWeeklyTopArtistCandidatesFromSupabase(limit: number) {
   return candidates;
 }
 
-async function fetchArtistMetadataByIds(artistIds: string[]) {
-  const uniqueIds = [...new Set(artistIds)].filter((id) => id.length > 0);
-  if (uniqueIds.length === 0) {
-    return new Map<string, { name: string; artistUrl: string | null; imageUrl: string | null }>();
-  }
-
-  const response = await spotifyRequest(`/artists?ids=${uniqueIds.slice(0, 50).join(",")}`);
-  if (!response.ok) {
-    return new Map();
-  }
-
-  const payload = (await response.json()) as SpotifyArtistsResponse;
-  const artistMetadataById = new Map<
-    string,
-    { name: string; artistUrl: string | null; imageUrl: string | null }
-  >();
-
-  for (const artist of payload.artists ?? []) {
-    if (!artist?.id || !artist.name) {
-      continue;
-    }
-
-    artistMetadataById.set(artist.id, {
-      name: artist.name,
-      artistUrl: artist.external_urls?.spotify ?? null,
-      imageUrl: getImageUrl(artist.images)
-    });
-  }
-
-  return artistMetadataById;
-}
-
-async function toTopArtists(candidates: SpotifyTopArtistCandidate[]) {
-  const artistIds = candidates
-    .map((candidate) => candidate.artistId)
-    .filter((artistId): artistId is string => typeof artistId === "string");
-
-  const metadataById = await fetchArtistMetadataByIds(artistIds);
-
+function toTopArtists(candidates: SpotifyTopArtistCandidate[]) {
   return candidates.map((candidate) => {
-    const metadata =
-      candidate.artistId ? metadataById.get(candidate.artistId) : undefined;
-
     return {
-      name: metadata?.name ?? candidate.name,
-      artistUrl: metadata?.artistUrl ?? candidate.artistUrl ?? null,
-      imageUrl: metadata?.imageUrl ?? candidate.imageUrl ?? null,
+      name: candidate.name,
+      artistUrl: candidate.artistUrl ?? null,
+      imageUrl: candidate.imageUrl ?? null,
       playCount: candidate.playCount
     };
   });
