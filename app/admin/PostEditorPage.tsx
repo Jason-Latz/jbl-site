@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import TurndownService from "turndown";
 
 type Post = {
   id: string;
@@ -35,6 +36,7 @@ function getNextFootnoteIndex(markdown: string) {
     if (Number.isNaN(parsed)) {
       return largest;
     }
+
     return Math.max(largest, parsed);
   }, 0);
 
@@ -49,6 +51,15 @@ export default function PostEditorPage({
   const router = useRouter();
   const supabase = useMemo(() => createClientComponentClient(), []);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const previewEditableRef = useRef<HTMLDivElement | null>(null);
+  const turndown = useMemo(
+    () =>
+      new TurndownService({
+        headingStyle: "atx",
+        codeBlockStyle: "fenced"
+      }),
+    []
+  );
 
   const [session, setSession] = useState<Session | null>(null);
   const [authMessage, setAuthMessage] = useState("");
@@ -66,6 +77,8 @@ export default function PostEditorPage({
   const [published, setPublished] = useState(false);
   const [content, setContent] = useState("");
   const [slugEdited, setSlugEdited] = useState(false);
+  const [editorMode, setEditorMode] = useState<"write" | "preview">("write");
+  const [previewDirty, setPreviewDirty] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -246,6 +259,22 @@ export default function PostEditorPage({
     });
   };
 
+  const applyPreviewEdits = () => {
+    const editable = previewEditableRef.current;
+    if (!editable) {
+      return;
+    }
+
+    const nextMarkdown = turndown.turndown(editable.innerHTML).trim();
+
+    if (nextMarkdown !== content) {
+      setContent(nextMarkdown);
+      setStatusMessage("Preview edits applied. Save to persist.");
+    }
+
+    setPreviewDirty(false);
+  };
+
   const handleSave = async () => {
     setStatusMessage("");
 
@@ -357,145 +386,188 @@ export default function PostEditorPage({
         )}
       </div>
 
-      <div className="editor-page-grid">
-        <div className="card editor-panel">
-          <div className="form-grid meta-grid">
-            <input
-              type="text"
-              placeholder="Title"
-              value={title}
-              onChange={(event) => handleTitleChange(event.target.value)}
-            />
-            <input
-              type="text"
-              placeholder="Slug"
-              value={slug}
-              onChange={(event) => {
-                setSlug(event.target.value);
-                setSlugEdited(true);
-              }}
-            />
-            <textarea
-              placeholder="Short excerpt"
-              rows={3}
-              value={excerpt}
-              onChange={(event) => setExcerpt(event.target.value)}
-            />
-            <label className="checkbox-row">
-              <input
-                type="checkbox"
-                checked={published}
-                onChange={(event) => setPublished(event.target.checked)}
-              />
-              <span>Published</span>
-            </label>
-          </div>
-
-          <div className="editor-toolbar markdown-toolbar">
-            <button
-              className="secondary"
-              type="button"
-              onClick={() => insertAroundSelection("**", "**", "bold")}
-            >
-              Bold
-            </button>
-            <button
-              className="secondary"
-              type="button"
-              onClick={() => insertAroundSelection("*", "*", "italic")}
-            >
-              Italic
-            </button>
-            <button
-              className="secondary"
-              type="button"
-              onClick={() => insertLinePrefix("## ", "Heading")}
-            >
-              H2
-            </button>
-            <button
-              className="secondary"
-              type="button"
-              onClick={() => insertLinePrefix("> ", "Quote")}
-            >
-              Quote
-            </button>
-            <button
-              className="secondary"
-              type="button"
-              onClick={() => insertAroundSelection("[", "](https://example.com)", "link")}
-            >
-              Link
-            </button>
-            <button
-              className="secondary"
-              type="button"
-              onClick={() => insertAroundSelection("`", "`", "code")}
-            >
-              Inline code
-            </button>
-            <button
-              className="secondary"
-              type="button"
-              onClick={() =>
-                insertAroundSelection("\n```\n", "\n```\n", "code block")
-              }
-            >
-              Code block
-            </button>
-            <button
-              className="secondary"
-              type="button"
-              onClick={() => insertLinePrefix("- ", "List item")}
-            >
-              Bulleted list
-            </button>
-            <button
-              className="secondary"
-              type="button"
-              onClick={() => insertLinePrefix("1. ", "List item")}
-            >
-              Numbered list
-            </button>
-            <button className="secondary" type="button" onClick={insertFootnote}>
-              Footnote
-            </button>
-          </div>
-
-          <textarea
-            ref={textareaRef}
-            className="markdown-editor"
-            placeholder="Write your article in Markdown..."
-            value={content}
-            onChange={(event) => setContent(event.target.value)}
+      <div className="card editor-panel editor-single-pane">
+        <div className="form-grid meta-grid">
+          <input
+            type="text"
+            placeholder="Title"
+            value={title}
+            onChange={(event) => handleTitleChange(event.target.value)}
           />
-
-          <div className="editor-toolbar">
-            <button className="primary" onClick={handleSave} disabled={saving}>
-              {saving
-                ? "Saving..."
-                : postId
-                  ? "Save changes"
-                  : "Create article"}
-            </button>
-            {statusMessage && <p className="post-meta">{statusMessage}</p>}
-          </div>
-          <p className="post-meta">
-            Markdown supported, including footnotes (`[^1]` with `[^1]: note`).
-          </p>
+          <input
+            type="text"
+            placeholder="Slug"
+            value={slug}
+            onChange={(event) => {
+              setSlug(event.target.value);
+              setSlugEdited(true);
+            }}
+          />
+          <textarea
+            placeholder="Short excerpt"
+            rows={3}
+            value={excerpt}
+            onChange={(event) => setExcerpt(event.target.value)}
+          />
+          <label className="checkbox-row">
+            <input
+              type="checkbox"
+              checked={published}
+              onChange={(event) => setPublished(event.target.checked)}
+            />
+            <span>Published</span>
+          </label>
         </div>
 
-        <article className="card editor-preview">
-          <p className="post-meta">Live preview</p>
-          <h1>{title || "Untitled article"}</h1>
-          <p className="post-meta">{published ? "Published" : "Draft"}</p>
-          {excerpt && <p>{excerpt}</p>}
-          <div className="content">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {content || "Start writing with Markdown..."}
-            </ReactMarkdown>
-          </div>
-        </article>
+        <div className="editor-toolbar editor-mode-toggle" role="tablist">
+          <button
+            type="button"
+            className={editorMode === "write" ? "mode-active" : ""}
+            onClick={() => setEditorMode("write")}
+          >
+            Markdown
+          </button>
+          <button
+            type="button"
+            className={editorMode === "preview" ? "mode-active" : ""}
+            onClick={() => setEditorMode("preview")}
+          >
+            Visual
+          </button>
+        </div>
+
+        {editorMode === "write" ? (
+          <>
+            <div className="editor-toolbar markdown-toolbar">
+              <button
+                className="secondary"
+                type="button"
+                onClick={() => insertAroundSelection("**", "**", "bold")}
+              >
+                Bold
+              </button>
+              <button
+                className="secondary"
+                type="button"
+                onClick={() => insertAroundSelection("*", "*", "italic")}
+              >
+                Italic
+              </button>
+              <button
+                className="secondary"
+                type="button"
+                onClick={() => insertLinePrefix("## ", "Heading")}
+              >
+                H2
+              </button>
+              <button
+                className="secondary"
+                type="button"
+                onClick={() => insertLinePrefix("> ", "Quote")}
+              >
+                Quote
+              </button>
+              <button
+                className="secondary"
+                type="button"
+                onClick={() =>
+                  insertAroundSelection("[", "](https://example.com)", "link")
+                }
+              >
+                Link
+              </button>
+              <button
+                className="secondary"
+                type="button"
+                onClick={() => insertAroundSelection("`", "`", "code")}
+              >
+                Inline code
+              </button>
+              <button
+                className="secondary"
+                type="button"
+                onClick={() =>
+                  insertAroundSelection("\n```\n", "\n```\n", "code block")
+                }
+              >
+                Code block
+              </button>
+              <button
+                className="secondary"
+                type="button"
+                onClick={() => insertLinePrefix("- ", "List item")}
+              >
+                Bulleted list
+              </button>
+              <button
+                className="secondary"
+                type="button"
+                onClick={() => insertLinePrefix("1. ", "List item")}
+              >
+                Numbered list
+              </button>
+              <button
+                className="secondary"
+                type="button"
+                onClick={insertFootnote}
+              >
+                Footnote
+              </button>
+            </div>
+
+            <textarea
+              ref={textareaRef}
+              className="markdown-editor"
+              placeholder="Write your article in Markdown..."
+              value={content}
+              onChange={(event) => setContent(event.target.value)}
+            />
+          </>
+        ) : (
+          <article className="editor-preview-surface">
+            <h1>{title || "Untitled article"}</h1>
+            <p className="post-meta">{published ? "Published" : "Draft"}</p>
+            {excerpt && <p className="editor-preview-excerpt">{excerpt}</p>}
+            <p className="post-meta preview-edit-hint">
+              You can edit directly here. Click “Apply preview edits” before saving.
+            </p>
+            <div
+              ref={previewEditableRef}
+              className="content preview-editable-area"
+              contentEditable
+              suppressContentEditableWarning
+              onInput={() =>
+                setPreviewDirty((currentValue) =>
+                  currentValue ? currentValue : true
+                )
+              }
+            >
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {content || " "}
+              </ReactMarkdown>
+            </div>
+            <div className="editor-toolbar">
+              <button
+                className="secondary"
+                type="button"
+                onClick={applyPreviewEdits}
+                disabled={!previewDirty}
+              >
+                Apply preview edits
+              </button>
+            </div>
+          </article>
+        )}
+
+        <div className="editor-toolbar">
+          <button className="primary" onClick={handleSave} disabled={saving}>
+            {saving ? "Saving..." : postId ? "Save changes" : "Create article"}
+          </button>
+          {statusMessage && <p className="post-meta">{statusMessage}</p>}
+        </div>
+        <p className="post-meta">
+          Markdown supported, including footnotes (`[^1]` with `[^1]: note`).
+        </p>
       </div>
     </div>
   );

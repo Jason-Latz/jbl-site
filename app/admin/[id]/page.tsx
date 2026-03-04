@@ -36,7 +36,7 @@ export default async function EditArticlePage({
   return (
     <section className="section">
       <h1>Edit article</h1>
-      <p className="post-meta">Update Markdown and preview before publishing.</p>
+      <p className="post-meta">Edit with a single writer and toggle preview.</p>
       <PostEditorPage postId={params.id} />
     </section>
   );

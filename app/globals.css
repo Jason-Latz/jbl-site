@@ -290,13 +290,12 @@ img {
   gap: 1.5rem;
 }
 
-.editor-page-grid {
-  display: grid;
-  gap: 1.5rem;
-}
-
 .editor-panel {
   gap: 1rem;
+}
+
+.editor-single-pane {
+  max-width: 860px;
 }
 
 .meta-grid {
@@ -320,19 +319,68 @@ img {
   margin-top: 0.25rem;
 }
 
+.editor-mode-toggle {
+  gap: 0.4rem;
+}
+
+.editor-mode-toggle button {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #f7f3ed;
+  color: var(--muted);
+  padding: 0.45rem 0.95rem;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.editor-mode-toggle button.mode-active {
+  background: var(--fg);
+  color: #fff;
+  border-color: var(--fg);
+}
+
 .markdown-editor {
-  min-height: 340px;
+  min-height: 520px;
   resize: vertical;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   line-height: 1.55;
+  border-radius: 16px;
 }
 
-.editor-preview {
-  gap: 0.9rem;
+.editor-preview-surface {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: #fff;
+  padding: 2rem 2.2rem;
 }
 
-.editor-preview .content {
+.editor-preview-surface h1 {
+  margin-top: 0;
+}
+
+.editor-preview-surface .content {
   max-width: 100%;
+}
+
+.editor-preview-excerpt {
+  color: var(--muted);
+  font-size: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.preview-edit-hint {
+  margin-top: -0.2rem;
+}
+
+.preview-editable-area {
+  min-height: 480px;
+  outline: none;
+  cursor: text;
+}
+
+.preview-editable-area:focus {
+  box-shadow: inset 0 0 0 2px #d4cabd;
+  border-radius: 10px;
 }
 
 .editor-toolbar {
@@ -391,6 +439,11 @@ a.secondary:hover,
 button.secondary:hover {
   background: #f2ece4;
   border-color: #c8bcae;
+}
+
+button.secondary:disabled {
+  opacity: 0.65;
+  cursor: wait;
 }
 
 button.primary:disabled {
@@ -587,12 +640,5 @@ button.primary:disabled {
 
   .photo-tile {
     margin-bottom: 1.1rem;
-  }
-}
-
-@media (min-width: 1060px) {
-  .editor-page-grid {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 0.95fr);
-    align-items: start;
   }
 }

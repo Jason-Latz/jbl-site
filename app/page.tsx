@@ -1,8 +1,13 @@
 import Link from "next/link";
 import DuolingoStreak from "@/components/DuolingoStreak";
 import SpotifyNowPlaying from "@/components/SpotifyNowPlaying";
+import { formatDate } from "@/lib/date";
+import { fetchPublishedPosts } from "@/lib/posts";
 
-export default function HomePage() {
+export default async function HomePage() {
+  const posts = await fetchPublishedPosts();
+  const latestPost = posts[0] ?? null;
+
   return (
     <div className="hero">
       <SpotifyNowPlaying />
@@ -18,13 +23,25 @@ export default function HomePage() {
       <div className="section">
         <h2>Latest writing</h2>
         <div className="card">
-          <h3>Why minimal interfaces matter</h3>
-          <p className="post-meta">Draft · Coming soon</p>
-          <p>
-            A short essay on how restraint in design builds trust and focus in
-            modern tools.
-          </p>
-          <Link href="/writings">Read the archive →</Link>
+          {latestPost ? (
+            <>
+              <h3>{latestPost.title}</h3>
+              <p className="post-meta">
+                {latestPost.published_at
+                  ? formatDate(latestPost.published_at)
+                  : "Published"}
+              </p>
+              <p>{latestPost.excerpt ?? "Read the latest article from the archive."}</p>
+              <Link href={`/writings/${latestPost.slug}`}>Read the article →</Link>
+            </>
+          ) : (
+            <>
+              <h3>No published writing yet</h3>
+              <p className="post-meta">Drafts are available in the editor.</p>
+              <p>Publish your first article and it will show up here automatically.</p>
+              <Link href="/writings">Read the archive →</Link>
+            </>
+          )}
         </div>
       </div>
 

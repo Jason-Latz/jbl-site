@@ -32,7 +32,7 @@ export default async function NewArticlePage() {
   return (
     <section className="section">
       <h1>New article</h1>
-      <p className="post-meta">Write in Markdown with a live preview.</p>
+      <p className="post-meta">Write with a single editor and toggle preview.</p>
       <PostEditorPage />
     </section>
   );

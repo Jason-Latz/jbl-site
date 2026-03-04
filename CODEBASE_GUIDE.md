@@ -88,7 +88,7 @@ This means every route is rendered inside the same visual shell by default.
 
 ### 4.2 Public pages
 
-- `/` (`app/page.tsx`): static hero content, Spotify and Duolingo live widgets, a sample “latest writing” card, and a “now” card.
+- `/` (`app/page.tsx`): hero content, Spotify and Duolingo live widgets, dynamic “latest writing” card sourced from published posts, and a “now” card.
 - `/experience` (`app/experience/page.tsx`): static, resume-style sections (education, professional experience, projects, technical skills, activities) rendered as cards.
 - `/photography` (`app/photography/page.tsx`): server-rendered masonry mosaic built from images in the Supabase Storage `photos` bucket.
 - `/writings` (`app/writings/page.tsx`): server component fetching published posts from Supabase via `lib/posts.ts`.
@@ -130,19 +130,20 @@ Response caching is disabled (`Cache-Control: no-store`) so widget data is alway
   - direct API calls for list/auth/upload actions
 - `PostEditorPage.tsx` is a client component because it needs:
   - markdown editing in a textarea
-  - live preview rendering
+  - single-pane write/preview mode toggling
   - direct API calls for create/update actions
 
 Admin UI behavior:
 
 1. On mount, it checks Supabase auth session.
 2. If no session, it renders a sign-in form (`signInWithPassword`).
-3. Dashboard route (`/admin`) loads posts from `/api/posts` with explicit `401/403` handling and shows a `New article` action.
-4. Compose routes (`/admin/new`, `/admin/[id]`) provide metadata fields, markdown body editing, toolbar shortcuts (bold/italic/headings/lists/links/code), and a live preview panel.
+3. Dashboard route (`/admin`) loads posts from `/api/posts` with explicit `401/403` handling and a `New article` action that immediately creates a draft post, then routes to `/admin/[id]`.
+4. Compose routes (`/admin/new`, `/admin/[id]`) provide metadata fields, markdown body editing, toolbar shortcuts (bold/italic/headings/lists/links/code), and a single-pane `Markdown/Visual` toggle.
 5. Markdown supports GFM features, including footnotes (`[^1]` and `[^1]: ...`).
-6. Dashboard route supports selecting multiple image files and uploading them in one batch through `POST /api/photos`.
-7. On `401/403` API responses, editor clients sign out or route away instead of silently showing empty data.
-8. Sign-out clears local editor/session state.
+6. `Visual` mode is editable (contenteditable); `Apply preview edits` converts the edited visual HTML back into markdown before save.
+7. Dashboard route supports selecting multiple image files and uploading them in one batch through `POST /api/photos`.
+8. On `401/403` API responses, editor clients sign out or route away instead of silently showing empty data.
+9. Sign-out clears local editor/session state.
 
 ## 5) Data layer and Supabase model
 
@@ -353,7 +354,7 @@ If env vars are missing, helpers safely return empty/null data rather than throw
 - Loads posts via `GET /api/posts` for editors
 - Supports selecting multiple local image files and uploading in one batch via `POST /api/photos`
 - Shows post list with status/slug and actions:
-  - `New article` -> `/admin/new`
+  - `New article` -> creates draft via `POST /api/posts` and routes to `/admin/[id]`
   - `Edit` -> `/admin/[id]`
   - `View` -> `/writings/[slug]` for published posts
   - `View photography page` -> `/photography`
@@ -377,7 +378,7 @@ If env vars are missing, helpers safely return empty/null data rather than throw
   - links, inline code, code block
   - bulleted/numbered lists
   - footnote insertion
-- Live preview renders markdown with `react-markdown` + `remark-gfm` to match public article rendering
+- Visual mode renders markdown with `react-markdown` + `remark-gfm`, allows direct inline editing, and converts edits back to markdown using `turndown` when applied
 
 ## 10) Rendering and caching model
 
@@ -397,7 +398,7 @@ All styles are in `app/globals.css` with a lightweight class-based approach:
 - CSS variables for palette/sizing (`--bg`, `--fg`, `--border`, etc.)
 - Shared layout helpers: `container`, `section`, `card`
 - Typographic distinction via sans + serif fonts
-- Specific classes for editor/auth/forms and photography mosaic (`editor-shell`, `editor-page-grid`, `markdown-editor`, `checkbox-row`, `post-row`, `photo-stage`, `photo-masonry`, `photo-tile`, etc.)
+- Specific classes for editor/auth/forms and photography mosaic (`editor-shell`, `editor-mode-toggle`, `markdown-editor`, `checkbox-row`, `post-row`, `photo-stage`, `photo-masonry`, `photo-tile`, etc.)
 
 No Tailwind or CSS Modules are used.
 
@@ -528,13 +529,14 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 
 1. User opens `/admin`; signed-in non-editors are redirected to `/writings`.
 2. Editor signs in via Supabase auth client (if not already signed in).
-3. Editor enters `/admin/new` (create) or `/admin/:id` (edit) and writes markdown.
-4. Client submits JSON to `POST /api/posts` or `PATCH /api/posts/:id`.
-5. Route handler creates Supabase route client from request cookies.
-6. `requireEditor` checks authenticated user + `profiles.is_editor`.
-7. On success, handler writes to `public.posts`.
-8. RLS re-validates permission at DB layer.
-9. Client returns to refreshed dashboard/editor state.
+3. Editor clicks `New article`; dashboard creates a draft and routes to `/admin/:id`.
+4. Editor writes in markdown mode or visual mode, then applies visual edits if needed.
+5. Client submits JSON to `PATCH /api/posts/:id` (or `POST /api/posts` when using `/admin/new` fallback).
+6. Route handler creates Supabase route client from request cookies.
+7. `requireEditor` checks authenticated user + `profiles.is_editor`.
+8. On success, handler writes to `public.posts`.
+9. RLS re-validates permission at DB layer.
+10. Once `published = true`, the article appears on `/writings` and in the home page latest-writing card.
 
 ### Admin upload photos (`/admin`)
 
@@ -550,13 +552,14 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 
 - `app/layout.tsx`: global app shell and typography setup.
 - `app/page.tsx`: static landing content.
+  - latest writing card is dynamically populated from most recent published post
 - `app/photography/page.tsx`: public masonry-style photo gallery page.
 - `app/writings/page.tsx`: archive list page for published posts.
 - `app/writings/[slug]/page.tsx`: individual published post renderer + metadata.
 - `app/experience/page.tsx`: static resume-style profile sections for education, work, projects, skills, and activities.
 - `app/admin/page.tsx`: admin route wrapper, forced dynamic render, and signed-in non-editor redirect to `/writings`.
 - `app/admin/AdminEditor.tsx`: auth UI + dashboard post list with create/edit/view actions and multi-photo upload.
-- `app/admin/PostEditorPage.tsx`: markdown editor form, toolbar shortcuts, and live preview.
+- `app/admin/PostEditorPage.tsx`: markdown editor form, toolbar shortcuts, and editable single-pane markdown/visual toggle.
 - `app/admin/new/page.tsx`: dedicated create route wrapping `PostEditorPage`.
 - `app/admin/[id]/page.tsx`: dedicated edit route wrapping `PostEditorPage`.
 - `app/api/spotify/live/route.ts`: server route for Spotify now-playing, daily stats, and playlist context.
@@ -567,6 +570,7 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 - `components/SiteFooter.tsx`: footer with dynamic copyright year and external links to LinkedIn, GitHub, and Instagram.
 - `components/SiteNav.tsx`: primary navigation (includes `/photography` link).
 - `lib/posts.ts`: public content fetch functions.
+  - used by home page and writings pages for published content lists/details
 - `lib/photos.ts`: public photo listing helper for the photography mosaic.
 - `lib/spotify.ts`: Spotify token refresh, API fetches, and payload shaping.
 - `lib/requireEditor.ts`: reusable editor authorization check.

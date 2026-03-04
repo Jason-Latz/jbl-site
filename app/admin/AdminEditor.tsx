@@ -54,6 +54,7 @@ export default function AdminEditor() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(false);
   const [postsError, setPostsError] = useState("");
+  const [creatingDraft, setCreatingDraft] = useState(false);
   const [selectedPhotos, setSelectedPhotos] = useState<File[]>([]);
   const [photoUploadMessage, setPhotoUploadMessage] = useState("");
   const [photoUploadError, setPhotoUploadError] = useState("");
@@ -134,11 +135,60 @@ export default function AdminEditor() {
     await supabase.auth.signOut();
     setPosts([]);
     setPostsError("");
+    setCreatingDraft(false);
     setSelectedPhotos([]);
     setPhotoUploadError("");
     setPhotoUploadMessage("");
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
+    }
+  };
+
+  const handleCreateDraft = async () => {
+    if (creatingDraft) {
+      return;
+    }
+
+    setCreatingDraft(true);
+    setPostsError("");
+
+    const timestampToken = Date.now().toString(36);
+    const randomToken = Math.random().toString(36).slice(2, 7);
+    const slug = `draft-${timestampToken}-${randomToken}`;
+
+    try {
+      const response = await fetch("/api/posts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: "Untitled draft",
+          slug,
+          excerpt: null,
+          content: "",
+          published: false
+        })
+      });
+
+      const data = (await response.json()) as { error?: string; post?: Post };
+
+      if (!response.ok || !data.post?.id) {
+        setPostsError(data.error ?? "Unable to create draft.");
+
+        if (response.status === 401) {
+          await supabase.auth.signOut();
+        } else if (response.status === 403) {
+          router.replace("/writings");
+        }
+
+        return;
+      }
+
+      router.push(`/admin/${data.post.id}`);
+      router.refresh();
+    } catch {
+      setPostsError("Unable to create draft.");
+    } finally {
+      setCreatingDraft(false);
     }
   };
 
@@ -229,9 +279,9 @@ export default function AdminEditor() {
   return (
     <div className="editor-shell">
       <div className="editor-toolbar">
-        <Link className="secondary" href="/admin/new">
-          New article
-        </Link>
+        <button className="secondary" onClick={handleCreateDraft} disabled={creatingDraft}>
+          {creatingDraft ? "Creating draft..." : "New article"}
+        </button>
         <Link className="secondary" href="/photography" target="_blank">
           View photography page
         </Link>
