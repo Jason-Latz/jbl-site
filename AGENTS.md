@@ -98,3 +98,19 @@ For admin/editor permissions:
 1. Default to owner-only editing for `jasonlatz0@gmail.com` unless Jason explicitly asks to broaden access.
 2. Do not rely only on UI gating; enforce this in Supabase policies and app-level route/API checks.
 3. If changing auth or profile policies, verify non-owner users cannot self-promote to `is_editor = true`.
+
+## 13) Jason Preference: Keep Integrations, Layer Visuals
+
+When Jason requests visual changes on existing data integrations:
+
+1. Keep the current API/data flow intact unless he explicitly asks for backend changes.
+2. Implement the requested icons/artwork/status visuals with minimal behavioral changes.
+3. Prefer configurable visual asset URLs when practical.
+
+## 14) Jason Preference: Blog Authoring Should Be Markdown-First
+
+For blog/editor UX work:
+
+1. Prefer a dedicated article compose page over dense inline editing on the dashboard.
+2. Preserve markdown authoring with live preview that matches site rendering.
+3. Keep easy formatting actions (bold/italic/headings/lists/links/code) and footnote support available.

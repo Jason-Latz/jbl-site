@@ -10,7 +10,7 @@ This is a **Next.js 14 App Router** project for a personal website with:
 - A live Spotify header card showing now-playing status, same-day listening stats, and recent playlist context
 - A protected admin editor at `/admin`
 - Supabase-backed storage for posts and editor permissions
-- TipTap rich-text editor for writing content
+- A markdown-first writing flow with live preview and formatting shortcuts
 
 The site is intentionally minimal and server-rendered where possible.
 
@@ -21,7 +21,7 @@ The site is intentionally minimal and server-rendered where possible.
 - UI: React 18 + plain CSS (`app/globals.css`)
 - DB/Auth: Supabase (`@supabase/supabase-js`, `@supabase/auth-helpers-nextjs`)
 - External API integration: Spotify Web API (OAuth refresh token flow)
-- Rich text editor: TipTap (`@tiptap/react`, `@tiptap/starter-kit`, link extension)
+- Writing/rendering: `react-markdown` + `remark-gfm` for markdown and footnotes
 - Infra tooling used locally: Supabase CLI (`supabase`) + PostgreSQL CLI (`psql`)
 
 ## 3) Directory map
@@ -35,10 +35,13 @@ app/
   writings/page.tsx        # Published writings list page
   writings/[slug]/page.tsx # Single published post page
   admin/page.tsx           # Admin page wrapper
-  admin/AdminEditor.tsx    # Client-side auth + editor UI + CRUD actions
+  admin/AdminEditor.tsx    # Client-side admin dashboard (auth + post list)
+  admin/PostEditorPage.tsx # Client-side markdown editor + live preview
+  admin/new/page.tsx       # Dedicated route for creating new posts
+  admin/[id]/page.tsx      # Dedicated route for editing existing posts
   api/spotify/live/route.ts # Spotify now-playing + stats API proxy
   api/posts/route.ts       # GET all posts (editor-only), POST create post
-  api/posts/[id]/route.ts  # PATCH update post (editor-only)
+  api/posts/[id]/route.ts  # GET one post + PATCH update post (editor-only)
 
 components/
   SiteNav.tsx              # Main nav links
@@ -83,7 +86,7 @@ This means every route is rendered inside the same visual shell by default.
 ### 4.2 Public pages
 
 - `/` (`app/page.tsx`): static hero content, a sample “latest writing” card, and a “now” card.
-- `/experience` (`app/experience/page.tsx`): static in-file array rendered as cards.
+- `/experience` (`app/experience/page.tsx`): static, resume-style sections (education, professional experience, projects, technical skills, activities) rendered as cards.
 - `/writings` (`app/writings/page.tsx`): server component fetching published posts from Supabase via `lib/posts.ts`.
 - `/writings/[slug]` (`app/writings/[slug]/page.tsx`): server component fetching one published post by slug; returns `notFound()` if missing.
 
@@ -93,10 +96,12 @@ Both writings routes set `export const revalidate = 60`, so page data is ISR-cac
 
 The site header now includes `components/SpotifyNowPlaying.tsx` (client component), which polls `/api/spotify/live` every 45 seconds and renders:
 
-1. Current track and playback state (if active)
-2. Same-day listening metrics (play count, minutes listened, unique artists)
-3. Most recent playlist context (playback context first, library fallback second)
-4. Last successful fetch timestamp and resilient stale-data messaging on errors
+1. Spotify-branded label icon in the card header
+2. Current track and playback state (if active)
+3. Album art thumbnail for the currently playing track (when available)
+4. Same-day listening metrics (play count, minutes listened, unique artists)
+5. Most recent playlist context (playback context first, library fallback second)
+6. Last successful fetch timestamp and resilient stale-data messaging on errors
 
 `app/api/spotify/live/route.ts` is server-side and uses `lib/spotify.ts` to:
 
@@ -109,24 +114,29 @@ Response caching is disabled (`Cache-Control: no-store`) so header data is alway
 
 ### 4.4 Admin area
 
-- `/admin` is rendered by `app/admin/page.tsx` and includes `AdminEditor`.
+- `/admin` is rendered by `app/admin/page.tsx` and includes `AdminEditor` dashboard.
+- `/admin/new` and `/admin/[id]` are dedicated compose/edit routes rendered with `PostEditorPage`.
 - `app/admin/page.tsx` now does a server-side profile role check:
   - unauthenticated visitors can see the sign-in UI
   - signed-in users without `profiles.is_editor = true` are redirected to `/writings`
 - `AdminEditor.tsx` is a client component because it needs:
   - browser auth session state
-  - interactive editor behavior
-  - direct API calls for CRUD
+  - live post listing and dashboard actions
+  - direct API calls for list/auth actions
+- `PostEditorPage.tsx` is a client component because it needs:
+  - markdown editing in a textarea
+  - live preview rendering
+  - direct API calls for create/update actions
 
 Admin UI behavior:
 
 1. On mount, it checks Supabase auth session.
 2. If no session, it renders a sign-in form (`signInWithPassword`).
-3. If authenticated, it loads posts from `/api/posts` with explicit error handling.
-4. User can create a new draft, edit existing posts, toggle publish state, and save.
-5. Rich content is stored as HTML from TipTap (`editor.getHTML()`).
-6. On `401/403` API responses, it signs out or routes away instead of silently showing an empty list.
-7. Sign-out clears local editor/post state.
+3. Dashboard route (`/admin`) loads posts from `/api/posts` with explicit `401/403` handling and shows a `New article` action.
+4. Compose routes (`/admin/new`, `/admin/[id]`) provide metadata fields, markdown body editing, toolbar shortcuts (bold/italic/headings/lists/links/code), and a live preview panel.
+5. Markdown supports GFM features, including footnotes (`[^1]` and `[^1]: ...`).
+6. On `401/403` API responses, editor clients sign out or route away instead of silently showing empty data.
+7. Sign-out clears local editor/session state.
 
 ## 5) Data layer and Supabase model
 
@@ -145,7 +155,7 @@ Purpose: maps authenticated users to role metadata; `is_editor` gates admin acti
 - `title` (required)
 - `slug` (required, unique)
 - `excerpt` (optional)
-- `content` (optional, HTML text)
+- `content` (optional, markdown text; legacy HTML still rendered as fallback)
 - `published` (boolean, default false)
 - `published_at` (nullable timestamp)
 - `created_at`, `updated_at`
@@ -230,6 +240,15 @@ This is an app-level guard layered on top of RLS.
   - `409` when slug uniqueness is violated
   - `500` for unexpected database/server errors
 
+### `GET /api/posts/:id` (`app/api/posts/[id]/route.ts`)
+
+- Requires editor role
+- Returns one post (draft or published) for the editor workspace
+- Used by `/admin/[id]` editor route
+- Returns:
+  - `404` if the target post id does not exist
+  - `500` for unexpected database/server errors
+
 ### `PATCH /api/posts/:id` (`app/api/posts/[id]/route.ts`)
 
 - Requires editor role
@@ -261,54 +280,56 @@ Functions:
   - excludes full `content` for list efficiency
   - ordered by `published_at DESC`
 - `fetchPostBySlug(slug)`:
-  - returns one published post including full HTML content
+  - returns one published post including full body content
+  - body is rendered as markdown by default (`react-markdown` + `remark-gfm`)
+  - if body looks like legacy HTML, route falls back to direct HTML render
 
 Both are wrapped in React `cache(...)`, so repeated calls during one render tree reuse results.
 
 If env vars are missing, helpers safely return empty/null data rather than throwing.
 
-## 9) Rich-text editor details (`app/admin/AdminEditor.tsx`)
+## 9) Editor details (`app/admin/AdminEditor.tsx`, `app/admin/PostEditorPage.tsx`)
 
-### 9.1 State model
+### 9.1 Dashboard (`/admin`)
 
-Editor manages:
+`AdminEditor.tsx` now serves as the admin dashboard:
 
-- Auth state: session, auth message, sign-in credentials
-- Post list state: `posts`, loading flag
-- Form state: title, slug, excerpt, published, content
-- UI state: active post ID, save status, slug auto/manual mode
+- Handles auth state and sign-in form when logged out
+- Loads posts via `GET /api/posts` for editors
+- Shows post list with status/slug and actions:
+  - `New article` -> `/admin/new`
+  - `Edit` -> `/admin/[id]`
+  - `View` -> `/writings/[slug]` for published posts
 
-### 9.2 Slug handling
+### 9.2 Compose/Edit page (`/admin/new`, `/admin/[id]`)
 
-`slugify()`:
+`PostEditorPage.tsx` manages:
 
-- lowercases
-- trims
-- removes non `[a-z0-9\\s-]`
-- converts whitespace to hyphens
-- collapses repeated hyphens
+- Auth state and sign-in fallback
+- Optional existing post load via `GET /api/posts/:id`
+- Form fields: title, slug, excerpt, published, markdown content
+- Save flow:
+  - `POST /api/posts` for create
+  - `PATCH /api/posts/:id` for update
 
-When typing title:
+### 9.3 Markdown authoring behavior
 
-- slug auto-updates until user manually edits slug (`slugEdited` flag)
-- after manual edit, title no longer overrides slug
-- API routes still enforce slug format server-side, so invalid manual slugs are rejected with `400`
-
-### 9.3 TipTap syncing
-
-TipTap is initialized with current `content`.
-There is a synchronization effect keyed to `activePostId` and `content`, so reset/edit actions keep visible editor content aligned with React state.
-
-This avoids stale editor text when switching between posts/drafts.
+- Slug auto-generation uses `slugify()` until manual slug edits begin
+- Body editing is textarea-based markdown with toolbar actions for:
+  - bold, italic, heading, quote
+  - links, inline code, code block
+  - bulleted/numbered lists
+  - footnote insertion
+- Live preview renders markdown with `react-markdown` + `remark-gfm` to match public article rendering
 
 ## 10) Rendering and caching model
 
 - Most public pages are server components.
 - Writings pages use ISR (`revalidate = 60`).
 - Spotify header data is client-polled and backed by a dynamic no-store API route.
-- Admin page is dynamic/interactive:
-  - `export const dynamic = "force-dynamic"` on `app/admin/page.tsx`
-  - runtime auth + fetch-based state updates in browser
+- Admin routes are dynamic/interactive:
+  - `export const dynamic = "force-dynamic"` on `app/admin/page.tsx`, `app/admin/new/page.tsx`, and `app/admin/[id]/page.tsx`
+  - runtime auth + fetch-based state updates in browser clients
 
 Because admin uses fetch calls to API routes, there is no server action dependency.
 
@@ -319,7 +340,7 @@ All styles are in `app/globals.css` with a lightweight class-based approach:
 - CSS variables for palette/sizing (`--bg`, `--fg`, `--border`, etc.)
 - Shared layout helpers: `container`, `section`, `card`
 - Typographic distinction via sans + serif fonts
-- Specific classes for editor/auth/forms (`editor-shell`, `form-grid`, `post-row`, etc.)
+- Specific classes for editor/auth/forms (`editor-shell`, `editor-page-grid`, `markdown-editor`, `checkbox-row`, `post-row`, etc.)
 
 No Tailwind or CSS Modules are used.
 
@@ -339,6 +360,11 @@ Required env vars:
 - `SPOTIFY_REFRESH_TOKEN` (OAuth refresh token tied to the Spotify account)
 - `SPOTIFY_REDIRECT_URI` (redirect URI used during one-time token bootstrap)
 - `SPOTIFY_TIMEZONE` (IANA timezone used for "today" stats; defaults to `America/Chicago`)
+
+Optional env vars:
+
+- `NEXT_PUBLIC_DUOLINGO_STREAK_ICON_DONE` (custom icon URL for "streak completed today")
+- `NEXT_PUBLIC_DUOLINGO_STREAK_ICON_PENDING` (custom icon URL for "streak not completed today")
 
 Setup sequence:
 
@@ -399,6 +425,7 @@ For this project reference (`qllalbklzxtsvqzszigo`):
 2. The helper script auto-loads `.env` and `.env.local`, so `npm run spotify:token` works without manual `export` steps.
 3. A refresh token is typically returned only on a fresh authorization; if missing, remove the app from account permissions and re-authorize.
 4. Header stats are "same-day within recent 50 plays," so heavy listening sessions may exceed the available history window.
+5. Duolingo fire icon state is derived from `streakEndDate` compared to the browser's local calendar date; custom icon URLs can be configured through `NEXT_PUBLIC_DUOLINGO_STREAK_ICON_DONE` and `NEXT_PUBLIC_DUOLINGO_STREAK_ICON_PENDING`.
 
 ## 13) Security model summary
 
@@ -435,12 +462,13 @@ Even if an API check were missed, RLS still limits unauthorized post mutations.
 
 1. User opens `/admin`; signed-in non-editors are redirected to `/writings`.
 2. Editor signs in via Supabase auth client (if not already signed in).
-3. Editor submits JSON to `POST /api/posts` or `PATCH /api/posts/:id`.
-4. Route handler creates Supabase route client from request cookies.
-5. `requireEditor` checks authenticated user + `profiles.is_editor`.
-6. On success, handler writes to `public.posts`.
-7. RLS re-validates permission at DB layer.
-8. Client refreshes post list via `GET /api/posts`.
+3. Editor enters `/admin/new` (create) or `/admin/:id` (edit) and writes markdown.
+4. Client submits JSON to `POST /api/posts` or `PATCH /api/posts/:id`.
+5. Route handler creates Supabase route client from request cookies.
+6. `requireEditor` checks authenticated user + `profiles.is_editor`.
+7. On success, handler writes to `public.posts`.
+8. RLS re-validates permission at DB layer.
+9. Client returns to refreshed dashboard/editor state.
 
 ## 16) File-by-file quick reference
 
@@ -448,12 +476,15 @@ Even if an API check were missed, RLS still limits unauthorized post mutations.
 - `app/page.tsx`: static landing content.
 - `app/writings/page.tsx`: archive list page for published posts.
 - `app/writings/[slug]/page.tsx`: individual published post renderer + metadata.
-- `app/experience/page.tsx`: static experience timeline.
+- `app/experience/page.tsx`: static resume-style profile sections for education, work, projects, skills, and activities.
 - `app/admin/page.tsx`: admin route wrapper, forced dynamic render, and signed-in non-editor redirect to `/writings`.
-- `app/admin/AdminEditor.tsx`: auth UI, editor UI, post CRUD client logic, explicit API error handling, and TipTap SSR-safe render config.
+- `app/admin/AdminEditor.tsx`: auth UI + dashboard post list with create/edit/view actions.
+- `app/admin/PostEditorPage.tsx`: markdown editor form, toolbar shortcuts, and live preview.
+- `app/admin/new/page.tsx`: dedicated create route wrapping `PostEditorPage`.
+- `app/admin/[id]/page.tsx`: dedicated edit route wrapping `PostEditorPage`.
 - `app/api/spotify/live/route.ts`: server route for Spotify now-playing, daily stats, and playlist context.
 - `app/api/posts/route.ts`: list/create post APIs (editor-only).
-- `app/api/posts/[id]/route.ts`: update post API (editor-only).
+- `app/api/posts/[id]/route.ts`: fetch/update single post API (editor-only).
 - `components/SpotifyNowPlaying.tsx`: resilient polling UI for Spotify header card.
 - `components/SiteFooter.tsx`: footer with dynamic copyright year and external links to LinkedIn, GitHub, and Instagram.
 - `lib/posts.ts`: public content fetch functions.
@@ -473,7 +504,7 @@ Even if an API check were missed, RLS still limits unauthorized post mutations.
    - `requireEditor`
    - API route auth/validation
    - slug behavior
-5. Add better authoring UX (autosave, unsaved change warning, formatting toolbar buttons).
+5. Add better authoring UX (autosave and unsaved-change warning on compose routes).
 
 ## 18) Repository and git context
 
@@ -494,7 +525,7 @@ Even if an API check were missed, RLS still limits unauthorized post mutations.
    - `plugins` contains `{ "name": "next" }`
 4. Dependency install (`npm install`) generated `package-lock.json` and is required before first run.
 5. During March 3, 2026 validation, forcing a fixed dev port avoided auto-port fallback (`npm run dev -- --port 3100`) and returned HTTP `200` for `/`, `/writings`, and `/admin`.
-6. TipTap emitted an SSR hydration warning until `immediatelyRender: false` was set in `app/admin/AdminEditor.tsx`.
+6. Current article body format is markdown-first; legacy HTML bodies still render via fallback in `app/writings/[slug]/page.tsx`.
 
 ## 20) Agent checklist (quick start)
 
