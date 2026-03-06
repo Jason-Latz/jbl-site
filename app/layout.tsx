@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Newsreader } from "next/font/google";
 import Script from "next/script";
+import { Analytics } from "@vercel/analytics/next";
 import "@mdxeditor/editor/style.css";
 import "./globals.css";
 import SiteFooter from "@/components/SiteFooter";
@@ -95,6 +96,7 @@ export default function RootLayout({
         </main>
         <SiteFooter />
         <TravelBackgroundWarmup />
+        <Analytics />
       </body>
     </html>
   );
