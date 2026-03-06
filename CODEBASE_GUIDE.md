@@ -94,7 +94,7 @@ This means every route is rendered inside the same visual shell by default.
 
 ### 4.2 Public pages
 
-- `/` (`app/page.tsx`): hero content, single-line collapsible Spotify + Duolingo activity ribbon, dynamic “latest writing” card sourced from published posts, and a “now” card.
+- `/` (`app/page.tsx`): hero content, single-line collapsible Spotify + Duolingo activity ribbon, dynamic “latest writing” card sourced from published posts, and a “now” card. The home page also uses ISR (`revalidate = 60`) so newly published posts are not pinned to an old static render.
 - `/experience` (`app/experience/page.tsx`): static, resume-style sections (education, professional experience, projects, technical skills, activities) rendered as cards.
 - `/travel` (`app/travel/page.tsx`): server-rendered gallery route that hydrates a client-side gapless mosaic (`PhotoMosaic`) built from storage images plus metadata from `public.photos`; the mosaic renders an initial top batch, appends additional photos as the user scrolls, uses justified row packing (not fixed columns) so photos rewrap for best fit, calibrates `100%` zoom to the denser look that was previously around `200%`, and serves width-only transformed tile images at roughly `q92` so aspect ratio is preserved without crop.
 - `/travel/quality-lab` (`app/travel/quality-lab/page.tsx`): visual tuning route that renders the same sampled photos side-by-side as `Preferred (q92)`, `Fallback (q90)`, and `Original` to compare sharpness versus payload strategy.
@@ -102,7 +102,7 @@ This means every route is rendered inside the same visual shell by default.
 - `/writings` (`app/writings/page.tsx`): server component fetching published posts from Supabase via `lib/posts.ts`.
 - `/writings/[slug]` (`app/writings/[slug]/page.tsx`): server component fetching one published post by slug; returns `notFound()` if missing.
 
-`/travel` and both writings routes set `export const revalidate = 60`, so page data is ISR-cached for up to 60 seconds.
+`/`, `/travel`, and both writings routes set `export const revalidate = 60`, so page data is ISR-cached for up to 60 seconds.
 
 ### 4.3 Home activity ribbon (Spotify + Duolingo)
 
@@ -335,6 +335,7 @@ This is an app-level guard layered on top of RLS.
 - Requires slug format: lowercase letters, numbers, and single hyphens (`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
 - Inserts post with provided fields
 - Sets `published_at` to now if `published === true`, else `null`
+- Revalidates `/`, `/writings`, and `/writings/[slug]` after a successful save so public pages refresh immediately after publishing
 - Returns:
   - `400` for invalid JSON, missing required fields, or invalid slug format
   - `409` when slug uniqueness is violated
@@ -354,6 +355,8 @@ This is an app-level guard layered on top of RLS.
 - Requires editor role
 - Same validation as POST
 - Updates post fields and publication timestamp
+- Looks up the existing slug first so both the old and new `/writings/[slug]` paths can be revalidated after slug edits
+- Revalidates `/` and `/writings` after a successful update so publish/unpublish state is reflected without waiting for ISR drift
 - Returns:
   - `400` for invalid JSON, missing required fields, or invalid slug format
   - `404` if the target post id does not exist
@@ -494,7 +497,8 @@ If env vars are missing, helpers safely return empty/null data rather than throw
 ## 10) Rendering and caching model
 
 - Most public pages are server components.
-- Writings and travel pages use ISR (`revalidate = 60`).
+- Home, writings, and travel pages use ISR (`revalidate = 60`).
+- Public post reads in `lib/posts.ts` are not wrapped in React `cache()`, so route-level ISR and `revalidatePath(...)` control freshness.
 - Home-page Spotify data is client-polled and backed by a dynamic no-store API route.
 - Admin routes are dynamic/interactive:
   - `export const dynamic = "force-dynamic"` on `app/admin/page.tsx`, `app/admin/new/page.tsx`, and `app/admin/[id]/page.tsx`

@@ -1,5 +1,4 @@
 import { createClient } from "@supabase/supabase-js";
-import { cache } from "react";
 
 export type Post = {
   id: string;
@@ -26,7 +25,7 @@ const getSupabase = () => {
   });
 };
 
-export const fetchPublishedPosts = cache(async () => {
+export async function fetchPublishedPosts() {
   const supabase = getSupabase();
   if (!supabase) {
     return [] as Post[];
@@ -41,9 +40,9 @@ export const fetchPublishedPosts = cache(async () => {
     .order("published_at", { ascending: false });
 
   return (data ?? []) as Post[];
-});
+}
 
-export const fetchPostBySlug = cache(async (slug: string) => {
+export async function fetchPostBySlug(slug: string) {
   const supabase = getSupabase();
   if (!supabase) {
     return null;
@@ -59,4 +58,4 @@ export const fetchPostBySlug = cache(async (slug: string) => {
     .single();
 
   return (data as Post | null) ?? null;
-});
+}

@@ -1,3 +1,4 @@
+import { revalidatePath } from "next/cache";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
@@ -79,6 +80,23 @@ export async function PATCH(
     );
   }
 
+  const { data: existingPost, error: existingPostError } = await supabase
+    .from("posts")
+    .select("slug")
+    .eq("id", params.id)
+    .single();
+
+  if (existingPostError) {
+    if (existingPostError.code === "PGRST116") {
+      return NextResponse.json({ error: "Post not found." }, { status: 404 });
+    }
+
+    return NextResponse.json(
+      { error: existingPostError.message },
+      { status: 500 }
+    );
+  }
+
   const published = Boolean(payload.published);
   const now = new Date().toISOString();
   const excerpt =
@@ -112,6 +130,13 @@ export async function PATCH(
     }
 
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  revalidatePath("/");
+  revalidatePath("/writings");
+  revalidatePath(`/writings/${existingPost.slug}`);
+  if (existingPost.slug !== data.slug) {
+    revalidatePath(`/writings/${data.slug}`);
   }
 
   return NextResponse.json({ post: data });

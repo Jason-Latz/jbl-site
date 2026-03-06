@@ -4,6 +4,8 @@ import SpotifyNowPlaying from "@/components/SpotifyNowPlaying";
 import { formatDate } from "@/lib/date";
 import { fetchPublishedPosts } from "@/lib/posts";
 
+export const revalidate = 60;
+
 export default async function HomePage() {
   const posts = await fetchPublishedPosts();
   const latestPost = posts[0] ?? null;
