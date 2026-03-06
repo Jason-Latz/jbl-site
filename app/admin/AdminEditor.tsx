@@ -6,21 +6,17 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
+import type { Post } from "@/lib/postTypes";
+import {
+  buildTravelRenderUrlForRequestWidth,
+  UPLOAD_WARM_WIDTHS
+} from "@/lib/travel-image";
 
-type Post = {
-  id: string;
-  title: string;
-  slug: string;
-  excerpt: string | null;
-  content: string | null;
-  published: boolean;
-  published_at: string | null;
-  created_at: string;
-  updated_at: string | null;
-};
+const UPLOAD_WARM_CONCURRENCY = 6;
 
 type PhotoUploadResponse = {
   error?: string;
+  uploaded?: { path: string; url: string | null }[];
   uploadedCount?: number;
   failedCount?: number;
   failed?: { name: string; reason: string }[];
@@ -63,6 +59,18 @@ type PhotoDeleteResponse = {
   deleted?: boolean;
   path?: string;
 };
+
+function warmImageUrl(url: string) {
+  return new Promise<boolean>((resolve) => {
+    const image = new Image();
+    image.decoding = "async";
+    image.loading = "eager";
+
+    image.onload = () => resolve(true);
+    image.onerror = () => resolve(false);
+    image.src = url;
+  });
+}
 
 function formatPostDate(value: string | null) {
   if (!value) {
@@ -110,8 +118,12 @@ export default function AdminEditor() {
   const [selectedPhotos, setSelectedPhotos] = useState<File[]>([]);
   const [photoUploadMessage, setPhotoUploadMessage] = useState("");
   const [photoUploadError, setPhotoUploadError] = useState("");
+  const [photoWarmupMessage, setPhotoWarmupMessage] = useState("");
+  const [photoWarmupError, setPhotoWarmupError] = useState("");
+  const [warmingPhotos, setWarmingPhotos] = useState(false);
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const warmupRunIdRef = useRef(0);
 
   const [photos, setPhotos] = useState<EditablePhoto[]>([]);
   const [loadingPhotos, setLoadingPhotos] = useState(false);
@@ -203,6 +215,98 @@ export default function AdminEditor() {
     }
   }, [router, supabase]);
 
+  const warmUploadedPhotoVariants = useCallback(
+    async (uploaded: Array<{ path: string; url: string | null }>) => {
+      const warmable = uploaded.filter(
+        (item): item is { path: string; url: string } =>
+          typeof item.path === "string" &&
+          typeof item.url === "string" &&
+          item.url.length > 0
+      );
+
+      if (warmable.length === 0) {
+        return;
+      }
+
+      const warmTargets = warmable.flatMap((item) =>
+        UPLOAD_WARM_WIDTHS.map((width) => ({
+          path: item.path,
+          width,
+          url: buildTravelRenderUrlForRequestWidth(item.url, width)
+        }))
+      );
+
+      if (warmTargets.length === 0) {
+        return;
+      }
+
+      const runId = warmupRunIdRef.current + 1;
+      warmupRunIdRef.current = runId;
+
+      setWarmingPhotos(true);
+      setPhotoWarmupError("");
+      setPhotoWarmupMessage(`Warming travel cache: 0 / ${warmTargets.length} variants`);
+
+      let cursor = 0;
+      let completed = 0;
+      let failed = 0;
+
+      const updateProgress = () => {
+        if (warmupRunIdRef.current !== runId) {
+          return;
+        }
+
+        setPhotoWarmupMessage(
+          `Warming travel cache: ${completed} / ${warmTargets.length} variants`
+        );
+      };
+
+      const workers = Array.from(
+        { length: Math.min(UPLOAD_WARM_CONCURRENCY, warmTargets.length) },
+        async () => {
+          while (true) {
+            const nextIndex = cursor;
+            cursor += 1;
+
+            if (nextIndex >= warmTargets.length) {
+              return;
+            }
+
+            const target = warmTargets[nextIndex];
+            const ok = await warmImageUrl(target.url);
+            completed += 1;
+
+            if (!ok) {
+              failed += 1;
+            }
+
+            if (completed % 8 === 0 || completed === warmTargets.length) {
+              updateProgress();
+            }
+          }
+        }
+      );
+
+      await Promise.all(workers);
+
+      if (warmupRunIdRef.current !== runId) {
+        return;
+      }
+
+      const success = warmTargets.length - failed;
+      setWarmingPhotos(false);
+      setPhotoWarmupMessage(
+        `Travel cache warmup complete: ${success} / ${warmTargets.length} variants warmed.`
+      );
+      setPhotoWarmupError(
+        failed > 0
+          ? `${failed} variant requests failed to warm. They will still warm on first visitor requests.`
+          : ""
+      );
+    },
+    []
+  );
+
   useEffect(() => {
     if (!session) {
       return;
@@ -226,12 +330,16 @@ export default function AdminEditor() {
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
+    warmupRunIdRef.current += 1;
     setPosts([]);
     setPostsError("");
     setCreatingDraft(false);
     setSelectedPhotos([]);
     setPhotoUploadError("");
     setPhotoUploadMessage("");
+    setPhotoWarmupError("");
+    setPhotoWarmupMessage("");
+    setWarmingPhotos(false);
     setPhotos([]);
     setPhotosError("");
     setPhotoMetadataError("");
@@ -297,6 +405,7 @@ export default function AdminEditor() {
     setSelectedPhotos(files);
     setPhotoUploadError("");
     setPhotoUploadMessage("");
+    setPhotoWarmupError("");
   };
 
   const handlePhotoUpload = async () => {
@@ -304,9 +413,13 @@ export default function AdminEditor() {
       return;
     }
 
+    warmupRunIdRef.current += 1;
     setUploadingPhotos(true);
     setPhotoUploadError("");
     setPhotoUploadMessage("");
+    setPhotoWarmupMessage("");
+    setPhotoWarmupError("");
+    setWarmingPhotos(false);
     setPhotoMetadataError("");
     setPhotoMetadataMessage("");
 
@@ -340,6 +453,11 @@ export default function AdminEditor() {
         summary += ` ${failedCount} failed${failedNames ? ` (${failedNames})` : ""}.`;
       }
 
+      const uploaded = (data.uploaded ?? []).filter(
+        (item): item is { path: string; url: string | null } =>
+          typeof item.path === "string"
+      );
+
       setPhotoUploadMessage(summary);
       setSelectedPhotos([]);
       if (fileInputRef.current) {
@@ -347,6 +465,10 @@ export default function AdminEditor() {
       }
 
       await loadPhotos();
+
+      if (uploaded.length > 0) {
+        void warmUploadedPhotoVariants(uploaded);
+      }
     } catch {
       setPhotoUploadError("Unable to upload photos.");
     } finally {
@@ -566,6 +688,11 @@ export default function AdminEditor() {
             </p>
             {photoUploadMessage && <p className="post-meta">{photoUploadMessage}</p>}
             {photoUploadError && <p className="post-meta">{photoUploadError}</p>}
+            {warmingPhotos && !photoWarmupMessage ? (
+              <p className="post-meta">Warming travel cache...</p>
+            ) : null}
+            {photoWarmupMessage && <p className="post-meta">{photoWarmupMessage}</p>}
+            {photoWarmupError && <p className="post-meta">{photoWarmupError}</p>}
           </div>
         </div>
       </div>

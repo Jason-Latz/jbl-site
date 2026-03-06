@@ -9,8 +9,11 @@ import {
   useState,
   type SyntheticEvent
 } from "react";
-import { buildPublicRenderUrl } from "@/lib/photos";
 import type { PhotoCatalogItem } from "@/lib/photos";
+import {
+  buildTravelRenderUrlForDisplayWidth,
+  getTravelAdaptiveBaseRowHeight
+} from "@/lib/travel-image";
 
 type PhotoMosaicProps = {
   photos: PhotoCatalogItem[];
@@ -44,15 +47,6 @@ const DEFAULT_ZOOM_PERCENT = 100;
 const LAYOUT_WIDTH_FALLBACK = 1200;
 const RATIO_FALLBACK = 4 / 3;
 const TILE_GAP = 0;
-const MIN_ROW_HEIGHT_PX = 72;
-const MAX_ROW_HEIGHT_PX = 520;
-const LANDSCAPE_BASE_RATIO = 1.5;
-
-const MOSAIC_RENDER_QUALITY = 92;
-const MIN_TILE_RENDER_WIDTH = 320;
-const MAX_TILE_RENDER_WIDTH = 2200;
-const TILE_RENDER_PIXEL_RATIO = 2;
-const TILE_RENDER_WIDTH_STEP = 96;
 const DEFAULT_ZOOM_DENSITY_MULTIPLIER = 2;
 
 function clamp(value: number, min: number, max: number) {
@@ -69,29 +63,6 @@ function normalizeZoomPercent(value: number) {
   }
 
   return clamp(Math.round(value), MIN_ZOOM_PERCENT, MAX_ZOOM_PERCENT);
-}
-
-function getLegacyColumnCount(containerWidth: number) {
-  if (containerWidth >= 1320) {
-    return 4;
-  }
-
-  if (containerWidth >= 980) {
-    return 3;
-  }
-
-  if (containerWidth >= 640) {
-    return 2;
-  }
-
-  return 1;
-}
-
-function getAdaptiveBaseRowHeight(containerWidth: number) {
-  const columns = getLegacyColumnCount(containerWidth);
-  const legacyColumnWidth = containerWidth / columns;
-  const baselineHeight = legacyColumnWidth / LANDSCAPE_BASE_RATIO;
-  return clamp(baselineHeight, MIN_ROW_HEIGHT_PX, MAX_ROW_HEIGHT_PX);
 }
 
 function displayOrFallback(value: string | null, fallback: string) {
@@ -121,23 +92,6 @@ function getJustifiedScaleFromBase(
   const gapWidth = TILE_GAP * Math.max(0, itemCount - 1);
   const availableWidth = Math.max(0, containerWidth - gapWidth);
   return availableWidth / baseWidth;
-}
-
-function normalizeRenderWidth(displayWidth: number) {
-  if (!Number.isFinite(displayWidth) || displayWidth <= 0) {
-    return MIN_TILE_RENDER_WIDTH;
-  }
-
-  const bounded = clamp(
-    Math.round(displayWidth * TILE_RENDER_PIXEL_RATIO),
-    MIN_TILE_RENDER_WIDTH,
-    MAX_TILE_RENDER_WIDTH
-  );
-
-  const quantized =
-    Math.round(bounded / TILE_RENDER_WIDTH_STEP) * TILE_RENDER_WIDTH_STEP;
-
-  return clamp(quantized, MIN_TILE_RENDER_WIDTH, MAX_TILE_RENDER_WIDTH);
 }
 
 function buildJustifiedRows(
@@ -295,7 +249,7 @@ export default function PhotoMosaic({ photos }: PhotoMosaicProps) {
   const visiblePhotos = photos.slice(0, visibleCount);
   const hasMoreToLoad = visibleCount < photos.length;
   const effectiveWidth = containerWidth > 0 ? containerWidth : LAYOUT_WIDTH_FALLBACK;
-  const baseRowHeight = getAdaptiveBaseRowHeight(effectiveWidth);
+  const baseRowHeight = getTravelAdaptiveBaseRowHeight(effectiveWidth);
   const deferredZoomPercent = useDeferredValue(zoomPercent);
   const targetRowHeight =
     baseRowHeight *
@@ -326,11 +280,7 @@ export default function PhotoMosaic({ photos }: PhotoMosaicProps) {
         return photo.url;
       }
 
-      const requestedWidth = normalizeRenderWidth(displayWidth);
-      return buildPublicRenderUrl(photo.url, {
-        width: requestedWidth,
-        quality: MOSAIC_RENDER_QUALITY
-      });
+      return buildTravelRenderUrlForDisplayWidth(photo.url, displayWidth);
     },
     [transformFallbackByPath]
   );
