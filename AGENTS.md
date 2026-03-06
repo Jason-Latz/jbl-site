@@ -171,6 +171,7 @@ For the public travel gallery and admin photo workflow:
 10. Avoid fixed-column travel layouts that disproportionately shrink horizontal photos; use best-fit wrapping behavior.
 11. Calibrate travel zoom so `100%` matches the denser look that was previously around `200%`; avoid showing on-screen percentage labels in the travel zoom toolbar.
 12. Keep travel tiles resilient to transform edge cases: quantize requested render widths for cache reuse and fall back to original image URLs when a transformed tile request fails.
+13. For travel load-speed work, prefer warming high-quality transformed variants (cross-page background warmup, upload-time warmup, and cron refresh) before reducing image quality.
 
 ## 20) Jason Preference: Spotify History Must Reflect Real Playback
 
