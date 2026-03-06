@@ -353,7 +353,7 @@ img {
   margin: 0;
 }
 
-.hero p {
+.hero-intro {
   font-size: 1.1rem;
   color: var(--muted);
   max-width: 46rem;
@@ -385,6 +385,45 @@ img {
 .post-meta {
   font-size: 0.9rem;
   color: var(--muted);
+}
+
+.home-card {
+  padding: 1.15rem 1.25rem;
+  gap: 0.35rem;
+}
+
+.home-card > * {
+  margin: 0;
+}
+
+.home-card h3 {
+  font-size: clamp(1.2rem, 1.8vw, 1.45rem);
+  line-height: 1.24;
+}
+
+.home-card-meta {
+  font-size: 0.84rem;
+}
+
+.home-card-copy {
+  font-size: 0.98rem;
+  line-height: 1.5;
+  color: var(--muted);
+  max-width: 38rem;
+}
+
+.home-card-link {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  margin-top: 0.2rem;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.home-card-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.16em;
 }
 
 .pill {
