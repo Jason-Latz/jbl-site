@@ -16,7 +16,6 @@ export default async function HomePage() {
         <SpotifyNowPlaying />
         <DuolingoStreak />
       </div>
-      <div className="pill">doing cool things?</div>
       <h1>Out and about, occasionally building things.</h1>
       <p className="hero-intro">
         I'm doing a lot of travelling, vibe coding, and occasionally startup
