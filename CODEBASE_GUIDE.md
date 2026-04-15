@@ -126,7 +126,7 @@ The home page includes `components/SpotifyNowPlaying.tsx` and `components/Duolin
 - expanded panel = full detail card content
 - panel expansion is independent, so opening one panel does not reserve dropdown height for the other panel
 
-`SpotifyNowPlaying.tsx` polls `/api/spotify/live` every 45 seconds and renders:
+`SpotifyNowPlaying.tsx` polls `/api/spotify/live` every 45 seconds while the page is visible, pauses that loop for hidden tabs, and fetches immediately when the tab becomes visible again. It renders:
 
 1. Spotify-branded label icon in the card header
 2. Current track summary in the ribbon row, with marquee-style horizontal scroll when text is long
