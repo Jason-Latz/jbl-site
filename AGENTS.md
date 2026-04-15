@@ -196,3 +196,11 @@ For feature interactions and visual behavior changes:
 
 1. Confirm expected interaction semantics up front (for example, whether zoom should reflow layout vs scale canvas) before implementing substantial UI behavior changes.
 2. If behavior requirements are ambiguous, ask for clarification first instead of iterating through multiple incorrect implementations.
+
+## 23) Scheduling Rule: Validate Sync Cadence Against Real Throughput
+
+For cron-backed third-party activity syncs:
+
+1. Validate the planned schedule against realistic item throughput and the upstream page-size limit before choosing a cadence.
+2. Prefer incremental paged catch-up from the last stored watermark over assuming an aggressive fixed polling interval is necessary.
+3. Factor hosting-plan schedule limits into the initial design instead of treating them as a later deployment detail.
