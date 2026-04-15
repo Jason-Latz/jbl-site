@@ -1,6 +1,10 @@
 {
   "crons": [
     {
+      "path": "/api/spotify/sync",
+      "schedule": "0 12 * * *"
+    },
+    {
       "path": "/api/travel/prewarm",
       "schedule": "0 * * * *"
     }

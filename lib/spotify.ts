@@ -120,12 +120,23 @@ export type SpotifyLivePayload = {
   topArtistsThisWeek: SpotifyTopArtist[];
 };
 
+export type SpotifyHistorySyncResult = {
+  fetchedCount: number;
+  storedCount: number;
+  oldestPlayedAt: string | null;
+  newestPlayedAt: string | null;
+  didSyncToSupabase: boolean;
+  pageCount: number;
+};
+
 const SPOTIFY_API_BASE_URL = "https://api.spotify.com/v1";
 const SPOTIFY_TOKEN_URL = "https://accounts.spotify.com/api/token";
 const ACCESS_TOKEN_BUFFER_MS = 30_000;
 const TOP_ARTISTS_WINDOW_DAYS = 7;
 const TOP_ARTISTS_LIMIT = 5;
 const SPOTIFY_HISTORY_RETENTION_DAYS = 120;
+const SPOTIFY_RECENTLY_PLAYED_PAGE_LIMIT = 50;
+const SPOTIFY_BOOTSTRAP_LOOKBACK_DAYS = TOP_ARTISTS_WINDOW_DAYS + 1;
 
 let cachedAccessToken: { value: string; expiresAt: number } | null = null;
 let cachedSupabaseServiceClient: SupabaseClient | null | undefined;
@@ -162,6 +173,10 @@ type SpotifyTopArtistRow = {
   artist_last_played_at?: string | null;
   artist_url?: string | null;
   artist_image_url?: string | null;
+};
+
+type SpotifyStoredPlayedAtRow = {
+  played_at?: string | null;
 };
 
 function getRequiredEnv(name: string) {
@@ -565,6 +580,34 @@ async function syncSpotifyRecentTracks(recentlyPlayed: SpotifyRecentlyPlayedItem
   return true;
 }
 
+async function getLatestStoredSpotifyPlayedAtMs() {
+  const supabase = getSupabaseServiceClient();
+  if (!supabase) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from("spotify_recent_tracks")
+    .select("played_at")
+    .order("played_at", { ascending: false })
+    .limit(1);
+
+  if (error) {
+    console.error("[Spotify] Failed to load latest stored play.", {
+      error: error.message
+    });
+    return null;
+  }
+
+  const row = (data?.[0] ?? null) as SpotifyStoredPlayedAtRow | null;
+  if (!row?.played_at) {
+    return null;
+  }
+
+  const playedAtMs = new Date(row.played_at).getTime();
+  return Number.isNaN(playedAtMs) ? null : playedAtMs;
+}
+
 async function fetchWeeklyTopArtistCandidatesFromSupabase(limit: number) {
   const supabase = getSupabaseServiceClient();
   if (!supabase) {
@@ -638,8 +681,8 @@ function toTopArtists(candidates: SpotifyTopArtistCandidate[]) {
 }
 
 async function resolveTopArtistsThisWeek(recentlyPlayed: SpotifyRecentlyPlayedItem[]) {
-  const didSyncSupabase = await syncSpotifyRecentTracks(recentlyPlayed);
-  if (didSyncSupabase) {
+  const syncResult = await syncSpotifyRecentHistory(recentlyPlayed);
+  if (syncResult.didSyncToSupabase) {
     const topArtistsFromSupabase = await fetchWeeklyTopArtistCandidatesFromSupabase(
       TOP_ARTISTS_LIMIT
     );
@@ -676,8 +719,18 @@ async function fetchCurrentlyPlaying() {
   return (await response.json()) as SpotifyCurrentlyPlayingResponse;
 }
 
-async function fetchRecentlyPlayed() {
-  const response = await spotifyRequest("/me/player/recently-played?limit=50");
+async function fetchRecentlyPlayedPage(beforeMs?: number) {
+  const searchParams = new URLSearchParams({
+    limit: String(SPOTIFY_RECENTLY_PLAYED_PAGE_LIMIT)
+  });
+
+  if (typeof beforeMs === "number" && Number.isFinite(beforeMs)) {
+    searchParams.set("before", String(Math.trunc(beforeMs)));
+  }
+
+  const response = await spotifyRequest(
+    `/me/player/recently-played?${searchParams.toString()}`
+  );
 
   if (!response.ok) {
     throw new Error(
@@ -687,6 +740,136 @@ async function fetchRecentlyPlayed() {
 
   const payload = (await response.json()) as SpotifyRecentlyPlayedResponse;
   return payload.items ?? [];
+}
+
+async function fetchRecentlyPlayed() {
+  return fetchRecentlyPlayedPage();
+}
+
+export async function syncSpotifyRecentHistory(
+  initialRecentlyPlayed?: SpotifyRecentlyPlayedItem[]
+): Promise<SpotifyHistorySyncResult> {
+  const supabase = getSupabaseServiceClient();
+  const firstPage = initialRecentlyPlayed ?? (await fetchRecentlyPlayedPage());
+  const firstPageRows = mapTracksForStorage(firstPage);
+
+  if (!supabase) {
+    return {
+      fetchedCount: firstPage.length,
+      storedCount: firstPageRows.length,
+      oldestPlayedAt:
+        firstPage.length > 0 ? firstPage[firstPage.length - 1]?.played_at ?? null : null,
+      newestPlayedAt: firstPage[0]?.played_at ?? null,
+      didSyncToSupabase: false,
+      pageCount: firstPage.length > 0 ? 1 : 0
+    };
+  }
+
+  const latestStoredPlayedAtMs = await getLatestStoredSpotifyPlayedAtMs();
+  const bootstrapCutoffMs =
+    Date.now() - SPOTIFY_BOOTSTRAP_LOOKBACK_DAYS * 24 * 60 * 60 * 1000;
+
+  const pages: SpotifyRecentlyPlayedItem[][] = [];
+  let currentPage = firstPage;
+
+  while (currentPage.length > 0) {
+    pages.push(currentPage);
+
+    let oldestPlayedAtMsOnPage: number | null = null;
+    let reachedStoredOverlap = false;
+    let reachedBootstrapCutoff = false;
+
+    for (const item of currentPage) {
+      if (!item.played_at) {
+        continue;
+      }
+
+      const playedAtMs = new Date(item.played_at).getTime();
+      if (Number.isNaN(playedAtMs)) {
+        continue;
+      }
+
+      if (oldestPlayedAtMsOnPage === null || playedAtMs < oldestPlayedAtMsOnPage) {
+        oldestPlayedAtMsOnPage = playedAtMs;
+      }
+
+      if (
+        latestStoredPlayedAtMs !== null &&
+        playedAtMs <= latestStoredPlayedAtMs
+      ) {
+        reachedStoredOverlap = true;
+      }
+
+      if (
+        latestStoredPlayedAtMs === null &&
+        playedAtMs <= bootstrapCutoffMs
+      ) {
+        reachedBootstrapCutoff = true;
+      }
+    }
+
+    if (
+      oldestPlayedAtMsOnPage === null ||
+      reachedStoredOverlap ||
+      reachedBootstrapCutoff
+    ) {
+      break;
+    }
+
+    currentPage = await fetchRecentlyPlayedPage(oldestPlayedAtMsOnPage);
+  }
+
+  const tracksToStore: SpotifyRecentlyPlayedItem[] = [];
+  const seenKeys = new Set<string>();
+
+  for (const page of pages) {
+    for (const item of page) {
+      if (!item.played_at) {
+        continue;
+      }
+
+      const playedAtMs = new Date(item.played_at).getTime();
+      if (Number.isNaN(playedAtMs)) {
+        continue;
+      }
+
+      if (
+        latestStoredPlayedAtMs !== null &&
+        playedAtMs <= latestStoredPlayedAtMs
+      ) {
+        continue;
+      }
+
+      if (
+        latestStoredPlayedAtMs === null &&
+        playedAtMs <= bootstrapCutoffMs
+      ) {
+        continue;
+      }
+
+      const trackId = getTrackId(item.track);
+      const dedupeKey = `${item.played_at}:${trackId ?? item.track?.name ?? "unknown"}`;
+      if (seenKeys.has(dedupeKey)) {
+        continue;
+      }
+
+      seenKeys.add(dedupeKey);
+      tracksToStore.push(item);
+    }
+  }
+
+  const didSyncToSupabase = await syncSpotifyRecentTracks(tracksToStore);
+  const storedRows = mapTracksForStorage(tracksToStore);
+
+  return {
+    fetchedCount: pages.reduce((total, page) => total + page.length, 0),
+    storedCount: storedRows.length,
+    oldestPlayedAt:
+      storedRows.length > 0 ? storedRows[storedRows.length - 1]?.played_at ?? null : null,
+    newestPlayedAt: storedRows[0]?.played_at ?? null,
+    didSyncToSupabase,
+    pageCount: pages.length
+  };
 }
 
 async function fetchPlaylistById(
