@@ -43,6 +43,7 @@ app/
   admin/new/page.tsx       # Dedicated route for creating new posts
   admin/[id]/page.tsx      # Dedicated route for editing existing posts
   api/spotify/live/route.ts # Spotify now-playing + listening history API proxy
+  api/spotify/sync/route.ts # Cron-protected Spotify history sync endpoint for durable weekly artist tracking
   api/travel/route.ts      # GET list, POST upload batch, PATCH metadata, DELETE photo (editor-only)
   api/travel/prefetch/route.ts # Public top-travel manifest for background warmup
   api/travel/prewarm/route.ts # Cron-protected transformed-image prewarm endpoint
@@ -79,7 +80,7 @@ middleware.ts              # Initializes Supabase auth session for /admin and /a
 package-lock.json          # NPM dependency lockfile
 tsconfig.json              # TS config incl. @/* alias and Next plugin metadata
 scripts/spotify-refresh-token.mjs # Local helper to generate Spotify refresh token
-vercel.json                # Vercel cron schedule for travel image prewarm route
+vercel.json                # Vercel cron schedules for Spotify history sync + travel image prewarm
 ```
 
 ## 4) Runtime architecture
@@ -145,6 +146,15 @@ The home page includes `components/SpotifyNowPlaying.tsx` and `components/Duolin
 5. Sync recent playback rows into `public.spotify_recent_tracks` (when `SUPABASE_SERVICE_ROLE_KEY` is configured)
 6. Query weekly top artists via `public.spotify_top_artists_last_days(...)`
 7. Return nested dropdown payloads for both `recentTracks` and `topArtistsThisWeek`
+
+`app/api/spotify/sync/route.ts` is a cron-only endpoint protected by `CRON_SECRET`. On the current Vercel Hobby plan it runs once daily via `vercel.json` (`0 12 * * *`, which Vercel interprets in UTC) and:
+
+1. Calls Spotify's recent-playback endpoint server-side
+2. Pages backward through recent-play history until it overlaps the newest stored play (or, on first bootstrap, until roughly the last 8 days are covered)
+3. Persists any newly discovered recent tracks into `public.spotify_recent_tracks`
+4. Keeps weekly artist history accumulating even when no browser has the home page open
+
+This scheduled sync is the Hobby-plan backstop for the "Top 5 artists this week" list. The home widget still triggers the same catch-up logic opportunistically through `/api/spotify/live`, so visiting the site can pull in newer plays before the next daily cron.
 
 `DuolingoStreak.tsx` polls `/api/duolingo/streak` every 60 seconds and renders:
 
@@ -334,6 +344,30 @@ This is an app-level guard layered on top of RLS.
 - Route is forced dynamic (`dynamic = "force-dynamic"`, `revalidate = 0`) and responds with `Cache-Control: no-store`
 - On upstream Spotify failures it returns `502` with a diagnostic message
 - If `SUPABASE_SERVICE_ROLE_KEY` is unavailable, weekly top artists fall back to `/me/player/recently-played` window data (best-effort only)
+
+### `GET /api/spotify/sync` (`app/api/spotify/sync/route.ts`)
+
+- Cron-target endpoint for Spotify history ingestion
+- Requires `Authorization: Bearer <CRON_SECRET>`
+- Requires:
+  - `NEXT_PUBLIC_SUPABASE_URL`
+  - `SUPABASE_SERVICE_ROLE_KEY`
+  - `SPOTIFY_CLIENT_ID`
+  - `SPOTIFY_CLIENT_SECRET`
+  - `SPOTIFY_REFRESH_TOKEN`
+- Fetches the most recent Spotify page, then pages backward until it reaches stored-history overlap or the initial bootstrap cutoff
+- Upserts only new rows into `public.spotify_recent_tracks`
+- Returns:
+  - `generatedAt`
+  - `durationMs`
+  - `fetchedCount` (items fetched across all Spotify pages)
+  - `storedCount` (new rows persisted from that run)
+  - `newestPlayedAt`, `oldestPlayedAt`
+  - `pageCount`
+- Returns:
+  - `401` for missing/invalid bearer token
+  - `500` if `CRON_SECRET` is not configured
+  - `503` if required Spotify/Supabase env vars are missing
 
 ### `GET /api/posts` (`app/api/posts/route.ts`)
 
@@ -588,7 +622,7 @@ Optional env vars:
 - `NEXT_PUBLIC_DUOLINGO_STREAK_ICON_DONE` (custom icon URL for "streak completed today")
 - `NEXT_PUBLIC_DUOLINGO_STREAK_ICON_PENDING` (custom icon URL for "streak not completed today")
 - `SUPABASE_SERVICE_ROLE_KEY` (server-only key used by `/api/spotify/live` to persist recent plays and compute exact weekly top artists; without it, weekly artist ranking falls back to recent-play window data only)
-- `CRON_SECRET` (required in Vercel production if enabling `/api/travel/prewarm` cron authorization)
+- `CRON_SECRET` (required in Vercel production if enabling the protected `/api/spotify/sync` and `/api/travel/prewarm` cron routes)
 
 Setup sequence:
 
@@ -604,7 +638,7 @@ Setup sequence:
 6. Ensure `jasonlatz0@gmail.com` has a `public.profiles` row with `is_editor = true`
 7. `npm run dev`
 8. Use `/admin` to manage posts and upload travel
-9. In Vercel production, set `CRON_SECRET` and keep `vercel.json` cron enabled for hourly `GET /api/travel/prewarm`
+9. In Vercel production, set `CRON_SECRET` and keep `vercel.json` cron enabled for daily `GET /api/spotify/sync` (Hobby-safe) plus hourly `GET /api/travel/prewarm`
 
 ### 12.1 Current provisioned state (completed on March 4, 2026 local time)
 
