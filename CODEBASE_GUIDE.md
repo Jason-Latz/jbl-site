@@ -469,6 +469,7 @@ This is an app-level guard layered on top of RLS.
 ### `GET /api/travel/prewarm` (`app/api/travel/prewarm/route.ts`)
 
 - Cron-target endpoint for transformed travel image warmup
+- On the current Vercel Hobby plan, `vercel.json` runs it once daily at `12:30 UTC` (`30 12 * * *`)
 - Requires `Authorization: Bearer <CRON_SECRET>`
 - Loads top 24 photos and warms light high-impact widths (`960`, `1248`, `1600`)
 - Uses concurrency-limited fetch fan-out to transformed Supabase render URLs
@@ -638,7 +639,7 @@ Setup sequence:
 6. Ensure `jasonlatz0@gmail.com` has a `public.profiles` row with `is_editor = true`
 7. `npm run dev`
 8. Use `/admin` to manage posts and upload travel
-9. In Vercel production, set `CRON_SECRET` and keep `vercel.json` cron enabled for daily `GET /api/spotify/sync` (Hobby-safe) plus hourly `GET /api/travel/prewarm`
+9. In Vercel production, set `CRON_SECRET` and keep `vercel.json` cron enabled for daily `GET /api/spotify/sync` plus daily `GET /api/travel/prewarm` (`30 12 * * *`, Hobby-safe)
 
 ### 12.1 Current provisioned state (completed on March 4, 2026 local time)
 
@@ -766,7 +767,7 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 11. Mosaic tiles use width-only transformed URLs (`q92` target, `resize=contain`) to keep captured aspect ratios while reducing transfer/decode cost; requested widths are quantized into fixed buckets so small zoom drags reuse cached image variants.
 12. If a transformed tile request fails, `PhotoMosaic` falls back that tile to its original public object URL so zoom-level edge cases do not show a broken image icon.
 13. `/travel` includes a draggable zoom slider (25% to 200%) with a single Reset action and no on-screen percentage text labels; zoom changes row target height and triggers reflow (instead of scaling one fixed block), with `100%` tuned to the denser look that was previously around `200%`. Zoom control state is deferred for row recomputation to keep slider interaction smooth.
-14. Non-travel routes run one idle-time warmup per session via `GET /api/travel/prefetch`; Vercel cron calls `GET /api/travel/prewarm` hourly to refresh a light top-image variant set.
+14. Non-travel routes run one idle-time warmup per session via `GET /api/travel/prefetch`; on the current Hobby-plan deployment, Vercel cron calls `GET /api/travel/prewarm` once daily to refresh a light top-image variant set.
 15. Clicking a photo opens metadata in the modal with the original image URL.
 
 ## 16) File-by-file quick reference
@@ -788,7 +789,7 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 - `app/api/spotify/live/route.ts`: server route for Spotify now-playing, daily stats, playlist context, last-10 listening history, and weekly top artists.
 - `app/api/travel/route.ts`: editor-only photo API (`GET` list, `POST` upload, `PATCH` metadata, `DELETE` photo).
 - `app/api/travel/prefetch/route.ts`: public top-12 travel manifest for cross-page background warmup.
-- `app/api/travel/prewarm/route.ts`: cron-protected endpoint that warms top travel transformed variants on an hourly schedule.
+- `app/api/travel/prewarm/route.ts`: cron-protected endpoint that warms top travel transformed variants on a daily Hobby-safe schedule.
 - `app/api/photos/route.ts`: legacy compatibility alias that re-exports `/api/travel` handlers.
 - `app/api/posts/route.ts`: list/create post APIs (editor-only).
 - `app/api/posts/[id]/route.ts`: fetch/update single post API (editor-only).
@@ -809,7 +810,7 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 - `middleware.ts`: Supabase session middleware on admin/api routes.
 - `supabase/schema.sql`: complete DB schema + triggers + RLS policies (including `public.photos` metadata table + storage policies).
 - `scripts/spotify-refresh-token.mjs`: local command-line helper for Spotify OAuth token bootstrap.
-- `vercel.json`: hourly cron schedule for `GET /api/travel/prewarm`.
+- `vercel.json`: daily cron schedule for `GET /api/travel/prewarm` at `12:30 UTC`.
 
 ## 17) Practical next improvements (if you extend this code)
 
