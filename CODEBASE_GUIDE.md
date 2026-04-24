@@ -156,13 +156,13 @@ The home page includes `components/SpotifyNowPlaying.tsx` and `components/Duolin
 
 This scheduled sync is the Hobby-plan backstop for the "Top 5 artists this week" list. The home widget still triggers the same catch-up logic opportunistically through `/api/spotify/live`, so visiting the site can pull in newer plays before the next daily cron.
 
-`DuolingoStreak.tsx` polls `/api/duolingo/streak` every 60 seconds and renders:
+`DuolingoStreak.tsx` polls `/api/duolingo/streak` every 60 seconds while the page is visible, then refreshes immediately when the tab becomes visible again. It renders:
 
 1. Compact streak summary in the ribbon row
 2. Profile link, streak count, and status details in the expanded panel
 3. Last-known cached data and retry messaging when the API is temporarily unavailable
 
-Response caching is disabled (`Cache-Control: no-store`) on the Spotify route so the widget data is always fresh. Both client pollers guard against transient non-JSON route responses (for example, dev-time HTML error pages) and fall back to status-based retry messaging instead of JSON parse errors.
+Response caching is disabled (`Cache-Control: no-store`) on the Spotify route so the widget data is always fresh. Both client pollers guard against transient non-JSON route responses (for example, dev-time HTML error pages), pause background polling when the tab is hidden, and fall back to status-based retry messaging instead of JSON parse errors.
 
 ### 4.4 Admin area
 
