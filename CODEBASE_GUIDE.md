@@ -101,7 +101,7 @@ This means every route is rendered inside the same visual shell by default.
 
 ### 4.2 Public pages
 
-- `/` (`app/page.tsx`): hero content, single-line collapsible Spotify + Duolingo activity ribbon, dynamic “latest writing” card sourced from published posts, and a “now” card. The home page also uses ISR (`revalidate = 60`) so newly published posts are not pinned to an old static render.
+- `/` (`app/page.tsx`): hero content, single-line collapsible Spotify + Duolingo activity ribbon, dynamic “latest writing” card sourced from a dedicated single-row published-post query, and a “now” card. The home page also uses ISR (`revalidate = 60`) so newly published posts are not pinned to an old static render.
 - `/experience` (`app/experience/page.tsx`): static, resume-style sections (education, professional experience, projects, technical skills, activities) rendered as cards.
 - `/travel` (`app/travel/page.tsx`): server-rendered gallery route that hydrates a client-side gapless mosaic (`PhotoMosaic`) built from storage images plus metadata from `public.photos`; the mosaic renders an initial top batch, appends additional photos as the user scrolls, uses justified row packing (not fixed columns) so photos rewrap for best fit, calibrates `100%` zoom to the denser look that was previously around `200%`, and serves width-only transformed tile images at roughly `q92` so aspect ratio is preserved without crop.
 - `/travel/quality-lab` (`app/travel/quality-lab/page.tsx`): visual tuning route that renders the same sampled photos side-by-side as `Preferred (q92)`, `Fallback (q90)`, and `Original` to compare sharpness versus payload strategy.
@@ -498,18 +498,21 @@ Important current behavior:
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 
+The helper reuses one public Supabase client instance per server runtime so repeated public post reads do not rebuild the same client object.
+
 Functions:
 
 - `fetchPublishedPosts()`:
   - returns only published records
   - excludes full `content` for list efficiency
   - ordered by `published_at DESC`
+- `fetchLatestPublishedPost()`:
+  - returns only the newest published row for the home-page card
+  - avoids loading the full archive when `/` only needs one post summary
 - `fetchPostBySlug(slug)`:
   - returns one published post including full body content
   - body is rendered as markdown by default (`react-markdown` + `remark-gfm`)
   - if body looks like legacy HTML, route falls back to direct HTML render
-
-Both are wrapped in React `cache(...)`, so repeated calls during one render tree reuse results.
 
 If env vars are missing, helpers safely return empty/null data rather than throwing.
 
@@ -773,7 +776,7 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 
 - `app/layout.tsx`: global app shell and typography setup, plus Supabase preconnect/dns-prefetch hints and background travel warmup mount.
 - `app/page.tsx`: landing content + shared one-line activity ribbon.
-  - latest writing card is dynamically populated from most recent published post
+  - latest writing card is dynamically populated from a dedicated newest-post query instead of loading the full archive
 - `app/travel/page.tsx`: travel route shell that loads photo catalog and renders `PhotoMosaic`.
 - `app/travel/quality-lab/page.tsx`: side-by-side travel image quality comparison route for evaluating `q92`, `q90`, and original delivery against the same photos.
 - `app/photography/page.tsx`: legacy redirect shim from `/photography` to `/travel`.
@@ -800,7 +803,8 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 - `components/PhotoMosaic.tsx`: justified row packer with progressive top-down batch loading, width-only `q92` transformed tile URLs (`resize=contain`) with quantized width buckets and per-tile original-URL fallback on transform errors, draggable 25%-200% zoom + reset (no on-screen percent labels) that reflows rows (with `100%` mapped to the denser former `200%` look and deferred layout recompute), and click-to-open metadata modal on `/travel`.
 - `components/TravelBackgroundWarmup.tsx`: one-time-per-session idle warmup runner for non-travel routes that preloads likely first-view travel transformed variants.
 - `lib/posts.ts`: public content fetch functions.
-  - used by home page and writings pages for published content lists/details
+  - reuses one public Supabase client per server runtime for public post reads
+  - exposes separate archive-list, newest-post summary, and slug-detail fetch helpers
 - `lib/photos.ts`: merged photo catalog helper (storage objects + metadata table rows) plus public render URL builder for display-sized image variants.
 - `lib/travel-image.ts`: canonical travel render quality/width constants, transformed URL builders, and warmup width sets shared by mosaic/background/admin/cron.
 - `lib/spotify.ts`: Spotify token refresh, API fetches, and payload shaping.
