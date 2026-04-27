@@ -1,16 +1,11 @@
 import { NextResponse } from "next/server";
-import { fetchPublicPhotos } from "@/lib/photos";
+import { fetchRecentPublicPhotoUrls } from "@/lib/photos";
 import { TRAVEL_PREFETCH_LIMIT } from "@/lib/travel-image";
 
 export const revalidate = 300;
 
 export async function GET() {
-  const photos = (await fetchPublicPhotos())
-    .slice(0, TRAVEL_PREFETCH_LIMIT)
-    .map((photo) => ({
-      path: photo.path,
-      url: photo.url
-    }));
+  const photos = await fetchRecentPublicPhotoUrls(TRAVEL_PREFETCH_LIMIT);
 
   return NextResponse.json(
     {
