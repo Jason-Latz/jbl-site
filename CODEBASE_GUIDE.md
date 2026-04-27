@@ -463,6 +463,7 @@ This is an app-level guard layered on top of RLS.
 - Returns lightweight travel manifest for cross-page background warmup:
   - `generatedAt`
   - top 12 photos (`path`, `url`)
+- Reads only the top 12 storage objects through `fetchRecentPublicPhotoUrls(12)` instead of loading the full `/travel` metadata catalog first
 - Uses response caching headers:
   - `Cache-Control: public, s-maxage=300, stale-while-revalidate=3600`
 
@@ -471,6 +472,7 @@ This is an app-level guard layered on top of RLS.
 - Cron-target endpoint for transformed travel image warmup
 - Requires `Authorization: Bearer <CRON_SECRET>`
 - Loads top 24 photos and warms light high-impact widths (`960`, `1248`, `1600`)
+- Uses the same limited path/url helper as `/api/travel/prefetch`, so cron warmup does not join `public.photos` metadata rows it never reads
 - Uses concurrency-limited fetch fan-out to transformed Supabase render URLs
 - Returns:
   - `generatedAt`
@@ -519,9 +521,16 @@ If env vars are missing, helpers safely return empty/null data rather than throw
   - lists objects in Storage bucket `photos`
   - fetches matching metadata rows from `public.photos` by `storage_path`
   - merges both into one ordered catalog with public URL + metadata fields
+- `listRecentPublicPhotoUrls(supabase, baseUrl, limit)`:
+  - lists only the newest `limit` storage objects
+  - builds lightweight `{ path, url }` entries without fetching metadata rows
+  - used by warmup-only routes that care about transformed image URLs, not captions or modal metadata
 - `fetchPublicPhotos()`:
   - wraps `listPhotoCatalog(...)` using public env credentials for server components
   - returns data used by the public `/travel` route and `PhotoMosaic`
+- `fetchRecentPublicPhotoUrls(limit)`:
+  - cached server helper for `/api/travel/prefetch` and `/api/travel/prewarm`
+  - keeps background image warmup cost proportional to the warmed subset instead of the full travel catalog
 
 `lib/travel-image.ts` centralizes travel image delivery/warmup behavior:
 
@@ -766,7 +775,7 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 11. Mosaic tiles use width-only transformed URLs (`q92` target, `resize=contain`) to keep captured aspect ratios while reducing transfer/decode cost; requested widths are quantized into fixed buckets so small zoom drags reuse cached image variants.
 12. If a transformed tile request fails, `PhotoMosaic` falls back that tile to its original public object URL so zoom-level edge cases do not show a broken image icon.
 13. `/travel` includes a draggable zoom slider (25% to 200%) with a single Reset action and no on-screen percentage text labels; zoom changes row target height and triggers reflow (instead of scaling one fixed block), with `100%` tuned to the denser look that was previously around `200%`. Zoom control state is deferred for row recomputation to keep slider interaction smooth.
-14. Non-travel routes run one idle-time warmup per session via `GET /api/travel/prefetch`; Vercel cron calls `GET /api/travel/prewarm` hourly to refresh a light top-image variant set.
+14. Non-travel routes run one idle-time warmup per session via `GET /api/travel/prefetch`; Vercel cron calls `GET /api/travel/prewarm` hourly to refresh a light top-image variant set. Both routes intentionally use the limited `{ path, url }` helper in `lib/photos.ts` so they only list the top storage objects they warm instead of rebuilding the full `/travel` metadata catalog.
 15. Clicking a photo opens metadata in the modal with the original image URL.
 
 ## 16) File-by-file quick reference
@@ -787,8 +796,8 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 - `app/admin/[id]/page.tsx`: dedicated edit route wrapping `PostEditorPage`.
 - `app/api/spotify/live/route.ts`: server route for Spotify now-playing, daily stats, playlist context, last-10 listening history, and weekly top artists.
 - `app/api/travel/route.ts`: editor-only photo API (`GET` list, `POST` upload, `PATCH` metadata, `DELETE` photo).
-- `app/api/travel/prefetch/route.ts`: public top-12 travel manifest for cross-page background warmup.
-- `app/api/travel/prewarm/route.ts`: cron-protected endpoint that warms top travel transformed variants on an hourly schedule.
+- `app/api/travel/prefetch/route.ts`: public top-12 travel manifest for cross-page background warmup, backed by the limited path/url helper rather than the full photo catalog join.
+- `app/api/travel/prewarm/route.ts`: cron-protected endpoint that warms top travel transformed variants on an hourly schedule using the same limited helper.
 - `app/api/photos/route.ts`: legacy compatibility alias that re-exports `/api/travel` handlers.
 - `app/api/posts/route.ts`: list/create post APIs (editor-only).
 - `app/api/posts/[id]/route.ts`: fetch/update single post API (editor-only).
@@ -801,7 +810,7 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 - `components/TravelBackgroundWarmup.tsx`: one-time-per-session idle warmup runner for non-travel routes that preloads likely first-view travel transformed variants.
 - `lib/posts.ts`: public content fetch functions.
   - used by home page and writings pages for published content lists/details
-- `lib/photos.ts`: merged photo catalog helper (storage objects + metadata table rows) plus public render URL builder for display-sized image variants.
+- `lib/photos.ts`: merged photo catalog helper for `/travel`, limited path/url helper for background warmup routes, and public render URL builder for display-sized image variants.
 - `lib/travel-image.ts`: canonical travel render quality/width constants, transformed URL builders, and warmup width sets shared by mosaic/background/admin/cron.
 - `lib/spotify.ts`: Spotify token refresh, API fetches, and payload shaping.
 - `lib/requireEditor.ts`: reusable editor authorization check.
