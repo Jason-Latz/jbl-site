@@ -73,11 +73,33 @@ function knuckleGeometry(r: number, len: number): THREE.LatheGeometry {
   return new THREE.LatheGeometry(pts, 40);
 }
 
+// A filament doesn't snap to full brightness — it stumbles alight. This
+// envelope plays once whenever the lamp strikes ON (page load in light mode,
+// or a click), shaping the spot/bulb/shell intensity over ~1.2 s: two short
+// catches, a stutter, then a smooth rise with a fading settle-shimmer.
+function warmUpEnvelope(t: number): number {
+  if (t < 0.07) return 0;
+  if (t < 0.16) return 0.5;
+  if (t < 0.26) return 0.06;
+  if (t < 0.38) return 0.78;
+  if (t < 0.46) return 0.22;
+  const rise = THREE.MathUtils.smoothstep(t, 0.46, 1.15);
+  const shimmer = 1 + 0.05 * Math.sin(t * 34) * (1 - rise);
+  return Math.min(1, rise * shimmer);
+}
+
+// The lamp's effective glow this frame (theme mix x warm-up envelope),
+// shared module-level so lamp-coupled effects (the volumetric beam, motes)
+// flicker in sympathy with the filament. There is exactly one lamp.
+export const lampGlowRef = { current: 0 };
+
 export default function DeskLamp() {
   const { mixRef, toggleTheme } = useDeskTheme();
   const spotRef = useRef<THREE.SpotLight>(null);
   const headRef = useRef<THREE.Group>(null);
   const nudgeRef = useRef(0);
+  const strikeAgeRef = useRef(Number.POSITIVE_INFINITY);
+  const prevMixRef = useRef(-1);
 
   const maps = useMemo(() => {
     // Fine axial ridges; wraps the knurled wheel rims via lathe UVs.
@@ -456,11 +478,22 @@ export default function DeskLamp() {
 
   useFrame((_, delta) => {
     const mix = mixRef.current;
-    if (spotRef.current) {
-      spotRef.current.intensity = THREE.MathUtils.lerp(0, 5.8, mix);
+    // Strike detection: the moment the lamp goes from off to on (mix rising
+    // through a low threshold) the warm-up envelope restarts. Turning off
+    // just damps down — filaments fade out, they don't flicker out.
+    if (prevMixRef.current < 0.04 && mix >= 0.04) {
+      strikeAgeRef.current = 0;
     }
-    bulbMat.emissiveIntensity = THREE.MathUtils.lerp(0, 3, mix);
-    innerShellMat.emissiveIntensity = THREE.MathUtils.lerp(0, 1.4, mix);
+    prevMixRef.current = mix;
+    strikeAgeRef.current = Math.min(strikeAgeRef.current + delta, 10);
+    const glow = mix * warmUpEnvelope(strikeAgeRef.current);
+    lampGlowRef.current = glow;
+
+    if (spotRef.current) {
+      spotRef.current.intensity = 5.8 * glow;
+    }
+    bulbMat.emissiveIntensity = 3 * glow;
+    innerShellMat.emissiveIntensity = 1.4 * glow;
 
     nudgeRef.current = THREE.MathUtils.damp(nudgeRef.current, 0, 5, delta);
     if (headRef.current) {
