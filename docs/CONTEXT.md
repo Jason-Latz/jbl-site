@@ -46,6 +46,23 @@ IN FLIGHT (two background workflows):
   of real experience page, no fabrication), ReadingPanel (BOOKS, review-or-
   "on its way").
 
+NEW DIRECTIVE FROM JASON (mid-flight, supersedes parts of the macbook brief):
+1. MacBook rests CLOSED (lid stickers face UP at the 45° camera — fixes the
+   "facing backwards" look). Clicking it OPENS the lid (damped hinge to ~110°)
+   as part of the work-focus camera flight; closing the panel folds it back.
+   Orientation flips ~π so keyboard/screen face the camera when open. Dark mode
+   rest pose = lid AJAR ~7° with a thin screen-glow leak (keeps the dark-mode
+   soul). Implementation: add { pose: "closed" | "ajar" | "open" } (or open+theme
+   internally) prop AFTER the artisan macbook agent lands; damp hinge angle;
+   screen emissive scales with openness. Update FOCUS_VIEWS.work to face the
+   screen from +z; placement yaw flips.
+2. "Made with Claude" corner chip REMOVED (already done). Replacement: hovering/
+   clicking any Claude sticker on the lid shows a small anchored chip at the
+   sticker (drei <Html> inside MacBook, reusing .desk-credit styles): "Made with
+   Claude" + note that the stickers are on Jason's real laptop, linking out.
+   Sticker clicks stopPropagation so they don't trigger the work focus.
+3. WorkPanel must include GitHub (github.com/Jason-Latz) + resume/projects links.
+
 AFTER WORKFLOWS LAND (my integration, in order): commit each agent file; wire real
 panels into DeskHero (replace placeholder; RecordsPanel gets the existing needle
 state); hand-wire crate sleeves + vinyl label to real album art via /api/spotify/
