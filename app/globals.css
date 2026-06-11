@@ -2045,3 +2045,108 @@ button.primary:disabled {
   line-height: 1.5;
   color: rgba(240, 233, 218, 0.5);
 }
+
+/* ---------------------------------------------------------------------------
+   Admin — Jason's seat at the chessboard
+   --------------------------------------------------------------------------- */
+
+/* The chess admin borrows the desk panel's dark warm stage so the shared
+   .desk-chess-* board styles (cream text, wood frame) read correctly on the
+   light admin page too. Solid background — this sits on paper, not canvas. */
+.chess-admin-shell {
+  margin-top: 1rem;
+  padding: 20px;
+  border-radius: 18px;
+  border: 0.5px solid rgba(240, 233, 218, 0.18);
+  background: #181310;
+  color: #f0e9da;
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
+.chess-admin-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 356px) minmax(220px, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+@media (max-width: 760px) {
+  .chess-admin-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.chess-admin-aside {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* More breathing room than the desk panel's 132px — the admin page has space. */
+.chess-admin-moves {
+  max-height: 264px;
+}
+
+/* The desk panel centers notices under the board; in the aside they read
+   better flush left. */
+.chess-admin-notice {
+  text-align: left;
+}
+
+.chess-admin-info {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: rgba(240, 233, 218, 0.8);
+}
+
+.chess-admin-confirm-copy {
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+
+.chess-admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Quiet variant for the mid-game reset — present, not tempting. */
+.chess-admin-button--quiet {
+  background: rgba(240, 233, 218, 0.05);
+  border-color: rgba(240, 233, 218, 0.22);
+  color: rgba(240, 233, 218, 0.8);
+}
+
+.chess-admin-button--quiet:hover:not(:disabled) {
+  background: rgba(240, 233, 218, 0.12);
+}
+
+.chess-admin-cancel {
+  border: none;
+  background: none;
+  padding: 2px 6px;
+  font-size: 11.5px;
+  color: rgba(240, 233, 218, 0.6);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.chess-admin-cancel:hover:not(:disabled) {
+  color: #f0e9da;
+}
+
+.chess-admin-cancel:focus-visible {
+  outline: 2px solid #d97757;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.chess-admin-cancel:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
