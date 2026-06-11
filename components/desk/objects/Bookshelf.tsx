@@ -60,6 +60,47 @@ function tone(hex: string, mul: number): string {
   return `#${c.getHexString()}`;
 }
 
+// ---------------------------------------------------------------------------
+// Cover finishes
+//
+// Real shelved books are a riot of material variety — that variety is what
+// reads as "real" from across the room. Three finishes, assigned
+// deterministically: cloth/linen case bindings (fabric sheen), matte paper
+// dust jackets (whisper of clearcoat), and one glossier jacket that catches
+// the environment as a long soft streak. The spine HUE stays per the books
+// data; only the finish varies.
+
+type Finish = "cloth" | "matte" | "gloss";
+
+const REAL_FINISH: Record<string, Finish> = {
+  "The Wise Man's Fear": "cloth", // classic cloth case with gold stamping
+  "Moonwalking with Einstein": "gloss", // modern trade jacket, laminated
+  "The Power Law": "matte",
+  "On the Edge": "matte" // flat display copy; art face carries its own gloss
+};
+const FILLER_FINISHES: Finish[] = ["cloth", "matte", "cloth", "gloss", "cloth", "matte"];
+
+// Spine textures are drawn twice: a color pass (what's there now) and a
+// linear "response" pass encoding roughness in G and metalness in B, so the
+// foil type glints under a separate lobe from the cover it's stamped into.
+type SpinePass = "color" | "response";
+
+// Base cover roughness per finish, carried by the response map's G channel.
+const RESP_BASE: Record<Finish, string> = {
+  cloth: "rgb(0,212,0)",
+  matte: "rgb(0,143,0)",
+  gloss: "rgb(0,92,0)"
+};
+
+// Bright foil = stamped metal leaf (smooth, metallic). Dark "foil" is gloss
+// ink — smooth but dielectric, so it flashes the clearcoat instead of
+// mirroring the room.
+function foilResponseInk(foil: string): string {
+  const c = new THREE.Color(foil);
+  const lum = c.r * 0.35 + c.g * 0.55 + c.b * 0.1;
+  return lum > 0.45 ? "rgb(0,66,255)" : "rgb(0,74,0)";
+}
+
 function shelfOrder(shelf: BookShelfName): Book[] {
   const standing = BOOKS.filter((b) => b.shelf === shelf && !b.displayFlat);
   const real = standing.filter((b) => !b.filler);
@@ -301,15 +342,23 @@ function fitPx(
 }
 
 // Foil/ink lettering: offset under-shadow plus a vertical sheen gradient so
-// the type reads stamped instead of printed.
+// the type reads stamped instead of printed. The response pass lays the same
+// glyphs down flat in G/B response ink — alignment with the color pass is
+// what makes the glint read as the type itself.
 function drawFoil(
   ctx: CanvasRenderingContext2D,
   text: string,
   x: number,
   y: number,
   px: number,
-  foil: string
+  foil: string,
+  pass: SpinePass = "color"
 ): void {
+  if (pass === "response") {
+    ctx.fillStyle = foilResponseInk(foil);
+    ctx.fillText(text, x, y);
+    return;
+  }
   const c = new THREE.Color(foil);
   const lum = c.r * 0.35 + c.g * 0.55 + c.b * 0.1;
   ctx.fillStyle = lum > 0.45 ? "rgba(18,8,2,0.55)" : "rgba(255,246,224,0.42)";
@@ -322,8 +371,13 @@ function drawFoil(
   ctx.fillText(text, x, y);
 }
 
-function drawColophon(ctx: CanvasRenderingContext2D, foil: string): void {
-  ctx.strokeStyle = foil;
+function drawColophon(
+  ctx: CanvasRenderingContext2D,
+  foil: string,
+  pass: SpinePass = "color"
+): void {
+  const ink = pass === "color" ? foil : foilResponseInk(foil);
+  ctx.strokeStyle = ink;
   ctx.lineWidth = 3;
   ctx.globalAlpha = 0.9;
   ctx.beginPath();
@@ -335,33 +389,57 @@ function drawColophon(ctx: CanvasRenderingContext2D, foil: string): void {
   ctx.stroke();
   ctx.beginPath();
   ctx.arc(0, 0, 4, 0, Math.PI * 2);
-  ctx.fillStyle = foil;
+  ctx.fillStyle = ink;
   ctx.fill();
   ctx.globalAlpha = 1;
 }
 
+// Both passes consume the rng in the same order, so the speckle and scuffs
+// land on the same texels in color and response — wear that darkens is the
+// same wear that scatters the gloss.
 function spineBase(
   ctx: CanvasRenderingContext2D,
   w: number,
   h: number,
   book: Book,
-  rnd: () => number
+  rnd: () => number,
+  pass: SpinePass = "color",
+  finish: Finish = "cloth"
 ): void {
-  ctx.fillStyle = book.spineColor;
+  ctx.fillStyle = pass === "color" ? book.spineColor : RESP_BASE[finish];
   ctx.fillRect(0, 0, w, h);
   for (let i = 0; i < 700; i++) {
     ctx.globalAlpha = 0.025 + rnd() * 0.045;
-    ctx.fillStyle = rnd() > 0.5 ? "#000000" : "#ffffff";
+    const dark = rnd() > 0.5;
+    ctx.fillStyle =
+      pass === "color"
+        ? dark
+          ? "#000000"
+          : "#ffffff"
+        : dark
+          ? "#000000"
+          : "rgb(0,255,0)";
     ctx.fillRect(rnd() * w, rnd() * h, 1 + rnd() * 2.5, 1.5);
   }
   ctx.globalAlpha = 1;
   const edge = ctx.createLinearGradient(0, 0, w, 0);
-  edge.addColorStop(0, "rgba(0,0,0,0.42)");
-  edge.addColorStop(0.07, "rgba(0,0,0,0.1)");
-  edge.addColorStop(0.16, "rgba(0,0,0,0)");
-  edge.addColorStop(0.84, "rgba(0,0,0,0)");
-  edge.addColorStop(0.93, "rgba(0,0,0,0.1)");
-  edge.addColorStop(1, "rgba(0,0,0,0.42)");
+  if (pass === "color") {
+    edge.addColorStop(0, "rgba(0,0,0,0.42)");
+    edge.addColorStop(0.07, "rgba(0,0,0,0.1)");
+    edge.addColorStop(0.16, "rgba(0,0,0,0)");
+    edge.addColorStop(0.84, "rgba(0,0,0,0)");
+    edge.addColorStop(0.93, "rgba(0,0,0,0.1)");
+    edge.addColorStop(1, "rgba(0,0,0,0.42)");
+  } else {
+    // hinge wear: the curl-away edges read rougher, which also stops the
+    // clearcoat streak from wrapping the whole roll
+    edge.addColorStop(0, "rgba(0,255,0,0.35)");
+    edge.addColorStop(0.07, "rgba(0,255,0,0.12)");
+    edge.addColorStop(0.16, "rgba(0,255,0,0)");
+    edge.addColorStop(0.84, "rgba(0,255,0,0)");
+    edge.addColorStop(0.93, "rgba(0,255,0,0.12)");
+    edge.addColorStop(1, "rgba(0,255,0,0.35)");
+  }
   ctx.fillStyle = edge;
   ctx.fillRect(0, 0, w, h);
 }
@@ -370,17 +448,33 @@ function spineScuffs(
   ctx: CanvasRenderingContext2D,
   w: number,
   h: number,
-  rnd: () => number
+  rnd: () => number,
+  pass: SpinePass = "color"
 ): void {
-  ctx.fillStyle = "#000000";
   for (let i = 0; i < 5; i++) {
-    ctx.globalAlpha = 0.04 + rnd() * 0.06;
-    ctx.fillRect(rnd() * w * 0.5, h - 60 - rnd() * 150, w * (0.2 + rnd() * 0.35), 2);
+    const a = rnd();
+    const x = rnd() * w * 0.5;
+    const y = h - 60 - rnd() * 150;
+    const sw = w * (0.2 + rnd() * 0.35);
+    if (pass === "color") {
+      ctx.fillStyle = "#000000";
+      ctx.globalAlpha = 0.04 + a * 0.06;
+    } else {
+      // scuffs scatter the finish: matte streaks across the gloss
+      ctx.fillStyle = "rgb(0,255,0)";
+      ctx.globalAlpha = 0.2 + a * 0.25;
+    }
+    ctx.fillRect(x, y, sw, 2);
   }
   ctx.globalAlpha = 1;
 }
 
-function realSpineTexture(book: Book, seed: number): THREE.CanvasTexture {
+function realSpineTexture(
+  book: Book,
+  seed: number,
+  pass: SpinePass = "color",
+  finish: Finish = "cloth"
+): THREE.CanvasTexture {
   return makeCanvasTexture(
     512,
     2048,
@@ -388,31 +482,35 @@ function realSpineTexture(book: Book, seed: number): THREE.CanvasTexture {
       const rnd = mulberry32(seed);
       const foil = book.foilColor ?? book.textColor;
       const band = book.bandColor ?? tone(book.spineColor, 1.5);
+      const foilInk = pass === "color" ? foil : foilResponseInk(foil);
       // u is mapped over the unwrapped spine arc; compensate the pixel-density
       // mismatch so type keeps a true aspect on narrow and wide spines alike.
       const arc = Math.PI * 0.5 * book.thicknessM;
       const squish = (w / arc) / (h / book.heightM);
       const vw = w / squish;
 
-      spineBase(ctx, w, h, book, rnd);
+      spineBase(ctx, w, h, book, rnd, pass, finish);
 
       const bandH = 24;
       for (const top of [true, false]) {
         const y0 = top ? 0 : h - bandH;
-        ctx.fillStyle = band;
+        // headbands are woven thread: rough, dielectric in the response pass
+        ctx.fillStyle = pass === "color" ? band : "rgb(0,205,0)";
         ctx.fillRect(0, y0, w, bandH);
-        ctx.fillStyle = "rgba(0,0,0,0.3)";
+        ctx.fillStyle = pass === "color" ? "rgba(0,0,0,0.3)" : "rgba(0,255,0,0.3)";
         for (let x = 3; x < w; x += 9) ctx.fillRect(x, y0 + 4, 3.5, bandH - 8);
-        const sy = top ? bandH : h - bandH - 14;
-        const sh = ctx.createLinearGradient(0, sy, 0, sy + 14);
-        sh.addColorStop(top ? 0 : 1, "rgba(0,0,0,0.32)");
-        sh.addColorStop(top ? 1 : 0, "rgba(0,0,0,0)");
-        ctx.fillStyle = sh;
-        ctx.fillRect(0, sy, w, 14);
+        if (pass === "color") {
+          const sy = top ? bandH : h - bandH - 14;
+          const sh = ctx.createLinearGradient(0, sy, 0, sy + 14);
+          sh.addColorStop(top ? 0 : 1, "rgba(0,0,0,0.32)");
+          sh.addColorStop(top ? 1 : 0, "rgba(0,0,0,0)");
+          ctx.fillStyle = sh;
+          ctx.fillRect(0, sy, w, 14);
+        }
       }
 
-      ctx.globalAlpha = 0.92;
-      ctx.fillStyle = foil;
+      ctx.globalAlpha = pass === "color" ? 0.92 : 1;
+      ctx.fillStyle = foilInk;
       ctx.fillRect(w * 0.17, 96, w * 0.66, 6);
       ctx.fillRect(w * 0.17, 114, w * 0.66, 3);
       ctx.fillRect(w * 0.17, h - 116, w * 0.66, 3);
@@ -445,7 +543,7 @@ function realSpineTexture(book: Book, seed: number): THREE.CanvasTexture {
         ctx.font = titleFont(px);
         const lineH = px * 1.2;
         words.forEach((word, i) => {
-          drawFoil(ctx, word, 0, 330 + i * lineH, px, foil);
+          drawFoil(ctx, word, 0, 330 + i * lineH, px, foil, pass);
         });
         const authorWords = book.author.split(" ");
         let apx = 54;
@@ -454,7 +552,7 @@ function realSpineTexture(book: Book, seed: number): THREE.CanvasTexture {
         }
         ctx.font = authorFont(apx);
         authorWords.forEach((word, i) => {
-          drawFoil(ctx, word.toUpperCase(), 0, h - 430 + i * apx * 1.45, apx, foil);
+          drawFoil(ctx, word.toUpperCase(), 0, h - 430 + i * apx * 1.45, apx, foil, pass);
         });
         ctx.restore();
       } else {
@@ -463,21 +561,22 @@ function realSpineTexture(book: Book, seed: number): THREE.CanvasTexture {
         ctx.scale(squish, 1);
         ctx.rotate(Math.PI / 2); // tilt-your-head-right US spine convention
         const tpx = fitPx(ctx, book.title, 86, h * 0.5, titleFont);
-        drawFoil(ctx, book.title, -h * 0.1, 0, tpx, foil);
+        drawFoil(ctx, book.title, -h * 0.1, 0, tpx, foil, pass);
         const apx = fitPx(ctx, book.author, 46, h * 0.26, authorFont);
-        drawFoil(ctx, book.author, h * 0.3, 0, apx, foil);
+        drawFoil(ctx, book.author, h * 0.3, 0, apx, foil, pass);
         ctx.restore();
       }
 
       ctx.save();
       ctx.translate(w / 2, h - 188);
       ctx.scale(squish, 1);
-      drawColophon(ctx, foil);
+      drawColophon(ctx, foil, pass);
       ctx.restore();
 
-      spineScuffs(ctx, w, h, rnd);
+      spineScuffs(ctx, w, h, rnd, pass);
     },
-    { anisotropy: 8 }
+    // response maps carry data, not color — they must stay linear
+    { srgb: pass === "color", anisotropy: 8 }
   );
 }
 
@@ -660,20 +759,23 @@ const FLAT_POS: [number, number] = [-0.075, 0.008];
 export default function Bookshelf() {
   const carcass = useMemo(() => {
     const rand = mulberry32(471);
-    const wood = (mul: number, clearcoat: number) => {
+    // Same lacquered-mahogany family as the desk; env per part so the case
+    // reads as one piece that meets the room differently plane by plane.
+    const wood = (mul: number, clearcoat: number, env = 0.9) => {
       const m = lacqueredWoodMaterial({
         base: tone(MAHOGANY, mul),
         streak: tone(MAHOGANY_STREAK, mul),
-        roughness: 0.4,
+        roughness: 0.38,
         clearcoat,
-        clearcoatRoughness: 0.2,
+        clearcoatRoughness: 0.18,
         bumpScale: 0.001
       });
+      m.envMapIntensity = env;
       if (m.map) m.map.anisotropy = 8;
       return m;
     };
 
-    const side = wood(0.96 + rand() * 0.06, 0.8);
+    const side = wood(0.96 + rand() * 0.06, 0.8, 0.95);
     if (side.map) {
       side.map.wrapS = side.map.wrapT = THREE.RepeatWrapping;
       side.map.center.set(0.5, 0.5);
@@ -684,13 +786,15 @@ export default function Bookshelf() {
     const brassEdge = new THREE.MeshStandardMaterial({
       color: "#7a5c26",
       metalness: 1,
-      roughness: 0.4
+      roughness: 0.4,
+      envMapIntensity: 1.1
     });
     const plaqueFace = (label: string, seed: number) =>
       new THREE.MeshStandardMaterial({
         map: plaqueTexture(label, seed),
         metalness: 0.9,
-        roughness: 0.32
+        roughness: 0.32,
+        envMapIntensity: 1.2
       });
 
     return {
@@ -704,11 +808,15 @@ export default function Bookshelf() {
       lipGeo: plateGeometry(0.112, 0.02, 0.0025, 0.0007, "x"),
       bookendBaseGeo: plateGeometry(0.078, 0.112, 0.0018, 0.0005, "y"),
       sideMat: side,
-      boardMatA: wood(0.92 + rand() * 0.08, 0.75),
-      boardMatB: wood(0.95 + rand() * 0.08, 0.75),
-      topMat: wood(1.0 + rand() * 0.08, 0.9),
-      bandMat: wood(0.86 + rand() * 0.06, 0.7),
-      backMat: wood(1.08, 0.45),
+      boardMatA: wood(0.92 + rand() * 0.08, 0.75, 0.8),
+      boardMatB: wood(0.95 + rand() * 0.08, 0.75, 0.8),
+      // the top cap is the case's one horizontal plane to the window — it
+      // carries the long env streak the way the turntable's plinth does
+      topMat: wood(1.0 + rand() * 0.08, 0.9, 1.15),
+      bandMat: wood(0.86 + rand() * 0.06, 0.7, 0.85),
+      // interior depth: the back panel sits dark and barely answers the env,
+      // so the bays read as shadowed air behind the books (N8AO finishes it)
+      backMat: wood(0.62, 0.35, 0.4),
       plaqueMats: {
         favorites: [plaqueFace("favorites", 91), brassEdge],
         current: [plaqueFace("current", 92), brassEdge]
@@ -716,7 +824,8 @@ export default function Bookshelf() {
       pinBrass: new THREE.MeshStandardMaterial({
         color: "#6b5122",
         metalness: 1,
-        roughness: 0.45
+        roughness: 0.45,
+        envMapIntensity: 1.1
       }),
       steel: (() => {
         const m = brushedMetalMaterial("#b6babd");
@@ -732,9 +841,29 @@ export default function Bookshelf() {
     const rand = mulberry32(20260610);
     const pagesTex = pageEdgeTexture(77);
     const clothTex = clothTexture(78);
+    // Shared micro-grain bump for jacketed covers (linear, bump-only): keeps
+    // the clearcoat streak from reading as injection-molded plastic.
+    const paperTex = makeCanvasTexture(
+      256,
+      256,
+      (ctx, w, h) => {
+        const rnd = mulberry32(79);
+        ctx.fillStyle = "#808080";
+        ctx.fillRect(0, 0, w, h);
+        for (let i = 0; i < 2000; i++) {
+          const g = 104 + Math.floor(rnd() * 60);
+          ctx.globalAlpha = 0.4 + rnd() * 0.3;
+          ctx.fillStyle = `rgb(${g},${g},${g})`;
+          ctx.fillRect(rnd() * w, rnd() * h, 1.4, 1.4);
+        }
+        ctx.globalAlpha = 1;
+      },
+      { srgb: false, anisotropy: 4 }
+    );
     const spineInner = new THREE.MeshStandardMaterial({ color: "#241a12", roughness: 0.9 });
 
     let bookIndex = 0;
+    let fillerIndex = 0;
     const buildBook = (
       book: Book,
       key: string,
@@ -747,41 +876,147 @@ export default function Bookshelf() {
       const d = BOOK_DEPTH;
       const seed = 31 + bookIndex * 17;
       bookIndex++;
+      const finish: Finish = book.filler
+        ? FILLER_FINISHES[fillerIndex++ % FILLER_FINISHES.length] ?? "cloth"
+        : REAL_FINISH[book.title] ?? "cloth";
+      // Per-book micro-variation rides its own stream so the shared layout
+      // rng (z jitter, yaw, lean) stays byte-identical to the built look.
+      const brand = mulberry32(seed * 13 + 5);
 
       const tint = new THREE.Color(book.spineColor).multiplyScalar(0.92 + rand() * 0.14);
       tint.r = Math.min(1, tint.r * 1.05);
       tint.g = Math.min(1, tint.g * 1.05);
       tint.b = Math.min(1, tint.b * 1.05);
-      const clothFace = new THREE.MeshStandardMaterial({
-        map: clothTex,
-        color: tint,
-        bumpMap: clothTex,
-        bumpScale: 0.0006,
-        roughness: 0.74
-      });
-      const edge = new THREE.MeshStandardMaterial({
+      const sheenTint = new THREE.Color("#f6f2e9").lerp(tint, 0.42);
+
+      // Cover boards answer the light per finish: cloth scatters it through a
+      // fabric sheen lobe, matte jackets barely film it, the gloss jacket
+      // pulls a long soft clearcoat streak off the environment.
+      let coverFace: THREE.MeshPhysicalMaterial;
+      let edgeRough = 0.82;
+      let edgeCoat = 0;
+      if (finish === "cloth") {
+        coverFace = new THREE.MeshPhysicalMaterial({
+          map: clothTex,
+          color: tint,
+          bumpMap: clothTex,
+          bumpScale: 0.0007,
+          roughness: 0.76 + brand() * 0.06,
+          sheen: 0.5 + brand() * 0.25,
+          sheenRoughness: 0.58,
+          sheenColor: sheenTint,
+          envMapIntensity: 0.55
+        });
+      } else if (finish === "matte") {
+        coverFace = new THREE.MeshPhysicalMaterial({
+          color: tint,
+          bumpMap: paperTex,
+          bumpScale: 0.00018,
+          roughness: 0.52 + brand() * 0.06,
+          clearcoat: 0.05,
+          clearcoatRoughness: 0.5,
+          envMapIntensity: 0.8
+        });
+        edgeRough = 0.6;
+      } else {
+        coverFace = new THREE.MeshPhysicalMaterial({
+          color: tint,
+          bumpMap: paperTex,
+          bumpScale: 0.0001,
+          roughness: 0.34 + brand() * 0.04,
+          clearcoat: 0.42,
+          clearcoatRoughness: 0.12 + brand() * 0.05,
+          envMapIntensity: 1.15
+        });
+        edgeRough = 0.45;
+        edgeCoat = 0.3;
+      }
+      const edge = new THREE.MeshPhysicalMaterial({
         color: tint.clone().multiplyScalar(0.9),
-        roughness: 0.8
+        roughness: edgeRough,
+        clearcoat: edgeCoat,
+        clearcoatRoughness: 0.3,
+        envMapIntensity: 0.7
       });
+      // Flat display copy: modern matte-laminate jacket with spot-gloss feel —
+      // enough clearcoat to catch the MacBook's cool screen leak at night.
       const artFace = coverArt
-        ? new THREE.MeshStandardMaterial({ map: coverArt, roughness: 0.62 })
+        ? new THREE.MeshPhysicalMaterial({
+            map: coverArt,
+            roughness: 0.48,
+            clearcoat: 0.18,
+            clearcoatRoughness: 0.32,
+            envMapIntensity: 1.0
+          })
         : null;
 
-      const spineMat = new THREE.MeshStandardMaterial({
-        map: book.filler ? fillerSpineTexture(book, seed) : realSpineTexture(book, seed),
-        roughness: 0.66
+      const spineMat = new THREE.MeshPhysicalMaterial({
+        map: book.filler
+          ? fillerSpineTexture(book, seed)
+          : realSpineTexture(book, seed, "color", finish)
       });
+      if (book.filler) {
+        spineMat.roughness = finish === "cloth" ? 0.78 : finish === "matte" ? 0.55 : 0.38;
+      } else {
+        // The spine canvas drawn a second time as a linear G/B response map:
+        // rough dielectric cover, smooth metallic foil. The type itself
+        // glints when the env — or the night screen leak — sweeps it.
+        const response = realSpineTexture(book, seed, "response", finish);
+        spineMat.roughnessMap = response;
+        spineMat.metalnessMap = response;
+        spineMat.roughness = 1;
+        spineMat.metalness = 1;
+      }
+      if (finish === "cloth") {
+        spineMat.sheen = 0.45;
+        spineMat.sheenRoughness = 0.6;
+        spineMat.sheenColor.copy(sheenTint);
+        spineMat.bumpMap = clothTex;
+        spineMat.bumpScale = 0.0004;
+        spineMat.envMapIntensity = 0.65;
+      } else if (finish === "matte") {
+        spineMat.clearcoat = 0.06;
+        spineMat.clearcoatRoughness = 0.45;
+        spineMat.envMapIntensity = 0.9;
+      } else {
+        spineMat.clearcoat = 0.4;
+        spineMat.clearcoatRoughness = 0.14;
+        spineMat.envMapIntensity = 1.2;
+      }
       const capMat = new THREE.MeshStandardMaterial({
         color: tone(book.spineColor, 0.5),
         roughness: 0.85,
-        side: THREE.DoubleSide
+        side: THREE.DoubleSide,
+        envMapIntensity: 0.5
       });
-      const pagesMat = new THREE.MeshStandardMaterial({
+
+      // Page block: hairline striations all around, but the faces differ —
+      // the top edge catches the room dust-soft, the fore-edge deckle and the
+      // shelf-shadowed bottom sit darker and fully matte.
+      const pageHex = book.pageTint ?? "#f5edd8";
+      const pagesSide = new THREE.MeshStandardMaterial({
         map: pagesTex,
-        color: book.pageTint ?? "#f5edd8",
+        color: pageHex,
         bumpMap: pagesTex,
         bumpScale: 0.0004,
-        roughness: 0.95
+        roughness: 0.95,
+        envMapIntensity: 0.5
+      });
+      const pagesTop = new THREE.MeshStandardMaterial({
+        map: pagesTex,
+        color: tone(pageHex, 1.06),
+        bumpMap: pagesTex,
+        bumpScale: 0.0003,
+        roughness: 0.82,
+        envMapIntensity: 0.8
+      });
+      const pagesDeckle = new THREE.MeshStandardMaterial({
+        map: pagesTex,
+        color: tone(pageHex, 0.9),
+        bumpMap: pagesTex,
+        bumpScale: 0.0005,
+        roughness: 0.98,
+        envMapIntensity: 0.4
       });
 
       const bulge = Math.min(0.0065, Math.max(0.0035, t * 0.16));
@@ -793,13 +1028,14 @@ export default function Bookshelf() {
         position,
         rotation,
         coverGeo: plateGeometry(d, h, COVER_T, 0.0008, "x"),
-        frontMats: [artFace ?? clothFace, edge],
-        backMats: [clothFace, edge],
+        frontMats: [artFace ?? coverFace, edge],
+        backMats: [coverFace, edge],
         spineGeo: spineGeometry(t, h, bulge),
         capGeo: spineCapGeometry(t, bulge),
         spineMat,
         capMat,
-        pagesMats: [pagesMat, pagesMat, pagesMat, pagesMat, spineInner, pagesMat],
+        // box faces: +x, -x, +y (top), -y (bottom), +z (spine side), -z (fore-edge)
+        pagesMats: [pagesSide, pagesSide, pagesTop, pagesDeckle, spineInner, pagesDeckle],
         pagesSize: [pagesW, h - 2 * OVERHANG, d - OVERHANG - 0.002],
         pagesZ: (OVERHANG - 0.002) / 2
       };
@@ -814,7 +1050,8 @@ export default function Bookshelf() {
 
     for (const shelf of shelves) {
       const order = shelfOrder(shelf.name);
-      const leanAngle = 0.105 + rand() * 0.03;
+      // ~7.5-9.5 degrees: a real settled-against-the-neighbor lean
+      const leanAngle = 0.13 + rand() * 0.035;
       // lean candidate: shorter than its right neighbor so the tipped top
       // corner lands on the neighbor's face, not above it
       let leanIndex = -1;
