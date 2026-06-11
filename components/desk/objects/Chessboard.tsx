@@ -3,6 +3,7 @@
 import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
+import { mergeBufferGeometries } from "three-stdlib";
 import { markShadowsDirty } from "@/lib/three/shadow-dirty";
 import {
   feltMaterial,
@@ -1294,7 +1295,42 @@ export default function Chessboard({ fen = null, lastMove = null }: ChessboardPr
       part(crossH, [0, FELT_H + 0.0538, 0])
     ];
 
-    return { pawn, rook, knight, bishop, queen, king };
+    // Rigid decorations (merlons, pearls + orb, the cross, the knight's
+    // carved head) share the body material and never move relative to the
+    // body, so they bake into one geometry per kind — a piece is two draws
+    // (felt + body); the bishop keeps a third for its grooveMat mitre ring.
+    // Lathes are indexed and extrudes are not, so everything merges
+    // non-indexed. Kinds with a lone body part (pawn, bishop) pass through.
+    const mergeBody = (parts: Part[]): Part[] => {
+      const kept = parts.filter((p) => p.material);
+      const bodies = parts.filter((p) => !p.material);
+      if (bodies.length < 2) return parts;
+      const merged = mergeBufferGeometries(
+        bodies.map((p) => {
+          const indexed = p.geometry.clone();
+          const geometry = indexed.index ? indexed.toNonIndexed() : indexed;
+          if (p.rotation) {
+            geometry.applyMatrix4(
+              new THREE.Matrix4().makeRotationFromEuler(
+                new THREE.Euler(...p.rotation)
+              )
+            );
+          }
+          geometry.translate(...p.position);
+          return geometry;
+        })
+      );
+      return merged ? [...kept, part(merged, [0, 0, 0])] : parts;
+    };
+
+    return {
+      pawn: mergeBody(pawn),
+      rook: mergeBody(rook),
+      knight: mergeBody(knight),
+      bishop: mergeBody(bishop),
+      queen: mergeBody(queen),
+      king: mergeBody(king)
+    };
   }, []);
 
   const parsed = useMemo(() => (fen ? parseFenPlacement(fen) : null), [fen]);
