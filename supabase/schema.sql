@@ -293,3 +293,29 @@ create index if not exists desk_notes_created_at_idx
   on public.desk_notes (created_at desc);
 
 alter table public.desk_notes enable row level security;
+
+-- The Desk: the world-vs-Jason chess game (Stage 3).
+-- One row with status='active' at a time; finished games stay as the archive.
+-- No public RLS policies — all access goes through server routes (service
+-- role), which enforce turn order, chess.js legality, and optimistic
+-- concurrency via the ply counter (update ... where ply = expected).
+-- moves entries: { san, uci, fen, by: 'world' | 'jason', at, ip_hash? }
+-- (ip_hash recorded for world moves, never exposed through the API).
+create table if not exists public.chess_games (
+  id uuid primary key default gen_random_uuid(),
+  status text not null default 'active'
+    check (status in ('active', 'finished')),
+  fen text not null,
+  ply integer not null default 0,
+  moves jsonb not null default '[]'::jsonb,
+  world_color text not null default 'w' check (world_color in ('w', 'b')),
+  result text check (result in ('world', 'jason', 'draw')),
+  last_move_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists chess_games_status_idx
+  on public.chess_games (status, created_at desc);
+
+alter table public.chess_games enable row level security;
