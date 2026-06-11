@@ -1198,3 +1198,67 @@ button.primary:disabled {
     padding-right: 1.5rem;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   The Desk — 3D homepage hero
+   --------------------------------------------------------------------------- */
+
+.desk-hero {
+  position: relative;
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-top: -3.5rem;
+  margin-bottom: 2.5rem;
+  height: min(86svh, 800px);
+  min-height: 420px;
+  background: #0e0a07;
+  overflow: hidden;
+}
+
+:root[data-theme="light"] .desk-hero,
+:root:not([data-theme]) .desk-hero {
+  background: #efe4cf;
+}
+
+.desk-hero canvas {
+  display: block;
+  outline: none;
+  touch-action: pan-y;
+}
+
+.desk-hero-loading {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 42% 38%, #2a1f14 0%, #0e0a07 72%);
+}
+
+:root[data-theme="light"] .desk-hero-loading,
+:root:not([data-theme]) .desk-hero-loading {
+  background: radial-gradient(ellipse at 42% 38%, #f4ead6 0%, #e3d4ba 72%);
+}
+
+.desk-hero-fallback {
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-top: -3.5rem;
+  margin-bottom: 2.5rem;
+  padding: 5rem 1.5rem 4rem;
+  background: linear-gradient(180deg, var(--surface-soft), var(--bg));
+}
+
+.desk-hero-fallback-inner {
+  max-width: var(--max-width);
+  margin: 0 auto;
+}
+
+.desk-hero-fallback-title {
+  margin: 0 0 0.75rem;
+  font-size: clamp(1.9rem, 4.5vw, 2.8rem);
+  line-height: 1.12;
+}
+
+.desk-hero-fallback-copy {
+  margin: 0;
+  max-width: 38rem;
+  color: var(--muted);
+}

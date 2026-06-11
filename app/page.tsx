@@ -1,4 +1,5 @@
 import Link from "next/link";
+import DeskHero from "@/components/desk/DeskHero";
 import DuolingoStreak from "@/components/DuolingoStreak";
 import SpotifyNowPlaying from "@/components/SpotifyNowPlaying";
 import { formatDate } from "@/lib/date";
@@ -12,6 +13,7 @@ export default async function HomePage() {
 
   return (
     <div className="hero">
+      <DeskHero />
       <div className="activity-ribbon" aria-label="Live activity">
         <SpotifyNowPlaying />
         <DuolingoStreak />
