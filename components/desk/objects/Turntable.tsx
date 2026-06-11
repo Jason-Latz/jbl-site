@@ -142,7 +142,7 @@ export default function Turntable({
       vinyl,
       label,
       led,
-      armMetal: brushedMetalMaterial("#cfccc4"),
+      armMetal: brushedMetalMaterial("#9b978e"),
       armDark: plasticMaterial("#1d1c1a", 0.5),
       counterweight: brushedMetalMaterial("#4a4843"),
       button: brushedMetalMaterial("#8e8b84")
