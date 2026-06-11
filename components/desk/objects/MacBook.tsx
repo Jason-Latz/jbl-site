@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import { Html, RoundedBox } from "@react-three/drei";
-import { RoundedBoxGeometry } from "three-stdlib";
+import { RoundedBoxGeometry, mergeBufferGeometries } from "three-stdlib";
 import { PALETTE, makeCanvasTexture } from "@/lib/three/materials";
 import { markShadowsDirty } from "@/lib/three/shadow-dirty";
 import { useDeskTheme } from "../DeskThemeContext";
@@ -896,18 +896,6 @@ export default function MacBook({ open }: MacBookProps) {
     });
   }, []);
 
-  // 78 caps share one geometry per distinct cap size
-  const keyGeometries = useMemo(() => {
-    const cache = new Map<string, RoundedBoxGeometry>();
-    for (const k of KEYS) {
-      const id = keyGeoId(k);
-      if (!cache.has(id)) {
-        cache.set(id, new RoundedBoxGeometry(k.w, KEY_T, k.d, 4, 0.0006));
-      }
-    }
-    return cache;
-  }, []);
-
   const keyMaterials = useMemo(
     () => [
       new THREE.MeshPhysicalMaterial({
@@ -947,6 +935,31 @@ export default function MacBook({ open }: MacBookProps) {
       mat: WORN_LEGENDS.has(k.legend) ? 2 : rng() > 0.5 ? 0 : 1
     }));
   }, []);
+
+  // Keys never move and their jitter is fixed at build time, so the 78
+  // caps bake into one merged mesh per finish (3 draws). Caps share one
+  // template geometry per distinct size; legends live on the overlay plane.
+  const keyBatches = useMemo(() => {
+    const cache = new Map<string, RoundedBoxGeometry>();
+    for (const k of KEYS) {
+      const id = keyGeoId(k);
+      if (!cache.has(id)) {
+        cache.set(id, new RoundedBoxGeometry(k.w, KEY_T, k.d, 4, 0.0006));
+      }
+    }
+    const byMat: THREE.BufferGeometry[][] = keyMaterials.map(() => []);
+    KEYS.forEach((k, i) => {
+      const j = keyJitter[i];
+      const cap = cache.get(keyGeoId(k))!.clone();
+      cap.rotateY(j.yaw);
+      cap.translate(k.x + j.x, KEY_CY + j.y, k.z + j.z);
+      byMat[j.mat].push(cap);
+    });
+    return byMat.flatMap((caps, i) => {
+      const geometry = mergeBufferGeometries(caps);
+      return geometry ? [{ geometry, material: keyMaterials[i] }] : [];
+    });
+  }, [keyMaterials, keyJitter]);
 
   const legendMaterial = useMemo(() => {
     const rng = mulberry32(0x5eed_1e9e);
@@ -1310,14 +1323,8 @@ export default function MacBook({ open }: MacBookProps) {
         receiveShadow
         material={sharedMats.well}
       />
-      {KEYS.map((k, i) => (
-        <mesh
-          key={`k${i}`}
-          geometry={keyGeometries.get(keyGeoId(k))!}
-          material={keyMaterials[keyJitter[i].mat]}
-          position={[k.x + keyJitter[i].x, KEY_CY + keyJitter[i].y, k.z + keyJitter[i].z]}
-          rotation={[0, keyJitter[i].yaw, 0]}
-        />
+      {keyBatches.map((batch, i) => (
+        <mesh key={`k${i}`} geometry={batch.geometry} material={batch.material} />
       ))}
       <mesh
         position={[0, WELL_TOP + KEY_PROUD + 0.0002, KB_CZ]}
