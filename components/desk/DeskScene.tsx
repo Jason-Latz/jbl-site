@@ -38,6 +38,8 @@ export type DeskSceneProps = {
   onNeedleClick: () => void;
   focus: FocusId | null;
   onFocus: (id: FocusId) => void;
+  labelArtUrl: string | null;
+  coverArtUrls: string[];
 };
 
 const CAMERA_START = new THREE.Vector3(...CAMERA.start);
@@ -329,7 +331,9 @@ function SceneContents({
   armDown,
   onNeedleClick,
   focus,
-  onFocus
+  onFocus,
+  labelArtUrl,
+  coverArtUrls
 }: DeskSceneProps) {
   const controlsRef = useRef<OrbitControlsImpl>(null!);
   const rig = useCameraRig();
@@ -348,6 +352,7 @@ function SceneContents({
           playing={turntablePlaying}
           armDown={armDown}
           onNeedleClick={onNeedleClick}
+          labelArtUrl={labelArtUrl}
         />
       </Placed>
       <Placed name="lamp">
@@ -366,7 +371,7 @@ function SceneContents({
         <Notepad />
       </Placed>
       <Placed name="crate">
-        <RecordCrate />
+        <RecordCrate coverArtUrls={coverArtUrls} />
       </Placed>
       <OrbitControls
         ref={controlsRef}

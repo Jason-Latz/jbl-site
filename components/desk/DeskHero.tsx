@@ -70,7 +70,27 @@ export default function DeskHero() {
   const [phase, setPhase] = useState<NeedlePhase>("idle");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [focus, setFocus] = useState<FocusId | null>(null);
+  const [coverArtUrls, setCoverArtUrls] = useState<string[]>([]);
   const { data } = useSpotifyLive();
+
+  // Heavy-rotation art for the crate sleeves, fetched once.
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/spotify/albums", { signal: controller.signal })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload: { albums?: { imageUrl?: string }[] } | null) => {
+        const urls = (payload?.albums ?? [])
+          .map((album) => album.imageUrl)
+          .filter((url): url is string => typeof url === "string");
+        if (urls.length > 0) {
+          setCoverArtUrls(urls);
+        }
+      })
+      .catch(() => {
+        // Procedural sleeves stay in place.
+      });
+    return () => controller.abort();
+  }, []);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -220,6 +240,8 @@ export default function DeskHero() {
           onNeedleClick={() => setFocus("records")}
           focus={focus}
           onFocus={setFocus}
+          labelArtUrl={leadTrack?.albumImageUrl ?? null}
+          coverArtUrls={coverArtUrls}
         />
       ) : (
         <div className="desk-hero-loading" aria-hidden="true" />

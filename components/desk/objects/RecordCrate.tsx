@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import * as THREE from "three";
 import { RoundedBox } from "@react-three/drei";
 import { PALETTE, makeCanvasTexture } from "@/lib/three/materials";
+import { loadProxiedTexture } from "@/lib/three/proxied-texture";
 
 const INTERIOR = 0.34;
 const CRATE_H = 0.31;
@@ -578,7 +579,12 @@ function vinylTextures() {
 
 // Slatted pine record crate on the floor: ten LPs leaning inside,
 // one sleeve propped against the front with its vinyl peeking out.
-export default function RecordCrate() {
+type RecordCrateProps = {
+  // Real album-art URLs (heavy rotation) pressed onto sleeve fronts on load.
+  coverArtUrls?: string[];
+};
+
+export default function RecordCrate({ coverArtUrls }: RecordCrateProps) {
   // Per-part pine: four horizontal plank variants + two vertical post
   // variants, each material clone gets its own warm tone jitter.
   const pine = useMemo(() => {
@@ -822,6 +828,24 @@ export default function RecordCrate() {
       ),
     [paperBump]
   );
+
+  // Stage 2: press Jason's real heavy-rotation album art onto the sleeve
+  // fronts as it loads; procedural covers remain as instant placeholders.
+  useEffect(() => {
+    if (!coverArtUrls?.length) {
+      return;
+    }
+    const cancels = coverArtUrls
+      .slice(0, covers.length)
+      .map((url, i) =>
+        loadProxiedTexture(url, (texture) => {
+          covers[i].front.map = texture;
+          covers[i].front.color.set("#ffffff");
+          covers[i].front.needsUpdate = true;
+        })
+      );
+    return () => cancels.forEach((cancel) => cancel());
+  }, [coverArtUrls, covers]);
 
   const outside = useMemo(() => {
     const materials = coverMaterials(

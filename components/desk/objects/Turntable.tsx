@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { loadProxiedTexture } from "@/lib/three/proxied-texture";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import { RoundedBox } from "@react-three/drei";
 import * as THREE from "three";
@@ -21,6 +22,8 @@ type TurntableProps = {
   playing: boolean;
   armDown: boolean;
   onNeedleClick?: () => void;
+  // Album art of the live track, pressed onto the record label when it loads.
+  labelArtUrl?: string | null;
 };
 
 const RPM_33 = 3.49;
@@ -73,9 +76,19 @@ function smoothLathe(
 export default function Turntable({
   playing,
   armDown,
-  onNeedleClick
+  onNeedleClick,
+  labelArtUrl
 }: TurntableProps) {
   const { mixRef } = useDeskTheme();
+  const [labelArt, setLabelArt] = useState<THREE.Texture | null>(null);
+
+  useEffect(() => {
+    setLabelArt(null);
+    if (!labelArtUrl) {
+      return;
+    }
+    return loadProxiedTexture(labelArtUrl, setLabelArt);
+  }, [labelArtUrl]);
 
   const spinRef = useRef<THREE.Group>(null);
   const yawRef = useRef<THREE.Group>(null);
@@ -760,6 +773,12 @@ export default function Turntable({
           >
             <circleGeometry args={[0.05, 96]} />
           </mesh>
+          {labelArt ? (
+            <mesh position={[0, 0.00245, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+              <circleGeometry args={[0.0455, 96]} />
+              <meshStandardMaterial map={labelArt} roughness={0.6} />
+            </mesh>
+          ) : null}
         </group>
 
         <mesh geometry={geo.spindle} position={[0, 0.022, 0]} castShadow material={mats.chrome} />
