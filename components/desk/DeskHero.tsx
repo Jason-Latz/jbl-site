@@ -7,6 +7,10 @@ import { useSpotifyLive } from "@/lib/useSpotifyLive";
 import { type FocusId } from "./layout";
 import NowPlayingHUD, { type NeedlePhase } from "./NowPlayingHUD";
 import DeskPanel from "./panels/DeskPanel";
+import NotesPanel from "./panels/NotesPanel";
+import ReadingPanel from "./panels/ReadingPanel";
+import RecordsPanel from "./panels/RecordsPanel";
+import WorkPanel from "./panels/WorkPanel";
 
 const PANEL_META: Record<FocusId, { eyebrow: string; title: string }> = {
   records: { eyebrow: "listening", title: "On the platter" },
@@ -226,7 +230,20 @@ export default function DeskHero() {
           title={PANEL_META[focus].title}
           onClose={() => setFocus(null)}
         >
-          <p>Coming together — this panel's contents land with Stage 2.</p>
+          {focus === "records" ? (
+            <RecordsPanel
+              spotify={data}
+              phase={phase}
+              canPlay={Boolean(previewUrl)}
+              onToggleNeedle={handleToggleNeedle}
+            />
+          ) : focus === "work" ? (
+            <WorkPanel />
+          ) : focus === "reading" ? (
+            <ReadingPanel />
+          ) : (
+            <NotesPanel />
+          )}
         </DeskPanel>
       ) : null}
       {capability === "scene" ? (
