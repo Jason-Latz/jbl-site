@@ -1,7 +1,10 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { TurntableAudio } from "@/lib/audio/turntable-audio";
+import { useSpotifyLive } from "@/lib/useSpotifyLive";
+import NowPlayingHUD, { type NeedlePhase } from "./NowPlayingHUD";
 
 const DeskScene = dynamic(() => import("./DeskScene"), {
   ssr: false,
@@ -9,6 +12,13 @@ const DeskScene = dynamic(() => import("./DeskScene"), {
 });
 
 type Capability = "pending" | "scene" | "fallback";
+
+// Choreography of the needle drop, in ms from the click:
+// arm starts swinging immediately; the thunk + crackle land as the needle
+// touches down; the music fades in just after.
+const NEEDLE_CONTACT_MS = 850;
+const PREVIEW_START_MS = 1250;
+const ARM_LIFT_MS = 800;
 
 function detectCapability(): Capability {
   try {
@@ -44,14 +54,135 @@ function DeskHeroFallback() {
 
 export default function DeskHero() {
   const [capability, setCapability] = useState<Capability>("pending");
+  const [phase, setPhase] = useState<NeedlePhase>("idle");
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const { data } = useSpotifyLive();
+
+  const audioRef = useRef<TurntableAudio | null>(null);
+  const timersRef = useRef<number[]>([]);
 
   useEffect(() => {
     setCapability(detectCapability());
+    return () => {
+      timersRef.current.forEach((id) => window.clearTimeout(id));
+      audioRef.current?.dispose();
+      audioRef.current = null;
+    };
   }, []);
+
+  const schedule = useCallback((fn: () => void, delayMs: number) => {
+    timersRef.current.push(window.setTimeout(fn, delayMs));
+  }, []);
+
+  const leadTrack = data?.nowPlaying ?? data?.recentTracks?.[0] ?? null;
+  const trackTitle = leadTrack?.trackName ?? null;
+  const artistLine = useMemo(
+    () =>
+      leadTrack && leadTrack.artists.length > 0
+        ? leadTrack.artists.join(", ")
+        : null,
+    [leadTrack]
+  );
+  const primaryArtist = leadTrack?.artists?.[0] ?? null;
+
+  // Match the lead track against the iTunes catalog whenever it changes.
+  // A playing preview is never interrupted by a match change; the next
+  // needle drop simply uses the fresher URL.
+  useEffect(() => {
+    if (!trackTitle || !primaryArtist) {
+      setPreviewUrl(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    const query = new URLSearchParams({
+      track: trackTitle,
+      artist: primaryArtist
+    });
+
+    fetch(`/api/audio/preview?${query.toString()}`, {
+      signal: controller.signal
+    })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload: { previewUrl?: string } | null) => {
+        setPreviewUrl(
+          typeof payload?.previewUrl === "string" ? payload.previewUrl : null
+        );
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setPreviewUrl(null);
+        }
+      });
+
+    return () => controller.abort();
+  }, [trackTitle, primaryArtist]);
+
+  const liftNeedle = useCallback(() => {
+    const audio = audioRef.current;
+    setPhase("stopping");
+    audio?.stopPreview();
+    schedule(() => audio?.stopCrackle(), 250);
+    schedule(() => setPhase("idle"), ARM_LIFT_MS);
+  }, [schedule]);
+
+  const dropNeedle = useCallback(async () => {
+    if (!previewUrl) {
+      return;
+    }
+    const audio = (audioRef.current ??= new TurntableAudio());
+    setPhase("dropping");
+
+    try {
+      await audio.ensureContext();
+    } catch {
+      setPhase("idle");
+      return;
+    }
+
+    schedule(() => {
+      audio.playNeedleDrop();
+      audio.startCrackle();
+    }, NEEDLE_CONTACT_MS);
+
+    schedule(() => {
+      const streamUrl = `/api/audio/stream?u=${encodeURIComponent(previewUrl)}`;
+      audio
+        .playPreview(streamUrl, { onEnded: liftNeedle })
+        .then(() => setPhase("playing"))
+        .catch(() => {
+          audio.stopCrackle();
+          setPhase("stopping");
+          schedule(() => setPhase("idle"), ARM_LIFT_MS);
+        });
+    }, PREVIEW_START_MS);
+  }, [previewUrl, liftNeedle, schedule]);
+
+  const handleToggleNeedle = useCallback(() => {
+    if (phase === "dropping" || phase === "stopping") {
+      return;
+    }
+    if (phase === "playing") {
+      liftNeedle();
+      return;
+    }
+    void dropNeedle();
+  }, [phase, liftNeedle, dropNeedle]);
 
   if (capability === "fallback") {
     return <DeskHeroFallback />;
   }
+
+  const armDown = phase === "dropping" || phase === "playing";
+  const turntablePlaying = (data?.isPlaying ?? false) || armDown;
+
+  const statusNote = !trackTitle
+    ? null
+    : previewUrl
+      ? data?.isPlaying
+        ? "live on Jason's Spotify · 30 s preview"
+        : "last played · 30 s preview"
+      : "preview unavailable for this track";
 
   return (
     <section
@@ -59,10 +190,25 @@ export default function DeskHero() {
       aria-label="Jason's desk — an interactive 3D scene"
     >
       {capability === "scene" ? (
-        <DeskScene />
+        <DeskScene
+          turntablePlaying={turntablePlaying}
+          armDown={armDown}
+          onNeedleClick={handleToggleNeedle}
+        />
       ) : (
         <div className="desk-hero-loading" aria-hidden="true" />
       )}
+      {capability === "scene" ? (
+        <NowPlayingHUD
+          trackTitle={trackTitle}
+          artistLine={artistLine}
+          isLive={data?.isPlaying ?? false}
+          phase={phase}
+          canPlay={Boolean(previewUrl)}
+          onToggleNeedle={handleToggleNeedle}
+          statusNote={statusNote}
+        />
+      ) : null}
     </section>
   );
 }
