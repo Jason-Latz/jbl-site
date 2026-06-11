@@ -6,6 +6,34 @@
 
 ## Session log
 
+### 2026-06-10 (later still) — Stage 1.5 fidelity pass + Stage 2 (IN PROGRESS)
+
+Jason's verbatim mandate, recorded for compaction safety: Stage 1 reads nice but not
+lifelike enough except the turntable. Make EVERY object "borderline lifelike" — his
+philosophy: no variable input, just fixed views, so precompute/spend freely like a
+film render. Specific calls: desk is "four rectangular legs and a rectangle" → wants
+deep mahogany; lamp needs more detail + springs; books deeper; computer much deeper;
+chess set "looks like it was made in Roblox" → real profiles. Camera: a little more
+top-down, "at least a 45-degree angle looking down, maybe a little more". Add a
+"Made with Claude" mark in a corner (he will cite Claude). Keep commit count for the
+fidelity pass modest, THEN implement Stage 2 fully. Attitude: "Create a piece of
+genuine artwork that you can be proud of."
+
+Plan of record for this session: (1) docs commit, (2) pipeline upgrade (ACES, PCSS
+SoftShadows, AccumulativeShadows bake on desk, Lightformer Environment, Bloom +
+Vignette + SMAA via @react-three/postprocessing@2.x pinned for R3F v8), (3) camera
+to ~45°, credit mark, (4) artisan fan-out one agent per object (briefs demand lathe
+profiles, chamfers, bump maps, clearcoat; raised triangle budgets, scene ≤900k),
+(5) integrate + visual QA + commits, (6) Stage 2: focus/dolly camera system (built
+by me first as the contract), then fan-out for records panel, work panel, reading
+panel (books get an optional review field — NEVER fabricate Jason's opinions; empty
+shows "review coming soon"), guestbook (desk_notes table via pooler psql, additive
+only; POST rate-limited + length cap + profanity filter), crate sleeves + vinyl
+label from real album art (image proxy route, same SSRF pattern as audio stream),
+(7) docs + memory closeout.
+
+### Earlier sessions
+
 ### 2026-06-10 (later) — Stage 1 COMPLETE on branch
 
 Stage 1 shipped in ~35 granular commits. The homepage is the 3D desk: all seven

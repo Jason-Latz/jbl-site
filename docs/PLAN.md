@@ -48,6 +48,35 @@ Decisions locked with Jason (June 2026):
       deferred); `npm run build` green
 - [x] Visual QA via screenshots: both themes, desktop + mobile framing rigs
 
+## Stage 1.5 — the fidelity pass (directive from Jason, 2026-06-10)
+
+Jason's bar: "borderline lifelike… a piece of genuine artwork." Philosophy: there is
+no variable input — only a handful of fixed views — so spend like a film render and
+precompute everything we can. Sign it "Made with Claude" in a corner.
+
+- [ ] Rendering pipeline: ACES filmic tone mapping + themed exposure, PCSS soft
+      shadows, AccumulativeShadows bake on the desk top (the upfront computation),
+      Lightformer environment (replaces RoomEnvironment), Bloom + Vignette + SMAA
+- [ ] Materials library: MeshPhysicalMaterial helpers (clearcoat lacquer, glass),
+      bump-from-canvas support
+- [ ] Camera: noticeably more top-down (~45° elevation), both rigs
+- [ ] "Made with Claude" mark, small, corner of the hero
+- [ ] Per-object artisan rebuild (one agent + one commit each — fidelity bar:
+      lathe-turned profiles, chamfered edges, no raw box edges on hero surfaces,
+      bump maps, clearcoat where lacquered):
+  - [ ] Desk → deep mahogany: thick slab, breadboard ends, edge profile, turned
+        legs, aprons
+  - [ ] Lamp → full Forså: stepped base, knurled knobs, twin struts with cross
+        bolts, real coil springs, bulb + reflector inside dome, cable with plug
+  - [ ] Books → cover overhang, page-block texture, rounded spines, foil type
+  - [ ] MacBook → unibody chamfers, 3D keys, raised sticker decals with edge
+        shadows, ports, brighter believable IDE screen
+  - [ ] Chessboard → real Staunton lathe profiles ("not made in Roblox"), felt
+        bases, lacquered finish, board frame molding
+  - [ ] Turntable → clearcoat plinth, strobe dots, hinges, refined label
+  - [ ] Notepad / Crate / Room → same bar (plank floor, plaster wall, slat grain)
+- [ ] Visual QA at the new angle in both themes; build green
+
 ## Stage 2 — objects come alive
 
 - [ ] Record crate sleeves textured from Supabase listening history (top albums)
