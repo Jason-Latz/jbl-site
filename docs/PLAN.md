@@ -116,6 +116,30 @@ this is your art." Light became the subject:
 - [x] Night rebalance: ajar MacBook leak (1.25 cd) washes the wall and rims
       the bookshelf + chessmen; lamp pool eased 5.8 → 5.4
 
+## Stage 2.9 — edgeless light + the elevation pass (SHIPPED 2026-06-11)
+
+Jason's correction of 2.75: "the boundaries of the light look linear… a clear
+delineation of where the light is and isn't. looks very 2d… my prompt was
+actually about bringing the other things (desk, computer, notes, bookshelf)
+up to the level of the record player."
+
+- [x] Beam rebuilt with NO surfaces: bounding cone whose fragment shader
+      shades a gaussian density around the view-ray/axis closest approach —
+      an edge cannot exist by construction (motes kept, Jason likes them)
+- [x] Lamp pool rim melted (spot penumbra 0.55 → 0.85)
+- [x] Translucent desk-top border erased (reflector film now covers the
+      full flat top; baked-shadow catcher clipped to the slab)
+- [x] MacBook: true bead-blasted space gray, env-keyed satin aluminum,
+      polished chamfer hairlines, real port countersinks
+- [x] Notepad: paper tooth + debossed rules/handwriting, foxed page block,
+      drawn-nickel coil glints, lacquered pen with chrome nose + brass band
+- [x] Bookshelf: three real cover finishes (linen / matte jacket / gloss
+      laminate), true foil spine type via roughness/metalness maps, page
+      striations, a 7.5–9.5° leaner
+- [x] Desk wood: rebuilt sheen map (polish pools / forearm wear / cup
+      rings) driving the reflector's per-texel blur, hotter chatoyance,
+      end-grain veneers on the breadboard caps, lacquered leg profiles
+
 ## Stage 3 — chess: the world vs. Jason (SHIPPED 2026-06-11)
 
 - [x] `chess_games` schema: single active row, jsonb move list, ply counter

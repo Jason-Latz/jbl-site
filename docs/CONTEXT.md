@@ -6,6 +6,55 @@
 
 ## Session log
 
+### 2026-06-11 (evening) — Edgeless light + elevation pass SHIPPED
+
+Jason's feedback on the beauty pass: loved it overall and the motes, BUT
+(1) "the boundaries of the light look linear… a clear delineation of where
+the light is and isn't. looks very 2d", (2) the actual ask had been to bring
+the desk/computer/notepad/bookshelf up to the record player's level, and
+(3) a translucent border ringed the desk top.
+
+FIXES (mine):
+- LampBeam rebuilt with NO surfaces: an oversized bounding cone whose
+  fragment shader computes the view-ray/beam-axis closest approach and
+  shades a gaussian density around it (chord-length boost for down-cone
+  rays, axial envelope, 3D noise at the lit point). An edge cannot exist
+  by construction — shading a cone SHELL always yields a silhouette edge,
+  which was the 2D look. Knobs: BEAM_INTENSITY 1.0, BEAM_FALLOFF 1.8.
+  FrontSide + closed caps matter (see comments in file). Motes unchanged.
+- Lamp pool rim melted: spot penumbra 0.55 → 0.85.
+- Desk border: reflector film was inset 4 mm (brighter base lacquer rim
+  showed) AND the baked-shadow catcher overhung the desk. Film is now a
+  full-coverage rounded-rect ShapeGeometry (UVs renormalized from shape
+  space); catcher clipped to exactly 1.9 x 0.85.
+
+ELEVATION (Ultracode: 4 artisans -> 4 adversarial verifiers, all passed):
+- MacBook: bead-blasted space gray (env 2.0/2.2 — outside the pool the env
+  map IS its key light), satin roughness, anodize clearcoat, polished
+  chamfer hairline + base band + port countersinks (real depth steps).
+  Pose machine / leak / sticker chip byte-identical (verifier-diffed).
+- Notepad: registered deboss height field (tooth, rules, handwriting
+  pressed in), warm paper sheen, foxed page block, drawn-nickel coil
+  (anisotropic, 16-seg), pen with plinth-grade lacquer + chrome + brass.
+- Bookshelf: linen/matte/gloss finishes seeded per book, TRUE foil spine
+  type (second canvas pass as linear rough/metal map, same glyph coords),
+  page striations, leaner at 7.5-9.5°, env-dead back panel. Titles locked.
+- Desk wood: rebuilt sheen map drives the reflector's per-texel blur
+  (polish pools open sharp reflection windows, forearm tracks kill them),
+  hotter ribbon chatoyance, pore shoulders, waxed seams, end-grain
+  veneers, lacquered legs. Reflector block verified byte-identical.
+
+VERIFIED by screenshot QA on fresh cold loads: rest both themes, notes /
+work / reading focus views. Night: the leak now rims foil + chessmen +
+coil. Build green (homepage 123 kB). A real guestbook note exists ("hi —
+anonymous") — left in place.
+
+Taste notes for Jason: the desk shows a large darker patina patch
+front-center (from the grain's seeded patches array, amplified by the
+contrast lift) — reads as wear up close, slightly bold at rest; the knobs
+are the patches alpha in Desk.tsx if it bothers you. Beam presence is
+BEAM_INTENSITY (1.0) if you want more/less air in the light.
+
 ### 2026-06-11 (later) — Beauty pass + Stage 3 chess SHIPPED
 
 Jason's directive: "not quite artsy enough… I'm okay with a 5- or 10-second
