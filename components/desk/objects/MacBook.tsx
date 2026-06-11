@@ -120,20 +120,20 @@ export default function MacBook() {
   const { mixRef } = useDeskTheme();
   const glowRef = useRef<THREE.PointLight>(null);
 
-  const baseMetal = useMemo(() => brushedMetalMaterial("#6b6e73"), []);
-  const lidEdgeMetal = useMemo(() => brushedMetalMaterial("#6b6e73"), []);
+  const baseMetal = useMemo(() => brushedMetalMaterial("#8e9196"), []);
+  const lidEdgeMetal = useMemo(() => brushedMetalMaterial("#8e9196"), []);
   const darkPlastic = useMemo(() => plasticMaterial("#222327", 0.5), []);
   const bezelGlass = useMemo(() => plasticMaterial("#0b0b0c", 0.2), []);
 
   const lidBackMaterial = useMemo(() => {
     const texture = makeCanvasTexture(1024, 768, (ctx, w, h) => {
-      ctx.fillStyle = "#6d7076";
+      ctx.fillStyle = "#94979c";
       ctx.fillRect(0, 0, w, h);
       for (let i = 0; i < 520; i++) {
         const x = Math.random() * w;
         const y = Math.random() * h;
         const len = 50 + Math.random() * 320;
-        ctx.strokeStyle = Math.random() > 0.5 ? "#7c7f86" : "#5f6268";
+        ctx.strokeStyle = Math.random() > 0.5 ? "#a4a7ad" : "#85888e";
         ctx.globalAlpha = 0.02 + Math.random() * 0.045;
         ctx.lineWidth = 1;
         ctx.beginPath();
@@ -142,14 +142,14 @@ export default function MacBook() {
         ctx.stroke();
       }
       ctx.globalAlpha = 1;
-      drawSunburstSticker(ctx, 350, 330, 140, -14, 11, "circle");
-      drawSunburstSticker(ctx, 640, 480, 110, 9, 10, "squircle");
-      drawSunburstSticker(ctx, 560, 215, 90, 28, 9, "circle");
+      drawSunburstSticker(ctx, 340, 320, 170, -14, 11, "circle");
+      drawSunburstSticker(ctx, 660, 470, 135, 9, 10, "squircle");
+      drawSunburstSticker(ctx, 590, 200, 110, 28, 9, "circle");
     });
     return new THREE.MeshStandardMaterial({
       map: texture,
-      metalness: 0.55,
-      roughness: 0.5
+      metalness: 0.35,
+      roughness: 0.45
     });
   }, []);
 
@@ -314,7 +314,7 @@ export default function MacBook() {
     const mix = mixRef.current;
     screenMaterial.emissiveIntensity = THREE.MathUtils.lerp(1.5, 0.35, mix);
     if (glowRef.current) {
-      glowRef.current.intensity = THREE.MathUtils.lerp(0.3, 0, mix);
+      glowRef.current.intensity = THREE.MathUtils.lerp(0.16, 0, mix);
     }
   });
 
