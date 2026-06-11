@@ -6,6 +6,7 @@ import * as THREE from "three";
 import { Html, RoundedBox } from "@react-three/drei";
 import { RoundedBoxGeometry } from "three-stdlib";
 import { PALETTE, makeCanvasTexture } from "@/lib/three/materials";
+import { markShadowsDirty } from "@/lib/three/shadow-dirty";
 import { useDeskTheme } from "../DeskThemeContext";
 
 const BASE_W = 0.31;
@@ -1205,6 +1206,10 @@ export default function MacBook({ open }: MacBookProps) {
         : theme === "dark"
           ? lidPose.ajar
           : lidPose.closed;
+      if (Math.abs(lid.rotation.x - target) > 0.003) {
+        // The lid in motion casts a moving shadow — wake the frozen maps.
+        markShadowsDirty();
+      }
       lid.rotation.x = THREE.MathUtils.damp(lid.rotation.x, target, 3.2, delta);
       const targetLift = open ? 0 : 0.004;
       lid.position.y = THREE.MathUtils.damp(
@@ -1231,10 +1236,10 @@ export default function MacBook({ open }: MacBookProps) {
         0,
         1
       );
-      // 1.25 cd through the wedge: enough to wash the wall and rim the
-      // bookshelf + chessmen in cool screen light without breaking the
-      // embers mood. (0.18 predates physical-light scaling + the lacquer
-      // reflector and reads as pitch black.)
+      // 1.25 cd at the wedge mouth: spills a cool pool onto the lacquer in
+      // FRONT of the machine (the reflector doubles it as a streak toward
+      // the viewer) without breaking the embers mood. (0.18 predates
+      // physical-light scaling + the reflector and reads as pitch black.)
       glowRef.current.intensity = THREE.MathUtils.lerp(1.25, 0, mix) * leak;
     }
   });
@@ -1508,15 +1513,21 @@ export default function MacBook({ open }: MacBookProps) {
           <planeGeometry args={[0.301, 0.209]} />
         </mesh>
 
-        <pointLight
-          ref={glowRef}
-          position={[0, 0.115, -0.05]}
-          color="#bcd6ff"
-          intensity={0.16}
-          distance={0.75}
-          decay={2}
-        />
       </group>
+
+      {/* Night leak. Lives in the BASE frame, not the lid: parked in the
+          wedge MOUTH at the front lip (the hinge sits at +z, so the ajar
+          gap opens toward -z — toward the viewer). Inside the lid group
+          the closed-lid rotation buried it behind the machine and the glow
+          washed the wall backwards. Tight falloff keeps it off the wall. */}
+      <pointLight
+        ref={glowRef}
+        position={[0, BASE_TOP + 0.012, -(BASE_D / 2) - 0.018]}
+        color="#bcd6ff"
+        intensity={0.16}
+        distance={0.6}
+        decay={2}
+      />
     </group>
   );
 }
