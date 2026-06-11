@@ -99,20 +99,27 @@ export default function DeskEffects({ focus }: { focus: FocusId | null }) {
   );
   const destination = useMemo(() => new THREE.Vector3(), []);
 
-  useFrame((_, delta) => {
+  useFrame(({ camera }, delta) => {
     const view = focus ? FOCUS_VIEWS[focus] : null;
     destination.set(...(view ? view.target : DOF_HERO_TARGET));
 
+    // Frame-rate-independent glide of the focal POINT between views. The
+    // effect's `target` prop is deliberately unused: in this postprocessing
+    // version it leaves the CoC pass with poisoned uniforms (the whole
+    // composer silently outputs nothing), so we damp our own world-space
+    // point and feed the CoC material its camera distance directly.
+    focusPoint.lerp(destination, 1 - Math.exp(-DOF_REFOCUS_LAMBDA * delta));
+
     const dof = dofRef.current;
-    if (dof?.target) {
-      // Frame-rate-independent glide of the focal plane between views.
-      dof.target.lerp(destination, 1 - Math.exp(-DOF_REFOCUS_LAMBDA * delta));
+    if (dof) {
       focusAmount.current = THREE.MathUtils.damp(
         focusAmount.current,
         focus ? 1 : 0,
         DOF_SHAPE_LAMBDA,
         delta
       );
+      dof.cocMaterial.worldFocusDistance =
+        camera.position.distanceTo(focusPoint);
       dof.cocMaterial.worldFocusRange = THREE.MathUtils.lerp(
         DOF_RANGE_REST,
         DOF_RANGE_FOCUS,
@@ -154,7 +161,7 @@ export default function DeskEffects({ focus }: { focus: FocusId | null }) {
       <SMAA />
       <DepthOfField
         ref={dofRef}
-        target={focusPoint}
+        worldFocusDistance={1.4}
         worldFocusRange={DOF_RANGE_REST}
         bokehScale={DOF_BOKEH_REST}
       />
