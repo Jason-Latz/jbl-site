@@ -6,7 +6,38 @@
 
 ## Session log
 
-### 2026-06-10 (later still) — Stage 1.5 fidelity pass + Stage 2 (IN PROGRESS)
+### 2026-06-11 — Stage 1.5 + Stage 2 SHIPPED (this branch, ~146 commits total)
+
+Everything below this entry's plan landed. Final state:
+
+- 9 artisan rebuilds committed individually (mahogany desk, plank/plaster room,
+  full Forså with continuous-wire spring, 78-key MacBook, hardcover books incl.
+  On the Edge displayed flat, Staunton chess (extruded knight heads; frame grew to
+  0.3232m — clearance checked), refined turntable, curled notepad, weathered crate).
+- MacBook pose system: rests CLOSED (stickers up), AJAR ~10° in dark mode (screen-
+  light leak, leak curve x10), opens ~110° on work focus; orientation yaw 2.89 so
+  the open screen faces the camera; sticker hover/click shows the anchored
+  Made-with-Claude chip (drei Html + .desk-credit-anchored).
+- Focus system: CameraDirector flights, 4 panels wired (records w/ live needle
+  state + heavy-rotation wall, work digest, reading, guestbook), ESC/back returns,
+  /?focus=records|work|reading|notes deep links.
+- Real album art: vinyl label disc + crate sleeve fronts load via /api/image-proxy
+  (procedural placeholders until arrival). /api/spotify/albums aggregates history.
+- Guestbook verified END-TO-END through the real UI (posted + read + deleted via
+  psql; table left empty). Records/work/reading panels verified via deep links
+  with REAL data (Vulcan/Northwestern digest, real covers, live white-noise track).
+- Lighting tuned: lamp spot 5.8, themed ACES exposure 0.72-1.12.
+- Production build green: homepage first-load 107 kB, scene chunk lazy.
+
+STILL NEEDS JASON'S HAND-CHECK: in-canvas clicks (lamp toggle, object focus,
+sticker chip) — R3F raycasts can't be driven synthetically; the HUD/panel paths
+that share the same handlers all work. And speakers for the synthesized audio.
+
+Deferred (see PLAN): notes admin UI, notes inked onto the 3D pad texture,
+Stage 3 chess, Stage 4 list. Preview-tool quirk reminder: viewport emulation
+breaks after page reloads — reset preset desktop → custom size, avoid reloads.
+
+### 2026-06-10 (later still) — Stage 1.5 fidelity pass + Stage 2 (original plan)
 
 Jason's verbatim mandate, recorded for compaction safety: Stage 1 reads nice but not
 lifelike enough except the turntable. Make EVERY object "borderline lifelike" — his

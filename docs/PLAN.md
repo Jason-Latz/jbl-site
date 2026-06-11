@@ -48,45 +48,50 @@ Decisions locked with Jason (June 2026):
       deferred); `npm run build` green
 - [x] Visual QA via screenshots: both themes, desktop + mobile framing rigs
 
-## Stage 1.5 — the fidelity pass (directive from Jason, 2026-06-10)
+## Stage 1.5 — the fidelity pass (SHIPPED 2026-06-11)
 
 Jason's bar: "borderline lifelike… a piece of genuine artwork." Philosophy: there is
 no variable input — only a handful of fixed views — so spend like a film render and
 precompute everything we can. Sign it "Made with Claude" in a corner.
 
-- [ ] Rendering pipeline: ACES filmic tone mapping + themed exposure, PCSS soft
+- [x] Rendering pipeline: ACES filmic tone mapping + themed exposure, PCSS soft
       shadows, AccumulativeShadows bake on the desk top (the upfront computation),
       Lightformer environment (replaces RoomEnvironment), Bloom + Vignette + SMAA
-- [ ] Materials library: MeshPhysicalMaterial helpers (clearcoat lacquer, glass),
+- [x] Materials library: MeshPhysicalMaterial helpers (clearcoat lacquer, glass),
       bump-from-canvas support
-- [ ] Camera: noticeably more top-down (~45° elevation), both rigs
-- [ ] "Made with Claude" mark, small, corner of the hero
-- [ ] Per-object artisan rebuild (one agent + one commit each — fidelity bar:
+- [x] Camera: noticeably more top-down (~45° elevation), both rigs
+- [x] "Made with Claude" mark, small, corner of the hero
+- [x] Per-object artisan rebuild (one agent + one commit each — fidelity bar:
       lathe-turned profiles, chamfered edges, no raw box edges on hero surfaces,
       bump maps, clearcoat where lacquered):
-  - [ ] Desk → deep mahogany: thick slab, breadboard ends, edge profile, turned
+  - [x] Desk → deep mahogany: thick slab, breadboard ends, edge profile, turned
         legs, aprons
-  - [ ] Lamp → full Forså: stepped base, knurled knobs, twin struts with cross
+  - [x] Lamp → full Forså: stepped base, knurled knobs, twin struts with cross
         bolts, real coil springs, bulb + reflector inside dome, cable with plug
-  - [ ] Books → cover overhang, page-block texture, rounded spines, foil type
-  - [ ] MacBook → unibody chamfers, 3D keys, raised sticker decals with edge
+  - [x] Books → cover overhang, page-block texture, rounded spines, foil type
+  - [x] MacBook → unibody chamfers, 3D keys, raised sticker decals with edge
         shadows, ports, brighter believable IDE screen
-  - [ ] Chessboard → real Staunton lathe profiles ("not made in Roblox"), felt
+  - [x] Chessboard → real Staunton lathe profiles ("not made in Roblox"), felt
         bases, lacquered finish, board frame molding
-  - [ ] Turntable → clearcoat plinth, strobe dots, hinges, refined label
-  - [ ] Notepad / Crate / Room → same bar (plank floor, plaster wall, slat grain)
-- [ ] Visual QA at the new angle in both themes; build green
+  - [x] Turntable → clearcoat plinth, strobe dots, hinges, refined label
+  - [x] Notepad / Crate / Room → same bar (plank floor, plaster wall, slat grain)
+- [x] Visual QA at the new angle in both themes; build green
 
-## Stage 2 — objects come alive
+## Stage 2 — objects come alive (SHIPPED 2026-06-11, except noted)
 
-- [ ] Record crate sleeves textured from Supabase listening history (top albums)
-- [ ] Click turntable → records panel (recent plays, top artists, crate browsing)
-- [ ] Click MacBook → work/experience panel (screen becomes live texture)
-- [ ] Click bookshelf → reading panel with Jason's reviews (new `books` table or content file)
-- [ ] Notepad guestbook: `desk_notes` table, public insert with rate limit + length cap +
-      moderation (profanity filter, admin delete in /admin); notes render on the pad
-- [ ] Camera choreography: dolly-in per object, breadcrumb to return
-- [ ] Album-art label texture on the spinning vinyl (proxied for CORS)
+- [x] Record crate sleeves textured from Supabase listening history (top albums)
+- [x] Click turntable → records panel (recent plays, top artists, crate browsing)
+- [x] Click MacBook → work/experience panel (lid opens; screen shows the editor)
+- [x] Click bookshelf → reading panel with Jason's reviews (new `books` table or content file)
+- [x] Notepad guestbook: `desk_notes` table, public insert with rate limit + length cap +
+      moderation (profanity filter); notes read/write via the panel
+- [x] Camera choreography: dolly-in per object, breadcrumb to return (+ deep links
+      via /?focus=…)
+- [x] Album-art label texture on the spinning vinyl (proxied for CORS)
+
+Remaining Stage 2 nice-to-haves (deferred):
+- [ ] Admin delete/moderation UI for desk_notes in /admin (today: psql)
+- [ ] Latest notes inked onto the 3D pad's top-sheet texture itself
 
 ## Stage 3 — chess: the world vs. Jason
 
@@ -99,7 +104,7 @@ precompute everything we can. Sign it "Made with Claude" in a corner.
 ## Stage 4 — polish and beyond
 
 - [ ] Spotify Web Playback SDK: full tracks when Jason is signed in (Premium)
-- [ ] Postprocessing pass (bloom on lamp/screen, vignette) behind a perf tier check
+- [x] Postprocessing pass (landed early in Stage 1.5: Bloom + Vignette + SMAA)
 - [ ] Static poster render of the scene for the fallback hero + social OG image
 - [ ] Mobile tuning pass (touch orbit, portrait framing, perf tiers)
 - [ ] Inner pages typography refresh to match the desk's palette
