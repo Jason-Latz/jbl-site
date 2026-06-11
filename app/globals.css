@@ -1262,3 +1262,185 @@ button.primary:disabled {
   max-width: 38rem;
   color: var(--muted);
 }
+
+/* ---------------------------------------------------------------------------
+   The Desk — now-playing HUD (DOM overlay floating above the 3D canvas).
+   Deliberately not themed: dark glass reads well over both the lamp-lit and
+   daylight renders, so colors here are fixed rather than var(--surface) etc.
+   --------------------------------------------------------------------------- */
+
+.desk-hud {
+  position: absolute;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  max-width: min(92%, 580px);
+  padding: 0.55rem 0.6rem 0.55rem 0.95rem;
+  border: 1px solid rgba(240, 233, 218, 0.14);
+  border-radius: 999px;
+  background: rgba(14, 12, 9, 0.72);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(240, 233, 218, 0.07);
+  color: #f0e9da;
+  pointer-events: auto;
+}
+
+.desk-hud-dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #8d8474;
+}
+
+.desk-hud-dot-live {
+  background: #1db954;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .desk-hud-dot-live {
+    animation: desk-hud-pulse 2.2s ease-out infinite;
+  }
+
+  @keyframes desk-hud-pulse {
+    0% {
+      box-shadow: 0 0 0 0 rgba(29, 185, 84, 0.55);
+    }
+    70% {
+      box-shadow: 0 0 0 7px rgba(29, 185, 84, 0);
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgba(29, 185, 84, 0);
+    }
+  }
+}
+
+.desk-hud-track {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.32;
+}
+
+.desk-hud-title {
+  font-size: 0.86rem;
+  font-weight: 500;
+  max-width: 38ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desk-hud-artist {
+  font-size: 0.76rem;
+  color: rgba(240, 233, 218, 0.62);
+  max-width: 38ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desk-hud-empty {
+  font-size: 0.86rem;
+  color: rgba(240, 233, 218, 0.66);
+}
+
+.desk-hud-note {
+  margin-top: 1px;
+  font-size: 11px;
+  color: rgba(240, 233, 218, 0.48);
+  max-width: 38ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desk-hud-needle {
+  flex: none;
+  appearance: none;
+  border: 1px solid rgba(240, 233, 218, 0.28);
+  border-radius: 999px;
+  background: rgba(240, 233, 218, 0.08);
+  color: #f0e9da;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  padding: 0.42rem 0.85rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease;
+}
+
+.desk-hud-needle:hover:not(:disabled) {
+  background: rgba(240, 233, 218, 0.16);
+  border-color: rgba(240, 233, 218, 0.45);
+}
+
+.desk-hud-needle:active:not(:disabled) {
+  background: rgba(240, 233, 218, 0.22);
+}
+
+.desk-hud-needle[aria-pressed="true"] {
+  background: rgba(29, 185, 84, 0.16);
+  border-color: rgba(29, 185, 84, 0.5);
+}
+
+.desk-hud-needle:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.desk-hud-needle:focus-visible {
+  outline: 2px solid rgba(240, 233, 218, 0.9);
+  outline-offset: 2px;
+}
+
+.desk-hud-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (max-width: 560px) {
+  .desk-hud {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.45rem 0.55rem;
+    bottom: 12px;
+    max-width: calc(100% - 24px);
+    padding: 0.5rem 0.65rem;
+    border-radius: 18px;
+  }
+
+  .desk-hud-track {
+    align-items: center;
+    text-align: center;
+  }
+
+  .desk-hud-title,
+  .desk-hud-artist,
+  .desk-hud-note {
+    max-width: 26ch;
+  }
+
+  .desk-hud-needle {
+    padding: 0.36rem 0.7rem;
+    font-size: 0.74rem;
+  }
+}
