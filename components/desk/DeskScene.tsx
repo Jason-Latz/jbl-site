@@ -145,8 +145,11 @@ function SceneEnvironment() {
 // top (2k map — he approved spending seconds of load on this). After the
 // bake it costs one textured plane.
 function BakedDeskShadows() {
+  // Clipped exactly to the desk top (1.9 x 0.85): the old oversized catcher
+  // overhung the slab edges and its faint shading read as a translucent
+  // border floating around the desk.
   return (
-    <group scale={[1, 1, 0.52]}>
+    <group scale={[1, 1, 0.85 / 1.9]}>
       <AccumulativeShadows
         temporal={false}
         frames={220}
@@ -154,7 +157,7 @@ function BakedDeskShadows() {
         alphaTest={0.78}
         opacity={0.7}
         color="#3a2414"
-        scale={2.05}
+        scale={1.9}
         position={[0, 0.0008, 0]}
       >
         <RandomizedLight

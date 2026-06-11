@@ -572,6 +572,36 @@ export default function Desk() {
     );
   });
 
+  // The film must cover the slab's entire flat top: when it was inset, a
+  // ~4 mm rim of the brighter base lacquer showed all the way around and
+  // read as a translucent border (Jason flagged it). Rounded-rect matched
+  // to the RoundedBox's flat region (radius 0.0035), with UVs renormalized
+  // to 0..1 because ShapeGeometry emits shape-space coordinates.
+  const reflectorGeometry = useMemo(() => {
+    const w = W - 0.0072;
+    const d = D - 0.0072;
+    const r = 0.0032;
+    const x = w / 2;
+    const y = d / 2;
+    const shape = new THREE.Shape();
+    shape.moveTo(-x + r, -y);
+    shape.lineTo(x - r, -y);
+    shape.absarc(x - r, -y + r, r, -Math.PI / 2, 0, false);
+    shape.lineTo(x, y - r);
+    shape.absarc(x - r, y - r, r, 0, Math.PI / 2, false);
+    shape.lineTo(-x + r, y);
+    shape.absarc(-x + r, y - r, r, Math.PI / 2, Math.PI, false);
+    shape.lineTo(-x, -y + r);
+    shape.absarc(-x + r, -y + r, r, Math.PI, Math.PI * 1.5, false);
+    const geometry = new THREE.ShapeGeometry(shape, 6);
+    const uv = geometry.attributes.uv as THREE.BufferAttribute;
+    for (let i = 0; i < uv.count; i++) {
+      uv.setXY(i, uv.getX(i) / w + 0.5, uv.getY(i) / d + 0.5);
+    }
+    uv.needsUpdate = true;
+    return geometry;
+  }, []);
+
   const LX = W / 2 - LEG_INSET;
   const LZ = D / 2 - LEG_INSET;
   const APR_Z = LZ + BLOCK / 2 - 0.006 - APRON_T / 2;
@@ -592,10 +622,10 @@ export default function Desk() {
       <mesh
         position={[0, REFLECTOR_LIFT, 0]}
         rotation-x={-Math.PI / 2}
+        geometry={reflectorGeometry}
         receiveShadow
         raycast={() => null}
       >
-        <planeGeometry args={[W - 0.008, D - 0.008]} />
         <MeshReflectorMaterial
           ref={reflectorMat}
           map={built.reflectorColor}
