@@ -8,9 +8,22 @@ import * as THREE from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { DeskThemeProvider, useDeskTheme } from "./DeskThemeContext";
 import { useSiteTheme } from "./useSiteTheme";
-import { CAMERA } from "./layout";
+import { CAMERA, PLACEMENT } from "./layout";
 import Desk from "./Desk";
 import Room from "./Room";
+import Bookshelf from "./objects/Bookshelf";
+import Chessboard from "./objects/Chessboard";
+import DeskLamp from "./objects/DeskLamp";
+import MacBook from "./objects/MacBook";
+import Notepad from "./objects/Notepad";
+import RecordCrate from "./objects/RecordCrate";
+import Turntable from "./objects/Turntable";
+
+export type DeskSceneProps = {
+  turntablePlaying: boolean;
+  armDown: boolean;
+  onNeedleClick: () => void;
+};
 
 const CAMERA_START = new THREE.Vector3(...CAMERA.start);
 const CAMERA_REST = new THREE.Vector3(...CAMERA.rest);
@@ -119,7 +132,26 @@ function CameraIntro({
   return null;
 }
 
-function SceneContents() {
+function Placed({
+  name,
+  children
+}: {
+  name: keyof typeof PLACEMENT;
+  children: React.ReactNode;
+}) {
+  const placement = PLACEMENT[name];
+  return (
+    <group position={placement.position} rotation-y={placement.rotationY}>
+      {children}
+    </group>
+  );
+}
+
+function SceneContents({
+  turntablePlaying,
+  armDown,
+  onNeedleClick
+}: DeskSceneProps) {
   const controlsRef = useRef<OrbitControlsImpl>(null!);
 
   return (
@@ -129,6 +161,31 @@ function SceneContents() {
       <CameraIntro controlsRef={controlsRef} />
       <Room />
       <Desk />
+      <Placed name="turntable">
+        <Turntable
+          playing={turntablePlaying}
+          armDown={armDown}
+          onNeedleClick={onNeedleClick}
+        />
+      </Placed>
+      <Placed name="lamp">
+        <DeskLamp />
+      </Placed>
+      <Placed name="macbook">
+        <MacBook />
+      </Placed>
+      <Placed name="bookshelf">
+        <Bookshelf />
+      </Placed>
+      <Placed name="chessboard">
+        <Chessboard />
+      </Placed>
+      <Placed name="notepad">
+        <Notepad />
+      </Placed>
+      <Placed name="crate">
+        <RecordCrate />
+      </Placed>
       <OrbitControls
         ref={controlsRef}
         enabled={false}
@@ -148,7 +205,7 @@ function SceneContents() {
   );
 }
 
-export default function DeskScene() {
+export default function DeskScene(props: DeskSceneProps) {
   const { theme, toggleTheme } = useSiteTheme();
 
   return (
@@ -165,7 +222,7 @@ export default function DeskScene() {
     >
       <DeskThemeProvider theme={theme} toggleTheme={toggleTheme}>
         <Suspense fallback={null}>
-          <SceneContents />
+          <SceneContents {...props} />
         </Suspense>
       </DeskThemeProvider>
     </Canvas>

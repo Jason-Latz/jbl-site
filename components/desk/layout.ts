@@ -19,7 +19,9 @@ type Placement = {
 
 export const PLACEMENT: Record<string, Placement> = {
   turntable: { position: [-0.52, 0, 0.03], rotationY: 0.14 },
-  lamp: { position: [-0.82, 0, -0.3], rotationY: 0.55 },
+  // Lamp yaw is load-bearing: the Forså's spotlight target sits at local
+  // [0.5, 0, 0.12], and -0.6 rotates that beam onto the turntable.
+  lamp: { position: [-0.82, 0, -0.3], rotationY: -0.6 },
   macbook: { position: [0.28, 0, -0.13], rotationY: -0.12 },
   bookshelf: { position: [0.71, 0, -0.29], rotationY: -0.05 },
   chessboard: { position: [0.6, 0, 0.21], rotationY: 0.32 },
