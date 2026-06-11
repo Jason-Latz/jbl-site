@@ -276,3 +276,20 @@ create policy "Editors can delete photos bucket"
       where id = auth.uid() and is_editor = true
     )
   );
+
+-- The Desk: public guestbook notes written on the notepad (Stage 2).
+-- No public RLS policies on purpose — all reads/writes go through the
+-- server API using the service role, which enforces rate limits and caps.
+create table if not exists public.desk_notes (
+  id uuid primary key default gen_random_uuid(),
+  body text not null check (char_length(body) between 1 and 280),
+  author text check (author is null or char_length(author) <= 40),
+  ip_hash text,
+  approved boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists desk_notes_created_at_idx
+  on public.desk_notes (created_at desc);
+
+alter table public.desk_notes enable row level security;
