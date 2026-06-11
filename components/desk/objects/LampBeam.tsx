@@ -3,7 +3,7 @@
 import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { useDeskTheme } from "../DeskThemeContext";
+import { lampGlowRef } from "./DeskLamp";
 
 // Volumetric cone of lamplight with dust motes, for the Forså desk lamp.
 // Mounts inside <Placed name="lamp"> next to <DeskLamp /> — everything here
@@ -225,7 +225,6 @@ const MOTE_FRAG = /* glsl */ `
 `;
 
 export default function LampBeam() {
-  const { mixRef } = useDeskTheme();
   const groupRef = useRef<THREE.Group>(null);
 
   const beam = useMemo(() => {
@@ -333,9 +332,10 @@ export default function LampBeam() {
   }, [beam]);
 
   useFrame((state) => {
-    const mix = mixRef.current;
+    // lampGlowRef is theme mix x filament warm-up (written by DeskLamp every
+    // frame), so the beam stumbles alight in sympathy with the bulb.
     // ^1.6 easing keeps the beam fully gone in dark mode — no night ghost.
-    const eased = Math.pow(Math.max(mix, 0), 1.6);
+    const eased = Math.pow(Math.max(lampGlowRef.current, 0), 1.6);
     const t = state.clock.getElapsedTime();
     beam.outerMat.uniforms.uTime.value = t;
     beam.coreMat.uniforms.uTime.value = t;

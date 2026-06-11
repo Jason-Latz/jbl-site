@@ -10,12 +10,6 @@ import {
   RandomizedLight,
   SoftShadows
 } from "@react-three/drei";
-import {
-  Bloom,
-  EffectComposer,
-  SMAA,
-  Vignette
-} from "@react-three/postprocessing";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import * as THREE from "three";
 import type { ThreeEvent } from "@react-three/fiber";
@@ -23,10 +17,12 @@ import { DeskThemeProvider, useDeskTheme } from "./DeskThemeContext";
 import { useSiteTheme } from "./useSiteTheme";
 import { CAMERA, FOCUS_VIEWS, PLACEMENT, type FocusId } from "./layout";
 import Desk from "./Desk";
+import DeskEffects from "./Effects";
 import Room from "./Room";
 import Bookshelf from "./objects/Bookshelf";
 import Chessboard from "./objects/Chessboard";
 import DeskLamp from "./objects/DeskLamp";
+import LampBeam from "./objects/LampBeam";
 import MacBook from "./objects/MacBook";
 import Notepad from "./objects/Notepad";
 import RecordCrate from "./objects/RecordCrate";
@@ -378,7 +374,10 @@ function SceneContents({
         />
       </Placed>
       <Placed name="lamp">
+        {/* DeskLamp before LampBeam: the lamp writes lampGlowRef in its
+            useFrame and the beam reads it the same frame (mount order). */}
         <DeskLamp />
+        <LampBeam />
       </Placed>
       <Placed name="macbook" focusId="work" onFocus={onFocus}>
         <MacBook open={focus === "work"} />
@@ -410,11 +409,7 @@ function SceneContents({
         minAzimuthAngle={-0.5}
         maxAzimuthAngle={0.5}
       />
-      <EffectComposer multisampling={0}>
-        <SMAA />
-        <Bloom mipmapBlur intensity={0.5} luminanceThreshold={1} levels={7} />
-        <Vignette eskil={false} offset={0.26} darkness={0.52} />
-      </EffectComposer>
+      <DeskEffects focus={focus} />
     </>
   );
 }
