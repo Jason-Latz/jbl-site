@@ -109,11 +109,20 @@ function formatCheckedAt(value: string) {
   });
 }
 
+function getIsDocumentVisible() {
+  if (typeof document === "undefined") {
+    return true;
+  }
+
+  return document.visibilityState !== "hidden";
+}
+
 export default function DuolingoStreak() {
   const [data, setData] = useState<DuolingoStreakResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [consecutiveErrors, setConsecutiveErrors] = useState(0);
+  const [isPageVisible, setIsPageVisible] = useState(getIsDocumentVisible);
   const consecutiveErrorsRef = useRef(0);
 
   useEffect(() => {
@@ -133,6 +142,23 @@ export default function DuolingoStreak() {
     } catch {
       // Ignore cache read failures and keep fetching live data.
     }
+  }, []);
+
+  useEffect(() => {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    const updateVisibility = () => {
+      setIsPageVisible(getIsDocumentVisible());
+    };
+
+    updateVisibility();
+    document.addEventListener("visibilitychange", updateVisibility);
+
+    return () => {
+      document.removeEventListener("visibilitychange", updateVisibility);
+    };
   }, []);
 
   const fetchStreak = useCallback(async () => {
@@ -182,6 +208,10 @@ export default function DuolingoStreak() {
   }, []);
 
   useEffect(() => {
+    if (!isPageVisible) {
+      return;
+    }
+
     let disposed = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
 
@@ -207,7 +237,7 @@ export default function DuolingoStreak() {
         clearTimeout(timer);
       }
     };
-  }, [fetchStreak]);
+  }, [fetchStreak, isPageVisible]);
 
   const statusLine = useMemo(() => {
     const retryDelay = formatRetryDelay(getRetryDelayMs(consecutiveErrors));
