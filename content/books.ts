@@ -2,8 +2,22 @@
 // Real entries are fact-checked — keep titles/authors exact. To add a book later,
 // append it to its shelf group below; the shelf packs left-to-right and leaves
 // open space on the right, so new spines slot in with no layout changes.
+//
+// Optional presentation fields (all safe to omit — the shelf picks defaults):
+//   review      — Jason's own note on the book; null until he writes one.
+//   pageTint    — tint multiplied over the shared page-edge texture.
+//   jacketStyle — spine type treatment (serif/sans, run-down-the-spine vs stacked).
+//   foilColor   — foil/ink tone used for the spine lettering.
+//   bandColor   — head/tail band color where the pages meet the spine.
+//   displayFlat — rendered lying flat on top of the bookcase, front cover up.
 
 export type BookShelfName = "favorites" | "current";
+
+export type JacketStyle =
+  | "serif-run"
+  | "serif-stacked"
+  | "sans-run"
+  | "sans-stacked";
 
 export type Book = {
   title: string;
@@ -14,6 +28,12 @@ export type Book = {
   thicknessM: number;
   shelf: BookShelfName;
   filler?: boolean;
+  review?: string | null;
+  pageTint?: string;
+  jacketStyle?: JacketStyle;
+  foilColor?: string;
+  bandColor?: string;
+  displayFlat?: boolean;
 };
 
 export const BOOKS: Book[] = [
@@ -25,7 +45,12 @@ export const BOOKS: Book[] = [
     textColor: "#e8d9b8",
     heightM: 0.235,
     thicknessM: 0.052,
-    shelf: "favorites"
+    shelf: "favorites",
+    review: null,
+    pageTint: "#f1e5c6",
+    jacketStyle: "serif-stacked",
+    foilColor: "#d8b369",
+    bandColor: "#c9a050"
   },
   {
     title: "Moonwalking with Einstein",
@@ -34,7 +59,12 @@ export const BOOKS: Book[] = [
     textColor: "#eef1f4",
     heightM: 0.215,
     thicknessM: 0.027,
-    shelf: "favorites"
+    shelf: "favorites",
+    review: null,
+    pageTint: "#f8f2e2",
+    jacketStyle: "sans-run",
+    foilColor: "#dde4ea",
+    bandColor: "#8da2bd"
   },
   {
     title: "",
@@ -44,7 +74,9 @@ export const BOOKS: Book[] = [
     heightM: 0.198,
     thicknessM: 0.03,
     shelf: "favorites",
-    filler: true
+    filler: true,
+    review: null,
+    pageTint: "#ecdfc0"
   },
   {
     title: "",
@@ -54,7 +86,21 @@ export const BOOKS: Book[] = [
     heightM: 0.222,
     thicknessM: 0.034,
     shelf: "favorites",
-    filler: true
+    filler: true,
+    review: null,
+    pageTint: "#f0e6cd"
+  },
+  {
+    title: "",
+    author: "",
+    spineColor: "#5a4636",
+    textColor: "#dccfba",
+    heightM: 0.206,
+    thicknessM: 0.024,
+    shelf: "favorites",
+    filler: true,
+    review: null,
+    pageTint: "#e9dbbd"
   },
 
   // current (bottom shelf)
@@ -65,7 +111,12 @@ export const BOOKS: Book[] = [
     textColor: "#cdd6dd",
     heightM: 0.24,
     thicknessM: 0.041,
-    shelf: "current"
+    shelf: "current",
+    review: null,
+    pageTint: "#f6efdd",
+    jacketStyle: "serif-run",
+    foilColor: "#d7dde2",
+    bandColor: "#b8503a"
   },
   {
     title: "On the Edge",
@@ -74,7 +125,13 @@ export const BOOKS: Book[] = [
     textColor: "#23211c",
     heightM: 0.235,
     thicknessM: 0.044,
-    shelf: "current"
+    shelf: "current",
+    review: null,
+    pageTint: "#faf5e8",
+    jacketStyle: "sans-run",
+    foilColor: "#23211c",
+    bandColor: "#c75833",
+    displayFlat: true
   },
   {
     title: "",
@@ -84,7 +141,9 @@ export const BOOKS: Book[] = [
     heightM: 0.19,
     thicknessM: 0.026,
     shelf: "current",
-    filler: true
+    filler: true,
+    review: null,
+    pageTint: "#eedfbe"
   },
   {
     title: "",
@@ -94,6 +153,20 @@ export const BOOKS: Book[] = [
     heightM: 0.212,
     thicknessM: 0.031,
     shelf: "current",
-    filler: true
+    filler: true,
+    review: null,
+    pageTint: "#f2e8cf"
+  },
+  {
+    title: "",
+    author: "",
+    spineColor: "#41505a",
+    textColor: "#ccd4d9",
+    heightM: 0.203,
+    thicknessM: 0.028,
+    shelf: "current",
+    filler: true,
+    review: null,
+    pageTint: "#f4ecd8"
   }
 ];

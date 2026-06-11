@@ -4,8 +4,8 @@ import { useMemo } from "react";
 import * as THREE from "three";
 import {
   brushedMetalMaterial,
-  makeCanvasTexture,
-  woodMaterial
+  lacqueredWoodMaterial,
+  makeCanvasTexture
 } from "@/lib/three/materials";
 import { BOOKS, type Book, type BookShelfName } from "@/content/books";
 
@@ -13,15 +13,22 @@ const WIDTH = 0.46;
 const DEPTH = 0.165;
 const SIDE_T = 0.016;
 const BOARD_T = 0.015;
-const BACK_T = 0.006;
-const BAY_CLEARANCE = 0.012;
+const BACK_T = 0.007;
+const BAY_CLEARANCE = 0.014;
 const BOOK_DEPTH = 0.15;
-const BOOK_GAP = 0.002;
+const BOOK_GAP = 0.0024;
+const COVER_T = 0.0022;
+const OVERHANG = 0.0025; // cover-board square past the text block
+const MAHOGANY = "#4a2417";
+const MAHOGANY_STREAK = "#321505";
 
-// Bay heights derive from the book data: two hardcover rows physically need
-// more than the nominal 0.43m carcass, so the shelf grows to fit its contents.
+// Bay heights derive from the standing books: the carcass grows to fit its
+// contents, so book data stays the single source of truth for proportions.
 function shelfMaxHeight(shelf: BookShelfName): number {
-  return BOOKS.reduce((m, b) => (b.shelf === shelf ? Math.max(m, b.heightM) : m), 0);
+  return BOOKS.reduce(
+    (m, b) => (b.shelf === shelf && !b.displayFlat ? Math.max(m, b.heightM) : m),
+    0
+  );
 }
 
 const BOTTOM_BAY = shelfMaxHeight("current") + BAY_CLEARANCE;
@@ -32,6 +39,7 @@ const MID_BOARD_Y = BOARD_T + BOTTOM_BAY + BOARD_T / 2;
 const SIDE_H = TOP_SHELF_Y + TOP_BAY;
 const TOTAL_H = SIDE_H + BOARD_T;
 const INNER_W = WIDTH - 2 * SIDE_T;
+const BOARD_Z = (BACK_T + 0.001) / 2;
 const BOOK_BASE_Z = -DEPTH / 2 + BACK_T + 0.004 + BOOK_DEPTH / 2;
 
 function mulberry32(seed: number): () => number {
@@ -44,9 +52,18 @@ function mulberry32(seed: number): () => number {
   };
 }
 
+function tone(hex: string, mul: number): string {
+  const c = new THREE.Color(hex).multiplyScalar(mul);
+  c.r = Math.min(1, c.r);
+  c.g = Math.min(1, c.g);
+  c.b = Math.min(1, c.b);
+  return `#${c.getHexString()}`;
+}
+
 function shelfOrder(shelf: BookShelfName): Book[] {
-  const real = BOOKS.filter((b) => b.shelf === shelf && !b.filler);
-  const filler = BOOKS.filter((b) => b.shelf === shelf && b.filler);
+  const standing = BOOKS.filter((b) => b.shelf === shelf && !b.displayFlat);
+  const real = standing.filter((b) => !b.filler);
+  const filler = standing.filter((b) => b.filler);
   const order: Book[] = [];
   for (let i = 0; i < Math.max(real.length, filler.length); i++) {
     const r = real[i];
@@ -57,147 +74,744 @@ function shelfOrder(shelf: BookShelfName): Book[] {
   return order;
 }
 
-function fitText(
+// ---------------------------------------------------------------------------
+// Geometry helpers
+
+const EPS = 1e-5;
+
+function roundedRectShape(w: number, h: number, r: number): THREE.Shape {
+  const s = new THREE.Shape();
+  const x = -w / 2;
+  const y = -h / 2;
+  s.moveTo(x, y + r);
+  s.lineTo(x, y + h - r);
+  s.quadraticCurveTo(x, y + h, x + r, y + h);
+  s.lineTo(x + w - r, y + h);
+  s.quadraticCurveTo(x + w, y + h, x + w, y + h - r);
+  s.lineTo(x + w, y + r);
+  s.quadraticCurveTo(x + w, y, x + w - r, y);
+  s.lineTo(x + r, y);
+  s.quadraticCurveTo(x, y, x, y + r);
+  return s;
+}
+
+type PlateAxis = "x" | "y" | "z";
+
+// A slab with filleted edges (extrude + bevel) whose flat caps carry
+// normalized 0..1 UVs, so textures map exactly onto the visible face.
+// Groups: material 0 = caps, material 1 = edge band.
+function plateGeometry(
+  w: number,
+  h: number,
+  t: number,
+  radius: number,
+  axis: PlateAxis
+): THREE.ExtrudeGeometry {
+  const r = Math.min(radius, t / 2 - EPS);
+  const shape = roundedRectShape(w - r * 2, h - r * 2, EPS);
+  const geo = new THREE.ExtrudeGeometry(shape, {
+    depth: t - r * 2,
+    steps: 1,
+    bevelEnabled: true,
+    bevelThickness: r,
+    bevelSize: r - EPS,
+    bevelSegments: 4,
+    curveSegments: 5
+  });
+  geo.center();
+  const uv = geo.attributes.uv as THREE.BufferAttribute;
+  for (const g of geo.groups) {
+    if (g.materialIndex !== 0) continue;
+    for (let i = g.start; i < g.start + g.count; i++) {
+      uv.setXY(i, uv.getX(i) / w + 0.5, uv.getY(i) / h + 0.5);
+    }
+  }
+  if (axis === "x") geo.rotateY(Math.PI / 2);
+  if (axis === "y") geo.rotateX(-Math.PI / 2);
+  return geo;
+}
+
+// Rounded hardcover spine: half-cylinder flattened into a shallow ellipse,
+// bulging +z, UVs running u across the fold and v up the book.
+function spineGeometry(t: number, h: number, bulge: number): THREE.CylinderGeometry {
+  const g = new THREE.CylinderGeometry(t / 2, t / 2, h, 48, 1, true, -Math.PI / 2, Math.PI);
+  g.scale(1, 1, bulge / (t / 2));
+  return g;
+}
+
+function spineCapGeometry(t: number, bulge: number): THREE.CircleGeometry {
+  const g = new THREE.CircleGeometry(t / 2, 24, 0, Math.PI);
+  g.rotateX(Math.PI / 2);
+  g.scale(1, 1, bulge / (t / 2));
+  return g;
+}
+
+// Carcass side with a routed front edge: thumbnail cove into a center bead.
+function sidePanelGeometry(): THREE.ExtrudeGeometry {
+  const HT = SIDE_T / 2;
+  const F = -DEPTH / 2; // shape +y maps to world -z after rotateX(-PI/2)
+  const B = DEPTH / 2;
+  const ch = 0.002;
+  const s = new THREE.Shape();
+  s.moveTo(-HT + ch, B);
+  s.lineTo(HT - ch, B);
+  s.quadraticCurveTo(HT, B, HT, B - ch);
+  s.lineTo(HT, F + 0.012);
+  s.quadraticCurveTo(HT, F + 0.0052, HT - 0.0044, F + 0.0046);
+  s.quadraticCurveTo(HT - 0.0058, F + 0.0044, HT - 0.006, F + 0.0032);
+  s.quadraticCurveTo(HT - 0.006, F + 0.0006, 0, F);
+  s.quadraticCurveTo(-(HT - 0.006), F + 0.0006, -(HT - 0.006), F + 0.0032);
+  s.quadraticCurveTo(-(HT - 0.0058), F + 0.0044, -(HT - 0.0044), F + 0.0046);
+  s.quadraticCurveTo(-HT, F + 0.0052, -HT, F + 0.012);
+  s.lineTo(-HT, B - ch);
+  s.quadraticCurveTo(-HT, B, -HT + ch, B);
+  const g = new THREE.ExtrudeGeometry(s, {
+    depth: SIDE_H,
+    steps: 1,
+    curveSegments: 6,
+    bevelEnabled: true,
+    bevelThickness: 0.001,
+    bevelSize: 0.0008,
+    bevelOffset: -0.0008,
+    bevelSegments: 2
+  });
+  g.rotateX(-Math.PI / 2);
+  g.translate(0, 0.001, 0);
+  return g;
+}
+
+// Flat satin strip swept along a curve with a slow twist.
+function ribbonGeometry(
+  pts: THREE.Vector3[],
+  width: number,
+  twist: number
+): THREE.BufferGeometry {
+  const curve = new THREE.CatmullRomCurve3(pts, false, "catmullrom", 0.6);
+  const N = 40;
+  const positions: number[] = [];
+  const uvs: number[] = [];
+  const indices: number[] = [];
+  const up = new THREE.Vector3(0, 1, 0);
+  const side = new THREE.Vector3();
+  const q = new THREE.Quaternion();
+  for (let i = 0; i <= N; i++) {
+    const u = i / N;
+    const p = curve.getPoint(u);
+    const tan = curve.getTangent(u).normalize();
+    side.crossVectors(up, tan);
+    if (side.lengthSq() < 1e-6) side.set(1, 0, 0);
+    side.normalize();
+    q.setFromAxisAngle(tan, twist * u);
+    side.applyQuaternion(q);
+    const hw = width / 2;
+    positions.push(
+      p.x - side.x * hw, p.y - side.y * hw, p.z - side.z * hw,
+      p.x + side.x * hw, p.y + side.y * hw, p.z + side.z * hw
+    );
+    uvs.push(0, u, 1, u);
+    if (i < N) {
+      const k = i * 2;
+      indices.push(k, k + 1, k + 2, k + 1, k + 3, k + 2);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  g.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
+  g.setIndex(indices);
+  g.computeVertexNormals();
+  return g;
+}
+
+// ---------------------------------------------------------------------------
+// Canvas textures
+
+function pageEdgeTexture(seed: number): THREE.CanvasTexture {
+  return makeCanvasTexture(
+    1024,
+    512,
+    (ctx, w, h) => {
+      const rnd = mulberry32(seed);
+      ctx.fillStyle = "#efe6cd";
+      ctx.fillRect(0, 0, w, h);
+      for (let i = 0; i < 30; i++) {
+        ctx.fillStyle = rnd() > 0.5 ? "rgba(146,116,72,0.05)" : "rgba(255,250,235,0.07)";
+        ctx.fillRect(rnd() * w, 0, 6 + rnd() * 50, h);
+      }
+      for (let i = 0; i < 1400; i++) {
+        ctx.globalAlpha = 0.05 + rnd() * 0.13;
+        ctx.fillStyle = rnd() > 0.42 ? "#9a8157" : "#fffaf0";
+        ctx.fillRect(rnd() * w, 0, 1, h);
+      }
+      ctx.globalAlpha = 1;
+      const g = ctx.createLinearGradient(0, 0, 0, h);
+      g.addColorStop(0, "rgba(120,90,50,0.16)");
+      g.addColorStop(0.12, "rgba(120,90,50,0)");
+      g.addColorStop(0.88, "rgba(120,90,50,0)");
+      g.addColorStop(1, "rgba(120,90,50,0.16)");
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, w, h);
+    },
+    { anisotropy: 8 }
+  );
+}
+
+function clothTexture(seed: number): THREE.CanvasTexture {
+  return makeCanvasTexture(
+    512,
+    512,
+    (ctx, w, h) => {
+      const rnd = mulberry32(seed);
+      ctx.fillStyle = "#dcd7cd";
+      ctx.fillRect(0, 0, w, h);
+      for (let y = 0; y < h; y += 3) {
+        ctx.globalAlpha = 0.04 + rnd() * 0.05;
+        ctx.fillStyle = rnd() > 0.5 ? "#b8b1a3" : "#f5f0e7";
+        ctx.fillRect(0, y, w, 1);
+      }
+      for (let x = 0; x < w; x += 3) {
+        ctx.globalAlpha = 0.04 + rnd() * 0.05;
+        ctx.fillStyle = rnd() > 0.5 ? "#b8b1a3" : "#f3eee5";
+        ctx.fillRect(x, 0, 1, h);
+      }
+      for (let i = 0; i < 900; i++) {
+        ctx.globalAlpha = 0.03 + rnd() * 0.04;
+        ctx.fillStyle = rnd() > 0.5 ? "#a59d8d" : "#ffffff";
+        ctx.fillRect(rnd() * w, rnd() * h, 1.5, 1.5);
+      }
+      ctx.globalAlpha = 1;
+    },
+    { anisotropy: 8 }
+  );
+}
+
+function fitPx(
   ctx: CanvasRenderingContext2D,
   text: string,
   startPx: number,
   maxWidth: number,
   font: (px: number) => string
-): void {
+): number {
   let px = startPx;
   ctx.font = font(px);
-  while (px > 28 && ctx.measureText(text).width > maxWidth) {
+  while (px > 22 && ctx.measureText(text).width > maxWidth) {
     px -= 2;
     ctx.font = font(px);
   }
+  return px;
 }
 
-function spineTexture(book: Book, seed: number): THREE.CanvasTexture {
-  return makeCanvasTexture(256, 1024, (ctx, w, h) => {
-    ctx.fillStyle = book.spineColor;
-    ctx.fillRect(0, 0, w, h);
-
-    const edge = ctx.createLinearGradient(0, 0, w, 0);
-    edge.addColorStop(0, "rgba(0,0,0,0.34)");
-    edge.addColorStop(0.14, "rgba(0,0,0,0)");
-    edge.addColorStop(0.86, "rgba(0,0,0,0)");
-    edge.addColorStop(1, "rgba(0,0,0,0.34)");
-    ctx.fillStyle = edge;
-    ctx.fillRect(0, 0, w, h);
-
-    ctx.fillStyle = book.textColor;
-    ctx.globalAlpha = 0.88;
-    ctx.fillRect(w * 0.16, 54, w * 0.68, 5);
-    ctx.fillRect(w * 0.16, 70, w * 0.68, 3);
-    ctx.fillRect(w * 0.16, h - 74, w * 0.68, 3);
-    ctx.fillRect(w * 0.16, h - 58, w * 0.68, 5);
-    ctx.globalAlpha = 1;
-
-    const scuff = mulberry32(seed);
-    ctx.fillStyle = "#000000";
-    for (let i = 0; i < 5; i++) {
-      ctx.globalAlpha = 0.04 + scuff() * 0.06;
-      ctx.fillRect(scuff() * w * 0.5, h - 40 - scuff() * 130, w * (0.2 + scuff() * 0.35), 2);
-    }
-    ctx.globalAlpha = 1;
-
-    if (book.filler) return;
-
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillStyle = book.textColor;
-    ctx.save();
-    ctx.translate(w / 2, h / 2);
-    // local +x runs down the spine; tilt-your-head-right US spine convention
-    ctx.rotate(Math.PI / 2);
-    fitText(ctx, book.title, 72, h * 0.48, (px) => `bold ${px}px Georgia, "Times New Roman", serif`);
-    ctx.fillText(book.title, -h * 0.12, 0);
-    fitText(ctx, book.author, 44, h * 0.29, (px) => `${px}px Georgia, "Times New Roman", serif`);
-    ctx.fillText(book.author, h * 0.27, 0);
-    ctx.restore();
-  });
+// Foil/ink lettering: offset under-shadow plus a vertical sheen gradient so
+// the type reads stamped instead of printed.
+function drawFoil(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  px: number,
+  foil: string
+): void {
+  const c = new THREE.Color(foil);
+  const lum = c.r * 0.35 + c.g * 0.55 + c.b * 0.1;
+  ctx.fillStyle = lum > 0.45 ? "rgba(18,8,2,0.55)" : "rgba(255,246,224,0.42)";
+  ctx.fillText(text, x + 2, y + 2.4);
+  const g = ctx.createLinearGradient(0, y - px * 0.55, 0, y + px * 0.45);
+  g.addColorStop(0, tone(foil, 1.38));
+  g.addColorStop(0.45, foil);
+  g.addColorStop(1, tone(foil, 0.7));
+  ctx.fillStyle = g;
+  ctx.fillText(text, x, y);
 }
 
-function plaqueTexture(label: string): THREE.CanvasTexture {
-  return makeCanvasTexture(512, 128, (ctx, w, h) => {
-    ctx.fillStyle = "#4a3420";
-    ctx.fillRect(0, 0, w, h);
-    ctx.strokeStyle = "rgba(0,0,0,0.5)";
-    ctx.lineWidth = 6;
-    ctx.strokeRect(8, 8, w - 16, h - 16);
-    ctx.strokeStyle = "rgba(232,217,184,0.26)";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(14, 14, w - 28, h - 28);
-
-    ctx.font = '40px "Helvetica Neue", Helvetica, Arial, sans-serif';
-    ctx.textAlign = "left";
-    ctx.textBaseline = "middle";
-    const spacing = 14;
-    const chars = label.split("");
-    const widths = chars.map((c) => ctx.measureText(c).width);
-    const total = widths.reduce((a, b) => a + b, 0) + spacing * (chars.length - 1);
-    let x = (w - total) / 2;
-    chars.forEach((c, i) => {
-      ctx.fillStyle = "rgba(0,0,0,0.45)";
-      ctx.fillText(c, x, h / 2 - 2);
-      ctx.fillStyle = "#e8d9b8";
-      ctx.fillText(c, x, h / 2 + 1);
-      x += (widths[i] ?? 0) + spacing;
-    });
-  });
+function drawColophon(ctx: CanvasRenderingContext2D, foil: string): void {
+  ctx.strokeStyle = foil;
+  ctx.lineWidth = 3;
+  ctx.globalAlpha = 0.9;
+  ctx.beginPath();
+  ctx.moveTo(0, -20);
+  ctx.lineTo(14, 0);
+  ctx.lineTo(0, 20);
+  ctx.lineTo(-14, 0);
+  ctx.closePath();
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(0, 0, 4, 0, Math.PI * 2);
+  ctx.fillStyle = foil;
+  ctx.fill();
+  ctx.globalAlpha = 1;
 }
+
+function spineBase(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  book: Book,
+  rnd: () => number
+): void {
+  ctx.fillStyle = book.spineColor;
+  ctx.fillRect(0, 0, w, h);
+  for (let i = 0; i < 700; i++) {
+    ctx.globalAlpha = 0.025 + rnd() * 0.045;
+    ctx.fillStyle = rnd() > 0.5 ? "#000000" : "#ffffff";
+    ctx.fillRect(rnd() * w, rnd() * h, 1 + rnd() * 2.5, 1.5);
+  }
+  ctx.globalAlpha = 1;
+  const edge = ctx.createLinearGradient(0, 0, w, 0);
+  edge.addColorStop(0, "rgba(0,0,0,0.42)");
+  edge.addColorStop(0.07, "rgba(0,0,0,0.1)");
+  edge.addColorStop(0.16, "rgba(0,0,0,0)");
+  edge.addColorStop(0.84, "rgba(0,0,0,0)");
+  edge.addColorStop(0.93, "rgba(0,0,0,0.1)");
+  edge.addColorStop(1, "rgba(0,0,0,0.42)");
+  ctx.fillStyle = edge;
+  ctx.fillRect(0, 0, w, h);
+}
+
+function spineScuffs(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  rnd: () => number
+): void {
+  ctx.fillStyle = "#000000";
+  for (let i = 0; i < 5; i++) {
+    ctx.globalAlpha = 0.04 + rnd() * 0.06;
+    ctx.fillRect(rnd() * w * 0.5, h - 60 - rnd() * 150, w * (0.2 + rnd() * 0.35), 2);
+  }
+  ctx.globalAlpha = 1;
+}
+
+function realSpineTexture(book: Book, seed: number): THREE.CanvasTexture {
+  return makeCanvasTexture(
+    512,
+    2048,
+    (ctx, w, h) => {
+      const rnd = mulberry32(seed);
+      const foil = book.foilColor ?? book.textColor;
+      const band = book.bandColor ?? tone(book.spineColor, 1.5);
+      // u is mapped over the unwrapped spine arc; compensate the pixel-density
+      // mismatch so type keeps a true aspect on narrow and wide spines alike.
+      const arc = Math.PI * 0.5 * book.thicknessM;
+      const squish = (w / arc) / (h / book.heightM);
+      const vw = w / squish;
+
+      spineBase(ctx, w, h, book, rnd);
+
+      const bandH = 24;
+      for (const top of [true, false]) {
+        const y0 = top ? 0 : h - bandH;
+        ctx.fillStyle = band;
+        ctx.fillRect(0, y0, w, bandH);
+        ctx.fillStyle = "rgba(0,0,0,0.3)";
+        for (let x = 3; x < w; x += 9) ctx.fillRect(x, y0 + 4, 3.5, bandH - 8);
+        const sy = top ? bandH : h - bandH - 14;
+        const sh = ctx.createLinearGradient(0, sy, 0, sy + 14);
+        sh.addColorStop(top ? 0 : 1, "rgba(0,0,0,0.32)");
+        sh.addColorStop(top ? 1 : 0, "rgba(0,0,0,0)");
+        ctx.fillStyle = sh;
+        ctx.fillRect(0, sy, w, 14);
+      }
+
+      ctx.globalAlpha = 0.92;
+      ctx.fillStyle = foil;
+      ctx.fillRect(w * 0.17, 96, w * 0.66, 6);
+      ctx.fillRect(w * 0.17, 114, w * 0.66, 3);
+      ctx.fillRect(w * 0.17, h - 116, w * 0.66, 3);
+      ctx.fillRect(w * 0.17, h - 102, w * 0.66, 6);
+      ctx.globalAlpha = 1;
+
+      const style = book.jacketStyle ?? "serif-run";
+      const serif = style.startsWith("serif");
+      const titleFont = (px: number) =>
+        serif
+          ? `bold ${px}px Georgia, "Times New Roman", serif`
+          : `600 ${px}px "Helvetica Neue", Helvetica, Arial, sans-serif`;
+      const authorFont = (px: number) =>
+        serif
+          ? `${px}px Georgia, "Times New Roman", serif`
+          : `500 ${px}px "Helvetica Neue", Helvetica, Arial, sans-serif`;
+
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+
+      if (style.endsWith("stacked")) {
+        ctx.save();
+        ctx.translate(w / 2, 0);
+        ctx.scale(squish, 1);
+        const words = book.title.split(" ");
+        let px = 150;
+        for (const word of words) {
+          px = Math.min(px, fitPx(ctx, word, 150, vw * 0.72, titleFont));
+        }
+        ctx.font = titleFont(px);
+        const lineH = px * 1.2;
+        words.forEach((word, i) => {
+          drawFoil(ctx, word, 0, 330 + i * lineH, px, foil);
+        });
+        const authorWords = book.author.split(" ");
+        let apx = 54;
+        for (const word of authorWords) {
+          apx = Math.min(apx, fitPx(ctx, word.toUpperCase(), 54, vw * 0.6, authorFont));
+        }
+        ctx.font = authorFont(apx);
+        authorWords.forEach((word, i) => {
+          drawFoil(ctx, word.toUpperCase(), 0, h - 430 + i * apx * 1.45, apx, foil);
+        });
+        ctx.restore();
+      } else {
+        ctx.save();
+        ctx.translate(w / 2, h / 2);
+        ctx.scale(squish, 1);
+        ctx.rotate(Math.PI / 2); // tilt-your-head-right US spine convention
+        const tpx = fitPx(ctx, book.title, 86, h * 0.5, titleFont);
+        drawFoil(ctx, book.title, -h * 0.1, 0, tpx, foil);
+        const apx = fitPx(ctx, book.author, 46, h * 0.26, authorFont);
+        drawFoil(ctx, book.author, h * 0.3, 0, apx, foil);
+        ctx.restore();
+      }
+
+      ctx.save();
+      ctx.translate(w / 2, h - 188);
+      ctx.scale(squish, 1);
+      drawColophon(ctx, foil);
+      ctx.restore();
+
+      spineScuffs(ctx, w, h, rnd);
+    },
+    { anisotropy: 8 }
+  );
+}
+
+function fillerSpineTexture(book: Book, seed: number): THREE.CanvasTexture {
+  return makeCanvasTexture(
+    256,
+    1024,
+    (ctx, w, h) => {
+      const rnd = mulberry32(seed);
+      spineBase(ctx, w, h, book, rnd);
+      // sun-fade toward the head
+      const fade = ctx.createLinearGradient(0, 0, 0, h * 0.5);
+      fade.addColorStop(0, "rgba(255,244,220,0.1)");
+      fade.addColorStop(1, "rgba(255,244,220,0)");
+      ctx.fillStyle = fade;
+      ctx.fillRect(0, 0, w, h * 0.5);
+      // blind-embossed bands
+      const bands = [70 + rnd() * 30, 120 + rnd() * 30, h - 120 - rnd() * 40];
+      for (const y of bands) {
+        ctx.fillStyle = "rgba(0,0,0,0.22)";
+        ctx.fillRect(w * 0.12, y, w * 0.76, 5);
+        ctx.fillStyle = "rgba(255,250,235,0.16)";
+        ctx.fillRect(w * 0.12, y + 5, w * 0.76, 2);
+      }
+      spineScuffs(ctx, w, h, rnd);
+    },
+    { anisotropy: 8 }
+  );
+}
+
+// Front cover for the flat display copy: simple type and a rule line.
+function coverArtTexture(book: Book, seed: number): THREE.CanvasTexture {
+  return makeCanvasTexture(
+    1280,
+    2048,
+    (ctx, w, h) => {
+      const rnd = mulberry32(seed);
+      const ink = book.textColor;
+      const accent = book.bandColor ?? tone(book.spineColor, 0.6);
+      ctx.fillStyle = book.spineColor;
+      ctx.fillRect(0, 0, w, h);
+      for (let i = 0; i < 2400; i++) {
+        ctx.globalAlpha = 0.02 + rnd() * 0.035;
+        ctx.fillStyle = rnd() > 0.5 ? "#000000" : "#ffffff";
+        ctx.fillRect(rnd() * w, rnd() * h, 1.5, 1.5);
+      }
+      ctx.globalAlpha = 1;
+      // edge wear and a darker hinge at the spine side (u=0)
+      const hinge = ctx.createLinearGradient(0, 0, w * 0.12, 0);
+      hinge.addColorStop(0, "rgba(0,0,0,0.2)");
+      hinge.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = hinge;
+      ctx.fillRect(0, 0, w * 0.12, h);
+      const vig = ctx.createLinearGradient(w, 0, w - w * 0.06, 0);
+      vig.addColorStop(0, "rgba(0,0,0,0.12)");
+      vig.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = vig;
+      ctx.fillRect(w * 0.9, 0, w * 0.1, h);
+
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      const font = (px: number) =>
+        `800 ${px}px "Helvetica Neue", Helvetica, Arial, sans-serif`;
+      const words = book.title.toUpperCase().split(" ");
+      const lines: string[] = [];
+      for (const word of words) {
+        const last = lines[lines.length - 1];
+        if (last !== undefined && (last + " " + word).length <= 8) {
+          lines[lines.length - 1] = `${last} ${word}`;
+        } else {
+          lines.push(word);
+        }
+      }
+      let px = 250;
+      for (const line of lines) {
+        px = Math.min(px, fitPx(ctx, line, 250, w * 0.78, font));
+      }
+      ctx.font = font(px);
+      const lineH = px * 1.12;
+      const y0 = h * 0.3;
+      lines.forEach((line, i) => {
+        ctx.fillStyle = "rgba(0,0,0,0.16)";
+        ctx.fillText(line, w / 2 + 4, y0 + i * lineH + 5);
+        ctx.fillStyle = ink;
+        ctx.fillText(line, w / 2, y0 + i * lineH);
+      });
+      const yRule = y0 + lines.length * lineH + 60;
+      ctx.fillStyle = accent;
+      ctx.fillRect(w / 2 - w * 0.21, yRule, w * 0.42, 12);
+      const apx = fitPx(
+        ctx,
+        book.author.toUpperCase(),
+        92,
+        w * 0.66,
+        (p) => `600 ${p}px "Helvetica Neue", Helvetica, Arial, sans-serif`
+      );
+      ctx.font = `600 ${apx}px "Helvetica Neue", Helvetica, Arial, sans-serif`;
+      ctx.fillStyle = ink;
+      ctx.fillText(book.author.toUpperCase(), w / 2, yRule + 150);
+    },
+    { anisotropy: 8 }
+  );
+}
+
+function plaqueTexture(label: string, seed: number): THREE.CanvasTexture {
+  return makeCanvasTexture(
+    512,
+    128,
+    (ctx, w, h) => {
+      const rnd = mulberry32(seed);
+      const g = ctx.createLinearGradient(0, 0, 0, h);
+      g.addColorStop(0, "#cba75c");
+      g.addColorStop(0.45, "#a8843f");
+      g.addColorStop(1, "#86662c");
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, w, h);
+      for (let i = 0; i < 110; i++) {
+        ctx.globalAlpha = 0.03 + rnd() * 0.05;
+        ctx.fillStyle = rnd() > 0.5 ? "#ffe9b0" : "#54390f";
+        ctx.fillRect(0, rnd() * h, w, 1);
+      }
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = "rgba(40,22,2,0.55)";
+      ctx.lineWidth = 3;
+      ctx.strokeRect(11, 11, w - 22, h - 22);
+      ctx.strokeStyle = "rgba(255,235,180,0.4)";
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(14, 14, w - 28, h - 28);
+
+      ctx.font = '40px "Helvetica Neue", Helvetica, Arial, sans-serif';
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      const spacing = 14;
+      const chars = label.split("");
+      const widths = chars.map((c) => ctx.measureText(c).width);
+      const total = widths.reduce((a, b) => a + b, 0) + spacing * (chars.length - 1);
+      let x = (w - total) / 2;
+      chars.forEach((c, i) => {
+        ctx.fillStyle = "rgba(255,240,200,0.45)";
+        ctx.fillText(c, x, h / 2 + 2.5);
+        ctx.fillStyle = "#241502";
+        ctx.fillText(c, x, h / 2);
+        x += (widths[i] ?? 0) + spacing;
+      });
+    },
+    { anisotropy: 8 }
+  );
+}
+
+// ---------------------------------------------------------------------------
 
 type BookEntry = {
   key: string;
-  size: [number, number, number];
+  t: number;
+  h: number;
   position: [number, number, number];
   rotation: [number, number, number];
-  materials: THREE.Material[];
+  coverGeo: THREE.ExtrudeGeometry;
+  frontMats: THREE.Material[];
+  backMats: THREE.Material[];
+  spineGeo: THREE.CylinderGeometry;
+  capGeo: THREE.CircleGeometry;
+  spineMat: THREE.Material;
+  capMat: THREE.Material;
+  pagesMats: THREE.Material[];
+  pagesSize: [number, number, number];
+  pagesZ: number;
 };
 
-type MetalPart = {
+type BookendEntry = {
   key: string;
-  size: [number, number, number];
-  position: [number, number, number];
+  x: number;
+  surfaceY: number;
 };
+
+const sideX = WIDTH / 2 - SIDE_T / 2;
+const FLAT_YAW = 0.09;
+const FLAT_POS: [number, number] = [-0.075, 0.008];
 
 export default function Bookshelf() {
-  const carcassWood = useMemo(
-    () => woodMaterial({ base: "#5d4126", streak: "#46301b", roughness: 0.58 }),
-    []
-  );
-  const backWood = useMemo(
-    () => woodMaterial({ base: "#523a22", streak: "#3e2b18", roughness: 0.7 }),
-    []
-  );
-  const metal = useMemo(() => brushedMetalMaterial(), []);
-
-  const plaqueMaterials = useMemo(() => {
-    const side = new THREE.MeshStandardMaterial({ color: "#332313", roughness: 0.6 });
-    const make = (label: string): THREE.Material[] => {
-      const face = new THREE.MeshStandardMaterial({
-        map: plaqueTexture(label),
-        roughness: 0.5,
-        metalness: 0.05
+  const carcass = useMemo(() => {
+    const rand = mulberry32(471);
+    const wood = (mul: number, clearcoat: number) => {
+      const m = lacqueredWoodMaterial({
+        base: tone(MAHOGANY, mul),
+        streak: tone(MAHOGANY_STREAK, mul),
+        roughness: 0.4,
+        clearcoat,
+        clearcoatRoughness: 0.2,
+        bumpScale: 0.001
       });
-      return [side, side, side, side, face, side];
+      if (m.map) m.map.anisotropy = 8;
+      return m;
     };
-    return { favorites: make("favorites"), current: make("current") };
+
+    const side = wood(0.96 + rand() * 0.06, 0.8);
+    if (side.map) {
+      side.map.wrapS = side.map.wrapT = THREE.RepeatWrapping;
+      side.map.center.set(0.5, 0.5);
+      side.map.rotation = Math.PI / 2; // grain runs up the panel
+      side.map.repeat.set(5, 5);
+    }
+
+    const brassEdge = new THREE.MeshStandardMaterial({
+      color: "#7a5c26",
+      metalness: 1,
+      roughness: 0.4
+    });
+    const plaqueFace = (label: string, seed: number) =>
+      new THREE.MeshStandardMaterial({
+        map: plaqueTexture(label, seed),
+        metalness: 0.9,
+        roughness: 0.32
+      });
+
+    return {
+      sideGeo: sidePanelGeometry(),
+      boardGeo: plateGeometry(INNER_W + 0.006, DEPTH - BACK_T - 0.001, BOARD_T, 0.003, "y"),
+      topBandGeo: plateGeometry(WIDTH + 0.002, DEPTH + 0.002, 0.006, 0.0015, "y"),
+      topCapGeo: plateGeometry(WIDTH + 0.016, DEPTH + 0.008, 0.0095, 0.0028, "y"),
+      backGeo: plateGeometry(INNER_W + 0.006, SIDE_H - 0.004, BACK_T, 0.0015, "z"),
+      plaqueGeo: plateGeometry(0.062, 0.0125, 0.0026, 0.0008, "z"),
+      uprightGeo: plateGeometry(0.112, 0.132, 0.0025, 0.0007, "x"),
+      lipGeo: plateGeometry(0.112, 0.02, 0.0025, 0.0007, "x"),
+      bookendBaseGeo: plateGeometry(0.078, 0.112, 0.0018, 0.0005, "y"),
+      sideMat: side,
+      boardMatA: wood(0.92 + rand() * 0.08, 0.75),
+      boardMatB: wood(0.95 + rand() * 0.08, 0.75),
+      topMat: wood(1.0 + rand() * 0.08, 0.9),
+      bandMat: wood(0.86 + rand() * 0.06, 0.7),
+      backMat: wood(1.08, 0.45),
+      plaqueMats: {
+        favorites: [plaqueFace("favorites", 91), brassEdge],
+        current: [plaqueFace("current", 92), brassEdge]
+      },
+      pinBrass: new THREE.MeshStandardMaterial({
+        color: "#6b5122",
+        metalness: 1,
+        roughness: 0.45
+      }),
+      steel: (() => {
+        const m = brushedMetalMaterial("#b6babd");
+        m.roughness = 0.34;
+        m.envMapIntensity = 1.1;
+        return m;
+      })(),
+      felt: new THREE.MeshStandardMaterial({ color: "#2c2724", roughness: 1 })
+    };
   }, []);
 
-  const { books, metalParts } = useMemo(() => {
+  const { entries, flat, bookends, ribbonGeo, ribbonMat } = useMemo(() => {
     const rand = mulberry32(20260610);
-    const pagesTop = new THREE.MeshStandardMaterial({ color: "#e8ddc4", roughness: 0.92 });
-    const pagesEdge = new THREE.MeshStandardMaterial({ color: "#ddd0b4", roughness: 0.94 });
+    const pagesTex = pageEdgeTexture(77);
+    const clothTex = clothTexture(78);
+    const spineInner = new THREE.MeshStandardMaterial({ color: "#241a12", roughness: 0.9 });
 
-    const entries: BookEntry[] = [];
-    const parts: MetalPart[] = [];
+    let bookIndex = 0;
+    const buildBook = (
+      book: Book,
+      key: string,
+      position: [number, number, number],
+      rotation: [number, number, number],
+      coverArt: THREE.Texture | null
+    ): BookEntry => {
+      const t = book.thicknessM;
+      const h = book.heightM;
+      const d = BOOK_DEPTH;
+      const seed = 31 + bookIndex * 17;
+      bookIndex++;
+
+      const tint = new THREE.Color(book.spineColor).multiplyScalar(0.92 + rand() * 0.14);
+      tint.r = Math.min(1, tint.r * 1.05);
+      tint.g = Math.min(1, tint.g * 1.05);
+      tint.b = Math.min(1, tint.b * 1.05);
+      const clothFace = new THREE.MeshStandardMaterial({
+        map: clothTex,
+        color: tint,
+        bumpMap: clothTex,
+        bumpScale: 0.0006,
+        roughness: 0.74
+      });
+      const edge = new THREE.MeshStandardMaterial({
+        color: tint.clone().multiplyScalar(0.9),
+        roughness: 0.8
+      });
+      const artFace = coverArt
+        ? new THREE.MeshStandardMaterial({ map: coverArt, roughness: 0.62 })
+        : null;
+
+      const spineMat = new THREE.MeshStandardMaterial({
+        map: book.filler ? fillerSpineTexture(book, seed) : realSpineTexture(book, seed),
+        roughness: 0.66
+      });
+      const capMat = new THREE.MeshStandardMaterial({
+        color: tone(book.spineColor, 0.5),
+        roughness: 0.85,
+        side: THREE.DoubleSide
+      });
+      const pagesMat = new THREE.MeshStandardMaterial({
+        map: pagesTex,
+        color: book.pageTint ?? "#f5edd8",
+        bumpMap: pagesTex,
+        bumpScale: 0.0004,
+        roughness: 0.95
+      });
+
+      const bulge = Math.min(0.0065, Math.max(0.0035, t * 0.16));
+      const pagesW = t - 2 * COVER_T - 0.0004;
+      return {
+        key,
+        t,
+        h,
+        position,
+        rotation,
+        coverGeo: plateGeometry(d, h, COVER_T, 0.0008, "x"),
+        frontMats: [artFace ?? clothFace, edge],
+        backMats: [clothFace, edge],
+        spineGeo: spineGeometry(t, h, bulge),
+        capGeo: spineCapGeometry(t, bulge),
+        spineMat,
+        capMat,
+        pagesMats: [pagesMat, pagesMat, pagesMat, pagesMat, spineInner, pagesMat],
+        pagesSize: [pagesW, h - 2 * OVERHANG, d - OVERHANG - 0.002],
+        pagesZ: (OVERHANG - 0.002) / 2
+      };
+    };
+
+    const list: BookEntry[] = [];
+    const ends: BookendEntry[] = [];
     const shelves: { name: BookShelfName; surfaceY: number }[] = [
       { name: "favorites", surfaceY: TOP_SHELF_Y },
       { name: "current", surfaceY: BOTTOM_SHELF_Y }
     ];
 
-    let bookIndex = 0;
     for (const shelf of shelves) {
       const order = shelfOrder(shelf.name);
       const leanAngle = 0.105 + rand() * 0.03;
@@ -217,123 +831,209 @@ export default function Bookshelf() {
           break;
         }
       }
+      const pullIndex = leanIndex === 0 ? 2 : 0; // one spine eased forward
 
-      let cursor = -WIDTH / 2 + SIDE_T + 0.003;
+      let cursor = -WIDTH / 2 + SIDE_T + 0.004;
       order.forEach((book, i) => {
         const t = book.thicknessM;
         const bh = book.heightM;
-        const spine = new THREE.MeshStandardMaterial({
-          map: spineTexture(book, 31 + bookIndex * 17),
-          roughness: 0.7,
-          metalness: 0
-        });
-        const cover = new THREE.MeshStandardMaterial({
-          color: new THREE.Color(book.spineColor).multiplyScalar(0.82),
-          roughness: 0.72
-        });
-        // box face order +x,-x,+y,-y,+z,-z: covers on the sides, page block
-        // on top/bottom/fore-edge, printed spine facing out (+z)
-        const materials = [cover, cover, pagesTop, pagesEdge, spine, pagesEdge];
-        const z = BOOK_BASE_Z + (rand() - 0.5) * 0.007;
+        let z = BOOK_BASE_Z + (rand() - 0.5) * 0.006;
+        if (i === pullIndex && i !== leanIndex) z += 0.0075;
 
         if (i === leanIndex) {
           // rotated footprint keeps the tipped book clear of both neighbors;
           // base rests on its bottom edge, top corner kisses the next spine
           const footprint = t * Math.cos(leanAngle) + bh * Math.sin(leanAngle);
-          entries.push({
-            key: `${shelf.name}-${i}`,
-            size: [t, bh, BOOK_DEPTH],
-            position: [
-              cursor + footprint / 2,
-              shelf.surfaceY + (bh * Math.cos(leanAngle) + t * Math.sin(leanAngle)) / 2,
-              z
-            ],
-            rotation: [0, 0, -leanAngle],
-            materials
-          });
+          list.push(
+            buildBook(
+              book,
+              `${shelf.name}-${i}`,
+              [
+                cursor + footprint / 2,
+                shelf.surfaceY + (bh * Math.cos(leanAngle) + t * Math.sin(leanAngle)) / 2,
+                z
+              ],
+              [0, 0, -leanAngle],
+              null
+            )
+          );
           cursor += footprint + 0.0006;
         } else {
-          entries.push({
-            key: `${shelf.name}-${i}`,
-            size: [t, bh, BOOK_DEPTH],
-            position: [cursor + t / 2, shelf.surfaceY + bh / 2, z],
-            rotation: [0, (rand() - 0.5) * 0.02, 0],
-            materials
-          });
+          list.push(
+            buildBook(
+              book,
+              `${shelf.name}-${i}`,
+              [cursor + t / 2, shelf.surfaceY + bh / 2, z],
+              [0, (rand() - 0.5) * 0.02, 0],
+              null
+            )
+          );
           cursor += t + BOOK_GAP;
         }
-        bookIndex++;
       });
 
-      const endX = cursor - BOOK_GAP + 0.0006;
-      parts.push({
-        key: `${shelf.name}-bookend-upright`,
-        size: [0.003, 0.135, 0.115],
-        position: [endX + 0.0015, shelf.surfaceY + 0.0675, BOOK_BASE_Z]
-      });
-      parts.push({
-        key: `${shelf.name}-bookend-base`,
-        size: [0.082, 0.0025, 0.115],
-        position: [endX + 0.003 + 0.041, shelf.surfaceY + 0.00125, BOOK_BASE_Z]
+      ends.push({
+        key: `${shelf.name}-end`,
+        x: cursor - BOOK_GAP + 0.0008,
+        surfaceY: shelf.surfaceY
       });
     }
 
-    return { books: entries, metalParts: parts };
+    // the current read lies flat on the carcass top, cover up
+    const flatBook = BOOKS.find((b) => b.displayFlat && !b.filler) ?? null;
+    let flatEntry: BookEntry | null = null;
+    let ribbon: THREE.BufferGeometry | null = null;
+    if (flatBook) {
+      const tF = flatBook.thicknessM;
+      const [fx, fz] = FLAT_POS;
+      flatEntry = buildBook(
+        flatBook,
+        "flat-top",
+        [fx, TOTAL_H + tF / 2 + 0.0003, fz],
+        [0, FLAT_YAW, Math.PI / 2],
+        coverArtTexture(flatBook, 53)
+      );
+      // satin bookmark trailing from the tail of the text block
+      const dx = Math.cos(FLAT_YAW);
+      const dz = -Math.sin(FLAT_YAW);
+      const hh = flatBook.heightM / 2;
+      const midY = TOTAL_H + tF / 2 + 0.0003;
+      ribbon = ribbonGeometry(
+        [
+          new THREE.Vector3(fx + dx * (hh - 0.012), midY, fz + dz * (hh - 0.012)),
+          new THREE.Vector3(fx + dx * (hh + 0.006), midY - 0.001, fz + dz * (hh + 0.006)),
+          new THREE.Vector3(fx + dx * (hh + 0.022), TOTAL_H + 0.004, fz + dz * (hh + 0.022) + 0.004),
+          new THREE.Vector3(fx + dx * (hh + 0.048), TOTAL_H + 0.0016, fz + dz * (hh + 0.048) + 0.014),
+          new THREE.Vector3(fx + dx * (hh + 0.078), TOTAL_H + 0.0012, fz + dz * (hh + 0.078) + 0.03),
+          new THREE.Vector3(fx + dx * (hh + 0.102), TOTAL_H + 0.006, fz + dz * (hh + 0.102) + 0.02)
+        ],
+        0.009,
+        1.1
+      );
+    }
+
+    const satin = new THREE.MeshPhysicalMaterial({
+      color: "#8c2630",
+      roughness: 0.62,
+      sheen: 1,
+      sheenColor: new THREE.Color("#e8a0a8"),
+      sheenRoughness: 0.55,
+      side: THREE.DoubleSide
+    });
+
+    return {
+      entries: list,
+      flat: flatEntry,
+      bookends: ends,
+      ribbonGeo: ribbon,
+      ribbonMat: satin
+    };
   }, []);
 
-  const sideX = WIDTH / 2 - SIDE_T / 2;
+  const renderBook = (e: BookEntry) => (
+    <group key={e.key} position={e.position} rotation={e.rotation}>
+      <mesh
+        geometry={e.coverGeo}
+        material={e.frontMats}
+        position={[(e.t - COVER_T) / 2, 0, 0]}
+        castShadow
+        receiveShadow
+      />
+      <mesh
+        geometry={e.coverGeo}
+        material={e.backMats}
+        position={[-(e.t - COVER_T) / 2, 0, 0]}
+        castShadow
+        receiveShadow
+      />
+      <mesh geometry={e.spineGeo} material={e.spineMat} position={[0, 0, BOOK_DEPTH / 2]} castShadow />
+      <mesh geometry={e.capGeo} material={e.capMat} position={[0, e.h / 2 - 0.0006, BOOK_DEPTH / 2]} />
+      <mesh geometry={e.capGeo} material={e.capMat} position={[0, -e.h / 2 + 0.0006, BOOK_DEPTH / 2]} />
+      <mesh material={e.pagesMats} position={[0, 0, e.pagesZ]} castShadow receiveShadow>
+        <boxGeometry args={e.pagesSize} />
+      </mesh>
+    </group>
+  );
 
   return (
     <group>
-      <mesh position={[-sideX, SIDE_H / 2, 0]} castShadow receiveShadow material={carcassWood}>
-        <boxGeometry args={[SIDE_T, SIDE_H, DEPTH]} />
-      </mesh>
-      <mesh position={[sideX, SIDE_H / 2, 0]} castShadow receiveShadow material={carcassWood}>
-        <boxGeometry args={[SIDE_T, SIDE_H, DEPTH]} />
-      </mesh>
-      <mesh position={[0, BOARD_T / 2, BACK_T / 2]} castShadow receiveShadow material={carcassWood}>
-        <boxGeometry args={[INNER_W, BOARD_T, DEPTH - BACK_T]} />
-      </mesh>
-      <mesh position={[0, MID_BOARD_Y, BACK_T / 2]} castShadow receiveShadow material={carcassWood}>
-        <boxGeometry args={[INNER_W, BOARD_T, DEPTH - BACK_T]} />
-      </mesh>
+      {/* carcass */}
+      <mesh geometry={carcass.sideGeo} material={carcass.sideMat} position={[-sideX, 0, 0]} castShadow receiveShadow />
+      <mesh geometry={carcass.sideGeo} material={carcass.sideMat} position={[sideX, 0, 0]} castShadow receiveShadow />
+      <mesh geometry={carcass.boardGeo} material={carcass.boardMatA} position={[0, BOARD_T / 2, BOARD_Z]} castShadow receiveShadow />
+      <mesh geometry={carcass.boardGeo} material={carcass.boardMatB} position={[0, MID_BOARD_Y, BOARD_Z]} castShadow receiveShadow />
+      <mesh geometry={carcass.topBandGeo} material={carcass.bandMat} position={[0, SIDE_H + 0.003, 0.001]} castShadow />
+      <mesh geometry={carcass.topCapGeo} material={carcass.topMat} position={[0, TOTAL_H - 0.00475, 0.004]} castShadow receiveShadow />
       <mesh
-        position={[0, SIDE_H + BOARD_T / 2, 0.004]}
+        geometry={carcass.backGeo}
+        material={carcass.backMat}
+        position={[0, SIDE_H / 2 - 0.001, -DEPTH / 2 + BACK_T / 2]}
         castShadow
         receiveShadow
-        material={carcassWood}
-      >
-        <boxGeometry args={[WIDTH + 0.014, BOARD_T, DEPTH + 0.008]} />
-      </mesh>
-      <mesh position={[0, SIDE_H / 2, -DEPTH / 2 + BACK_T / 2]} castShadow material={backWood}>
-        <boxGeometry args={[INNER_W, SIDE_H - 0.006, BACK_T]} />
-      </mesh>
+      />
 
-      <mesh position={[0, MID_BOARD_Y, DEPTH / 2 + 0.0011]} material={plaqueMaterials.favorites}>
-        <boxGeometry args={[0.06, 0.0115, 0.0022]} />
-      </mesh>
-      <mesh position={[0, BOARD_T / 2, DEPTH / 2 + 0.0011]} material={plaqueMaterials.current}>
-        <boxGeometry args={[0.06, 0.0115, 0.0022]} />
-      </mesh>
-
-      {books.map((b) => (
-        <mesh
-          key={b.key}
-          position={b.position}
-          rotation={b.rotation}
-          castShadow
-          receiveShadow
-          material={b.materials}
-        >
-          <boxGeometry args={b.size} />
-        </mesh>
+      {/* brass shelf plaques, pinned at both ends */}
+      {(
+        [
+          { label: "favorites" as const, y: MID_BOARD_Y },
+          { label: "current" as const, y: BOARD_T / 2 }
+        ]
+      ).map((p) => (
+        <group key={p.label} position={[0, p.y, DEPTH / 2 + 0.0013]}>
+          <mesh geometry={carcass.plaqueGeo} material={carcass.plaqueMats[p.label]} castShadow />
+          {[-0.0245, 0.0245].map((px) => (
+            <mesh key={px} material={carcass.pinBrass} position={[px, 0, 0.0013]} scale={[1, 1, 0.55]}>
+              <sphereGeometry args={[0.0015, 12, 8]} />
+            </mesh>
+          ))}
+        </group>
       ))}
 
-      {metalParts.map((p) => (
-        <mesh key={p.key} position={p.position} castShadow material={metal}>
-          <boxGeometry args={p.size} />
-        </mesh>
-      ))}
+      {/* shelved books */}
+      {entries.map(renderBook)}
+
+      {/* display copy on top + its bookmark */}
+      {flat ? renderBook(flat) : null}
+      {ribbonGeo ? <mesh geometry={ribbonGeo} material={ribbonMat} castShadow /> : null}
+
+      {/* folded-steel bookends with felt pads */}
+      {bookends.map((b) => {
+        const baseTop = b.surfaceY + 0.0028;
+        return (
+          <group key={b.key}>
+            <mesh material={carcass.felt} position={[b.x + 0.039, b.surfaceY + 0.0005, BOOK_BASE_Z]}>
+              <boxGeometry args={[0.07, 0.001, 0.104]} />
+            </mesh>
+            <mesh
+              geometry={carcass.bookendBaseGeo}
+              material={carcass.steel}
+              position={[b.x + 0.039, b.surfaceY + 0.0019, BOOK_BASE_Z]}
+              castShadow
+            />
+            <mesh
+              geometry={carcass.uprightGeo}
+              material={carcass.steel}
+              position={[b.x + 0.00125, baseTop + 0.066, BOOK_BASE_Z]}
+              castShadow
+            />
+            <mesh
+              material={carcass.steel}
+              position={[b.x + 0.00125, baseTop + 0.1312, BOOK_BASE_Z]}
+              rotation={[Math.PI / 2, 0, 0]}
+              castShadow
+            >
+              <cylinderGeometry args={[0.0019, 0.0019, 0.108, 12]} />
+            </mesh>
+            <mesh
+              geometry={carcass.lipGeo}
+              material={carcass.steel}
+              position={[b.x + 0.00125 + 0.008, baseTop + 0.1312 + 0.0051, BOOK_BASE_Z]}
+              rotation={[0, 0, -1.0]}
+              castShadow
+            />
+          </group>
+        );
+      })}
     </group>
   );
 }
