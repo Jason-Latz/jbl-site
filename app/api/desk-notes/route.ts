@@ -44,6 +44,13 @@ function getServiceClient(): SupabaseClient | null {
     auth: {
       autoRefreshToken: false,
       persistSession: false
+    },
+    global: {
+      // Next 14 data-caches GET fetches even in force-dynamic route
+      // handlers, so supabase-js reads could serve a stale notes list
+      // forever (found via the identical bug in the chess routes). Pin
+      // every underlying request to no-store.
+      fetch: (input, init) => fetch(input, { ...init, cache: "no-store" })
     }
   });
 

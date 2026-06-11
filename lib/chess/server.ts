@@ -82,6 +82,13 @@ export function getChessServiceClient(): SupabaseClient | null {
     auth: {
       autoRefreshToken: false,
       persistSession: false
+    },
+    global: {
+      // Next 14 patches global fetch and data-caches GET requests even in
+      // force-dynamic route handlers — supabase-js reads (REST GETs) were
+      // served stale forever, so a move could land in the DB while
+      // /api/chess/game kept reporting the old position. Pin no-store.
+      fetch: (input, init) => fetch(input, { ...init, cache: "no-store" })
     }
   });
 
