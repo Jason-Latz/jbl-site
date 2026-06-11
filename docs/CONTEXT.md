@@ -6,6 +6,31 @@
 
 ## Session log
 
+### 2026-06-11 — LAUNCHED: the-desk merged to main
+
+Jason: "take them all, and combine them all, then merge to main. this is
+launchable (barely)." Combined the five open PRs from his parallel
+sessions into the-desk, then merged the-desk -> main:
+
+- PR #1 Vercel Web Analytics: conflicts in layout.tsx (kept Analytics,
+  kept our removal of the broken @mdxeditor css import that the PR
+  inherited from main), package.json (union), lockfile regenerated.
+- PR #2 pause hidden Spotify polling (legacy ribbon) — clean.
+- PR #3 pause hidden Duolingo polling — clean.
+- PR #4 optimize public post reads (homepage uses
+  fetchLatestPublishedPost; DeskHero untouched) — clean.
+- PR #5 scoped travel warmup queries: CODEBASE_GUIDE conflicts resolved
+  by combining both sides; kept the TRUE cron cadence (daily 12:30 UTC
+  per vercel.json — the PR's "hourly" line was stale).
+
+Verified on the combined tree before merging: tsc clean, clean
+production build (homepage 123 kB, chess routes present), preview smoke
+(scene renders, HUD live, both ribbons, latest-writing card, chess API
+serving the real game — the world's 1. d4 stands, Jason to move).
+
+main now carries The Desk. The the-desk branch remains for development;
+future work should keep merging to main once verified.
+
 ### 2026-06-11 (late night) — Mesh-merge pass SHIPPED (the audit's task chips)
 
 The four mechanical draw-call wins deferred from the perf audit, one
