@@ -11,7 +11,6 @@ import {
   chromeMaterial,
   brushedMetalMaterial,
   plasticMaterial,
-  paperMaterial,
   feltMaterial,
   lacquerMaterial,
   lacqueredWoodMaterial
@@ -289,6 +288,63 @@ export default function Turntable({
       { srgb: false, anisotropy: 8 }
     );
 
+    // Radial anisotropy field for the vinyl. A record's surface is thousands
+    // of concentric grooves, so its specular highlight stretches PERPENDICULAR
+    // to them — a radial blade that sweeps the disc as it spins. three r169
+    // decodes anisotropyMap.rg as a tangent-space direction ([0,1] -> [-1,1],
+    // T_final = x*T + y*B with T along +U, B along +V) and .b as strength.
+    // The ring geometry's UVs are planar with the spindle at (0.5, 0.5), and
+    // canvas flipY negates y — so each texel stores its own raw radial
+    // direction (dx, -dy). Strength follows the pressing: dead under the
+    // label, soft in the dead wax, full across the program grooves with a
+    // concentric wobble, eased in the four track gaps, tapered at the rim.
+    const gapRhos = [0.2, 0.44, 0.66, 0.87].map((t) => (458 + 542 * t) / 1024);
+    const grooveStrength = (rho: number): number => {
+      if (rho < 0.3) return 0;
+      let s: number;
+      if (rho < 0.447) {
+        s = THREE.MathUtils.mapLinear(rho, 0.3, 0.447, 0.3, 0.95);
+      } else if (rho < 0.977) {
+        s = 0.9 + 0.08 * Math.sin(rho * 411.7) * Math.sin(rho * 87.3);
+        for (const gap of gapRhos) {
+          const d = Math.abs(rho - gap);
+          if (d < 0.012) {
+            s = THREE.MathUtils.lerp(0.62, s, d / 0.012);
+          }
+        }
+      } else {
+        s = THREE.MathUtils.mapLinear(rho, 0.977, 1.0, 0.9, 0.4);
+      }
+      return THREE.MathUtils.clamp(s, 0, 1);
+    };
+    const vinylAnisoMap = makeCanvasTexture(
+      512,
+      512,
+      (ctx, w, h) => {
+        const image = ctx.createImageData(w, h);
+        const data = image.data;
+        const half = w / 2;
+        for (let py = 0; py < h; py++) {
+          for (let px = 0; px < w; px++) {
+            const dx = px + 0.5 - half;
+            const dy = py + 0.5 - half;
+            const len = Math.hypot(dx, dy);
+            // Default direction at the spindle singularity (strength 0 there)
+            // keeps the shader's normalize() away from a zero vector.
+            const x = len > 0.5 ? dx / len : 1;
+            const y = len > 0.5 ? -dy / len : 0;
+            const idx = (py * w + px) * 4;
+            data[idx] = Math.round(127.5 + 127.5 * x);
+            data[idx + 1] = Math.round(127.5 + 127.5 * y);
+            data[idx + 2] = Math.round(255 * grooveStrength(len / half));
+            data[idx + 3] = 255;
+          }
+        }
+        ctx.putImageData(image, 0, 0);
+      },
+      { srgb: false, anisotropy: 8 }
+    );
+
     const labelMap = makeCanvasTexture(
       1024,
       1024,
@@ -451,29 +507,55 @@ export default function Turntable({
     });
     plate.envMapIntensity = 1.3;
 
-    const platter = brushedMetalMaterial("#b6b3ab");
-    platter.roughness = 0.34;
+    // Machined platter: lathe-turned, so tool marks run circumferentially.
+    // Lathe UVs put U around the rim and V along the profile; rotating the
+    // uniform anisotropy by 90deg stretches the highlight along V — radially
+    // across the flat annulus, vertically down the rim. Classic turned metal.
+    const platter = new THREE.MeshPhysicalMaterial({
+      color: "#b6b3ab",
+      metalness: 0.9,
+      roughness: 0.32,
+      anisotropy: 0.5,
+      anisotropyRotation: Math.PI / 2
+    });
     platter.envMapIntensity = 1.1;
 
-    const vinyl = lacquerMaterial("#0d0c0b", {
-      clearcoat: 0.5,
-      clearcoatRoughness: 0.26,
-      roughness: 0.5
+    // Pressed vinyl: near-black with a faint warm cast, a thin glassy
+    // clearcoat skin, and the radial anisotropy field above. The groove
+    // canvas stays wired as roughness + bump so the blade picks up the
+    // ring-to-ring sparkle and the four glossier track gaps.
+    const vinyl = lacquerMaterial("#100d0a", {
+      clearcoat: 0.55,
+      clearcoatRoughness: 0.24,
+      roughness: 0.38
     });
     vinyl.roughnessMap = grooveMap;
     vinyl.bumpMap = grooveMap;
     vinyl.bumpScale = 0.0004;
+    vinyl.anisotropy = 0.85;
+    vinyl.anisotropyMap = vinylAnisoMap;
+    vinyl.envMapIntensity = 1.05;
 
-    const vinylEdge = lacquerMaterial("#0d0c0b", {
+    const vinylEdge = lacquerMaterial("#100d0a", {
       clearcoat: 0.6,
       clearcoatRoughness: 0.2,
       roughness: 0.34
     });
     vinylEdge.envMapIntensity = 1.2;
+    // The rolled rim is a lathe too — same circumferential pressing marks,
+    // same 90deg uniform anisotropy as the platter.
+    vinylEdge.anisotropy = 0.5;
+    vinylEdge.anisotropyRotation = Math.PI / 2;
 
-    const label = paperMaterial("#ffffff");
-    label.map = labelMap;
-    label.roughness = 0.62;
+    // Printed paper label: matte fiber with the faintest semi-gloss from the
+    // press — a whisper of clearcoat, deliberately NO anisotropy.
+    const label = new THREE.MeshPhysicalMaterial({
+      map: labelMap,
+      roughness: 0.62,
+      metalness: 0,
+      clearcoat: 0.06,
+      clearcoatRoughness: 0.5
+    });
 
     const mat = feltMaterial("#141312");
     mat.bumpMap = matBump;
@@ -776,7 +858,15 @@ export default function Turntable({
           {labelArt ? (
             <mesh position={[0, 0.00245, 0]} rotation={[-Math.PI / 2, 0, 0]}>
               <circleGeometry args={[0.0455, 96]} />
-              <meshStandardMaterial map={labelArt} roughness={0.6} />
+              {/* Same pressed-paper read as the label under it: matte, a
+                  whisper of clearcoat, no anisotropy. */}
+              <meshPhysicalMaterial
+                map={labelArt}
+                roughness={0.6}
+                metalness={0}
+                clearcoat={0.06}
+                clearcoatRoughness={0.5}
+              />
             </mesh>
           ) : null}
         </group>
