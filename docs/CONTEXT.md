@@ -6,6 +6,43 @@
 
 ## Session log
 
+### 2026-06-11 (late night) — Mesh-merge pass SHIPPED (the audit's task chips)
+
+The four mechanical draw-call wins deferred from the perf audit, one
+commit each. Every merged batch is paid TWICE per frame (the desk
+reflector re-renders the scene), so each mesh removed is two draws:
+- Room floor: ~111 planks (own geometry + clearcoat Physical material
+  each) -> 5 meshes batched by grain canvas. Tint baked into vertex
+  colors (setHSL writes working-space components, so vertex color ==
+  the old material.color exactly); transforms baked into geometry;
+  materials now Standard — the clearcoat was "old varnish, mostly worn
+  matte" and never read. GOTCHA: the retired material's three rng draws
+  are kept as sacrificial calls so the lay stays identical — remove
+  them and the whole floor re-lays.
+- MacBook: 78 key caps -> 3 meshes grouped by finish. Jitter baked at
+  build time; legends were already on the overlay plane.
+- RecordCrate: 48 screws + 16 rivets + 16 bracket plates -> 3
+  InstancedMeshes (transforms were already precomputed). Plates moved
+  from drei RoundedBox to three-stdlib RoundedBoxGeometry (same dims/
+  radius) to be instanceable.
+- Chessboard: rook merlons, queen pearls + orb, king cross, knight
+  head + mane merged into the per-kind body geometry — a piece is now
+  felt + body (bishop keeps its grooveMat ring). GOTCHA: lathes are
+  indexed, extrudes aren't — everything passes through toNonIndexed()
+  before mergeBufferGeometries or the merge returns null. Animation
+  system, exports, FEN roster untouched. Second commit: lathe diet,
+  64 -> 40 segments, ~28 profile samples (pieces are ~3cm on screen).
+
+Net: ~320 fewer meshes in the main pass (~640 fewer draws/frame with
+the reflector). Verified by screenshot QA on cold loads: rest + work +
+chess + records focus in light, rest + chess in dark — keys, legends,
+piece silhouettes, crate hardware, leak direction all read identically.
+Build green (homepage 123 kB). tsc clean after every commit.
+
+Still deferred from the audit: raycast hit-proxies or BVH (CAUTION:
+drei Bvh may clobber raycast={() => null} — hand-test the beam), texture
+right-sizing (~45 MB), sticker-hover extraction, RecordsPanel prewarm.
+
 ### 2026-06-11 (night) — Leak direction fix + performance pass SHIPPED
 
 Jason: the screen leak "is going backwards from the computer", and focus
