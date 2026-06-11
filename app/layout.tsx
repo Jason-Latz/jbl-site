@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, Newsreader } from "next/font/google";
 import Script from "next/script";
-import "@mdxeditor/editor/style.css";
 import "./globals.css";
 import SiteFooter from "@/components/SiteFooter";
 import SiteNav from "@/components/SiteNav";
