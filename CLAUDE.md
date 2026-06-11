@@ -73,6 +73,16 @@ read `docs/PLAN.md` (staged roadmap) and `docs/CONTEXT.md` (live state of the bu
   plays them fine through the stream proxy.
 - Supabase direct DB host resolves IPv6-only here; use the pooler DSNs
   (CODEBASE_GUIDE.md §12.2).
+- **Next 14 data-caches supabase-js GET fetches in route handlers even with
+  `dynamic = "force-dynamic"`** — reads go stale forever (responses in ~3 ms instead
+  of a 50 ms+ round trip is the tell). Create service clients with
+  `global: { fetch: (i, init) => fetch(i, { ...init, cache: "no-store" }) }`.
+- A long-lived dev server can serve a **stale webpack chunk on cold loads** (runtime
+  ReferenceError for a valid import) while HMR applies work fine — looks exactly like
+  a code bug. Stop dev, `rm -rf .next`, restart.
+- The DepthOfField `target` prop (postprocessing 6.36) silently kills ALL composer
+  output. Damp a world-space focal point and write `cocMaterial.worldFocusDistance`
+  instead (see components/desk/Effects.tsx).
 - `app/layout.tsx` imported `@mdxeditor/editor/style.css` without the dependency existing
   (pre-existing break at branch point; see docs/CONTEXT.md).
 - Spotify "today" stats are approximate (last-50-plays window).

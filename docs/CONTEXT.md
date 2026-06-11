@@ -6,6 +6,94 @@
 
 ## Session log
 
+### 2026-06-11 (later) — Beauty pass + Stage 3 chess SHIPPED
+
+Jason's directive: "not quite artsy enough… I'm okay with a 5- or 10-second
+loading if we can make this really just wow, beautiful. Remember, this is
+your art." Two Ultracode fan-outs (4 artisan agents each) + integration.
+
+THE BEAUTY PASS (light is the subject):
+- LampBeam.tsx: volumetric cone (two additive shells, view-space fresnel
+  melts the wall — no silhouette), 150 vertex-shader dust motes, all scaled
+  by lampGlowRef (= theme mix × filament warm-up envelope exported from
+  DeskLamp) so the beam stumbles alight with the bulb. Dark mode pays zero.
+- DeskLamp: warm-up envelope on every off→on strike (two catches, stutter,
+  rise with settle-shimmer over ~1.2 s). Spot eased 5.8 → 5.4 (label bloomed
+  white with the new specular energy).
+- Desk.tsx: the top is a real MeshReflectorMaterial film 0.4 mm above the
+  slab (UNDER the baked-shadow plane at 0.8 mm), wearing recomposed copies
+  of the slab's own canvas maps. mixStrength is animated per-frame between
+  0.7 (lit) and 1.35 (dark). All knobs exported as consts.
+- Effects.tsx replaces the inline composer: N8AO (aoRadius 0.07 m,
+  intensity lamp-damped 2.6→1.6) → SMAA → DoF → Bloom → Noise 0.03 →
+  Vignette. DoF's focal point is a hand-damped world vector; its camera
+  distance feeds cocMaterial.worldFocusDistance directly. DO NOT use the
+  DepthOfField `target` prop — it silently kills the whole composer output
+  in this postprocessing version.
+- Turntable vinyl: MeshPhysicalMaterial anisotropy with a per-texel RADIAL
+  direction map (verified three r169's rg/b decode in node_modules before
+  encoding) — the classic light blade sweeps the grooves; platter/rim get
+  uniform 90° anisotropy; label stays matte paper.
+- Entrance: bake raised to 220 frames / 2048 res; canvas waits invisible
+  over the shimmer until frame 3 then fades in 1.15 s while the lamp plays
+  its warm-up. MacBook night leak rebalanced (ajar 0.185 rad, screen blade
+  2.0, glow 1.25 cd → washes the wall, rims bookshelf + chessmen).
+
+STAGE 3 — world vs. Jason chess, full stack:
+- DB: chess_games applied live via pooler psql; game 1 seeded, world = white.
+- lib/chess/server.ts + GET /api/chess/game, POST /api/chess/move (turn
+  check, chess.js legality, ply optimistic lock, same-IP 60 s cooldown,
+  desk-voice errors), POST /api/chess/admin (cookie session +
+  profiles.is_editor, then service role; move / new_game with color flip).
+- Chessboard.tsx renders live FEN: persistent 32-actor roster, carried-piece
+  arcs (12 mm lift), graveyard rows outside both flanks (±0.218 m — chess
+  focus view frames them), coral last-move inlay glow, hand-rolled FEN
+  parser (no chess.js in the 3D bundle).
+- lib/useChessGame.ts (30 s poll, visibility-aware) + ChessBoard2D (custom
+  SVG piece set, legal-move dots, promotion picker, every square a labeled
+  button) + ChessPanel (status voice, move list) + ChessAdmin in /admin.
+- Focus wiring: FocusId "chess", FOCUS_VIEWS.chess, /?focus=chess deep link.
+
+VERIFIED: API end-to-end with curl (illegal → 400, legal e4 → 200 + correct
+FEN/SAN/lastMove, wrong-turn → 403, unauth admin → 401); full visitor path
+through the real panel UI (click e2 → dot → e4 → optimistic update →
+"Jason is thinking…" → row in Supabase); 3D board built a seeded Italian
+position (castling = two pieces moved correctly) on cold load; both themes
+screenshot-QA'd at the new fidelity. Game RESET to a clean board after
+testing — the world's real game 1 starts fresh. Build green (homepage
+first-load 123 kB, scene chunk lazy).
+
+BUGS FOUND AND FIXED (gotchas — also added to CLAUDE.md):
+1. Next 14 data-caches supabase-js GET fetches inside route handlers EVEN
+   with `dynamic = "force-dynamic"` — /api/chess/game served the stale
+   pre-move position forever (responses in 3 ms; real round trip 50 ms+).
+   Fix: create service clients with global fetch pinned to
+   `cache: "no-store"`. Applied to chess + desk-notes; lib/spotify.ts
+   flagged as a follow-up task chip.
+2. A long-lived dev server (one that survived ~150 agent edits) served a
+   STALE WEBPACK CHUNK on cold loads ("ReferenceError: EffectComposer is
+   not defined" in the dev overlay's stack-frame requests) while every HMR
+   apply worked — this mimicked a code bug perfectly and cost a long
+   bisect. Cure: stop dev, rm -rf .next, restart.
+3. Preview-tool rAF is throttled when the page is backgrounded — fps can't
+   be measured there. Perf additions are budget-conscious (half-res N8AO,
+   1024 reflector, GPU-only motes) but NEED JASON'S EYEBALL on real
+   hardware.
+
+STILL NEEDS JASON'S HAND-CHECK:
+- /admin chess with his signed-in session (play a reply, try new-game; only
+  the 401 path was verifiable without his cookies).
+- In-canvas clicks (lamp toggle, object focus including the chessboard,
+  sticker chip) — R3F raycast limitation as before.
+- Real speakers (synthesized needle audio) and real-hardware fps/loading
+  feel (the bake freeze should hide entirely behind the curtain-rise).
+- The beauty-pass grade overall — every knob is an exported const
+  (LampBeam BEAM_*, Desk REFLECTOR_*, Effects AO_*/DOF_*/GRAIN_*).
+
+Deferred/nice-to-have spotted during the work: dynamic-import ChessPanel to
+keep chess.js out of the homepage first load (123 kB is still fine);
+shared relativeTime util (ChessPanel and ChessAdmin carry local copies).
+
 ### 2026-06-11 — Stage 1.5 + Stage 2 SHIPPED — pushed to origin/the-desk
 
 Branch strategy per Jason: `main` stays the live regular site; The Desk

@@ -93,13 +93,46 @@ Remaining Stage 2 nice-to-haves (deferred):
 - [ ] Admin delete/moderation UI for desk_notes in /admin (today: psql)
 - [ ] Latest notes inked onto the 3D pad's top-sheet texture itself
 
-## Stage 3 — chess: the world vs. Jason
+## Stage 2.75 — the beauty pass (SHIPPED 2026-06-11)
 
-- [ ] `chess_game` schema: single game row, move list, optimistic concurrency
-- [ ] chess.js legality on server route; visitors move only on world's turn
-- [ ] 3D pieces move on the desk board; last-move annotation ("world played Nf6, 3h ago")
-- [ ] Jason moves via /admin (or signed-in editor session on the site)
-- [ ] Game-over handling: archive result, start fresh game
+Jason: "I still don't think it's quite artsy enough… I'm okay with a 5- or
+10-second loading if we can make this really just wow, beautiful. Remember,
+this is your art." Light became the subject:
+
+- [x] Volumetric lamp beam + 150 GPU-driven dust motes (fresnel-melted cone
+      shells; flickers in sympathy with the filament via lampGlowRef)
+- [x] Filament warm-up envelope on every lamp strike (page load + clicks)
+- [x] Desk top is a true lacquer reflector (MeshReflectorMaterial wearing
+      recomposed copies of the slab's own grain maps; mix strength
+      crossfades with the theme)
+- [x] Cinematic post stack (components/desk/Effects.tsx): N8AO contact AO
+      (meter-scale radii, lamp-aware intensity), DoF gliding between the
+      turntable hero and the active focus view, film grain; SMAA/Bloom/
+      Vignette keep the established grade
+- [x] Vinyl anisotropy: per-texel radial direction map (three r169 rg/b
+      convention) — the light blade sweeps the grooves as the record spins
+- [x] Loading budget spent: 220-frame / 2k shadow bake behind a curtain-rise
+      fade (the loading screen is the lamp being switched on)
+- [x] Night rebalance: ajar MacBook leak (1.25 cd) washes the wall and rims
+      the bookshelf + chessmen; lamp pool eased 5.8 → 5.4
+
+## Stage 3 — chess: the world vs. Jason (SHIPPED 2026-06-11)
+
+- [x] `chess_games` schema: single active row, jsonb move list, ply counter
+      as the optimistic-concurrency token (applied live; game 1 seeded,
+      world plays white)
+- [x] chess.js legality on server routes; visitors move only on the world's
+      turn (same-IP 60 s cooldown; 409 on races; verified end-to-end
+      against the dev server)
+- [x] 3D pieces move on the desk board (FEN-diffed roster, carried-piece
+      arcs, graveyard flanks, coral last-move glow) + panel annotation
+      ("the world played O-O · just now")
+- [x] Jason moves via /admin (ChessAdmin on the shared hook/board;
+      NEEDS JASON'S SIGNED-IN HAND-CHECK — only the 401 path could be
+      verified without his session)
+- [x] Game-over handling: checkmate credits the mover, draws detected
+      (except auto-threefold — FEN carries no history), admin "new game"
+      archives and reseeds with colors alternating
 
 ## Stage 4 — polish and beyond
 
