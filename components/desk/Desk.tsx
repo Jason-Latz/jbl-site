@@ -34,8 +34,12 @@ const APRON_T = 0.022;
 // Plane floats 0.4 mm over the slab; the baked AccumulativeShadows plane at
 // +0.8 mm MUST stay above it so contact shadows keep landing on the lacquer.
 export const REFLECTOR_LIFT = 0.0004;
-export const REFLECTOR_RESOLUTION = 1024; // FBO size — keep <= 1024
-export const REFLECTOR_BLUR: [number, number] = [320, 120]; // soft-pass kernel
+// 640 (was 1024): the mirror pass re-renders the ENTIRE scene every frame,
+// so its FBO size is the biggest runtime dial on the desk. The reflection
+// is roughness-blurred everywhere anyway — at 640 the visual delta is nil
+// and the pass costs ~2.5x less fill.
+export const REFLECTOR_RESOLUTION = 640;
+export const REFLECTOR_BLUR: [number, number] = [220, 90]; // soft-pass kernel
 export const REFLECTOR_MIRROR = 0.42; // how much base wood yields to reflection
 export const REFLECTOR_MIX_BLUR = 1.0; // scales roughness-map-driven blur mix
 export const REFLECTOR_MIX_CONTRAST = 1.0;
