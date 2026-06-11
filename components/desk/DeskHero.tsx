@@ -198,6 +198,27 @@ export default function DeskHero() {
       ) : (
         <div className="desk-hero-loading" aria-hidden="true" />
       )}
+      <a
+        className="desk-credit"
+        href="https://claude.com/claude-code"
+        target="_blank"
+        rel="noreferrer"
+        aria-label="This scene was made with Claude"
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true">
+          <g fill="#d97757">
+            {Array.from({ length: 9 }, (_, i) => (
+              <path
+                key={i}
+                d="M12 11 L11.2 4.5 Q12 3 12.8 4.5 Z"
+                transform={`rotate(${i * 40} 12 12)`}
+              />
+            ))}
+            <circle cx="12" cy="12" r="1.6" />
+          </g>
+        </svg>
+        Made with Claude
+      </a>
       {capability === "scene" ? (
         <NowPlayingHUD
           trackTitle={trackTitle}
