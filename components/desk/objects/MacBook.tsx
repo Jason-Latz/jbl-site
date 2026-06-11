@@ -1127,7 +1127,10 @@ export default function MacBook({ open }: MacBookProps) {
     return {
       open: THREE.MathUtils.degToRad(110 + (rng() - 0.5) * 3) - Math.PI / 2,
       closed: -Math.PI / 2 + 0.035,
-      ajar: -Math.PI / 2 + 0.17,
+      // Wedge widened + leak brightened when the lacquer reflector landed:
+      // the mirror film darkens the base wood, so the night blade needs
+      // more energy to pool AND reflect (the dark-mode money shot).
+      ajar: -Math.PI / 2 + 0.185,
       slop: (rng() - 0.5) * 0.008
     };
   }, []);
@@ -1157,7 +1160,7 @@ export default function MacBook({ open }: MacBookProps) {
       );
     }
     screenMaterial.emissiveIntensity =
-      THREE.MathUtils.lerp(1.5, 0.35, mix) * openFraction;
+      THREE.MathUtils.lerp(2.0, 0.35, mix) * openFraction;
     legendMaterial.emissiveIntensity =
       THREE.MathUtils.lerp(0.5, 0.04, mix) * openFraction;
     if (glowRef.current && lidRef.current) {
@@ -1168,7 +1171,11 @@ export default function MacBook({ open }: MacBookProps) {
         0,
         1
       );
-      glowRef.current.intensity = THREE.MathUtils.lerp(0.18, 0, mix) * leak;
+      // 1.25 cd through the wedge: enough to wash the wall and rim the
+      // bookshelf + chessmen in cool screen light without breaking the
+      // embers mood. (0.18 predates physical-light scaling + the lacquer
+      // reflector and reads as pitch black.)
+      glowRef.current.intensity = THREE.MathUtils.lerp(1.25, 0, mix) * leak;
     }
   });
 

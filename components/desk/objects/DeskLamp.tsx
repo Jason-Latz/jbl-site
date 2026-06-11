@@ -490,7 +490,10 @@ export default function DeskLamp() {
     lampGlowRef.current = glow;
 
     if (spotRef.current) {
-      spotRef.current.intensity = 5.8 * glow;
+      // 5.4 (was 5.8): with the volumetric beam adding perceived light and
+      // the vinyl's anisotropy adding specular energy, the old intensity
+      // blew the record label past the bloom threshold into a white blob.
+      spotRef.current.intensity = 5.4 * glow;
     }
     bulbMat.emissiveIntensity = 3 * glow;
     innerShellMat.emissiveIntensity = 1.4 * glow;
