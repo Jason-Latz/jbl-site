@@ -1,9 +1,10 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useRef } from "react";
+import { Suspense, memo, useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import {
   AccumulativeShadows,
+  AdaptiveDpr,
   Environment,
   Lightformer,
   OrbitControls,
@@ -13,20 +14,37 @@ import {
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import * as THREE from "three";
 import type { ThreeEvent } from "@react-three/fiber";
+import { markShadowsDirty, shadowsDirtyNow } from "@/lib/three/shadow-dirty";
 import { DeskThemeProvider, useDeskTheme } from "./DeskThemeContext";
 import { useSiteTheme } from "./useSiteTheme";
 import { CAMERA, FOCUS_VIEWS, PLACEMENT, type FocusId } from "./layout";
-import Desk from "./Desk";
+import DeskBase from "./Desk";
 import DeskEffects from "./Effects";
-import Room from "./Room";
-import Bookshelf from "./objects/Bookshelf";
-import Chessboard from "./objects/Chessboard";
-import DeskLamp from "./objects/DeskLamp";
-import LampBeam from "./objects/LampBeam";
-import MacBook from "./objects/MacBook";
-import Notepad from "./objects/Notepad";
-import RecordCrate from "./objects/RecordCrate";
-import Turntable from "./objects/Turntable";
+import RoomBase from "./Room";
+import BookshelfBase from "./objects/Bookshelf";
+import ChessboardBase from "./objects/Chessboard";
+import DeskLampBase from "./objects/DeskLamp";
+import LampBeamBase from "./objects/LampBeam";
+import MacBookBase from "./objects/MacBook";
+import NotepadBase from "./objects/Notepad";
+import RecordCrateBase from "./objects/RecordCrate";
+import TurntableBase from "./objects/Turntable";
+
+// Every DeskHero state change (needle phase, polls, focus) re-renders this
+// tree; without memo each procedural object re-reconciles its hundreds of
+// R3F elements at exactly the wrong moment (the focus click). All props
+// passed below are primitives or identity-stable (DeskHero guarantees it),
+// so memo holds and a click re-renders only what actually changed.
+const Desk = memo(DeskBase);
+const Room = memo(RoomBase);
+const Bookshelf = memo(BookshelfBase);
+const Chessboard = memo(ChessboardBase);
+const DeskLamp = memo(DeskLampBase);
+const LampBeam = memo(LampBeamBase);
+const MacBook = memo(MacBookBase);
+const Notepad = memo(NotepadBase);
+const RecordCrate = memo(RecordCrateBase);
+const Turntable = memo(TurntableBase);
 
 export type DeskSceneProps = {
   turntablePlaying: boolean;
@@ -256,14 +274,20 @@ function CameraDirector({
       to: view ? new THREE.Vector3(...view.position) : rig.rest.clone(),
       toTarget: view ? new THREE.Vector3(...view.target) : rig.target.clone(),
       progress: 0,
-      duration: isFirst ? 2.3 : 1.25,
+      // 1.05 s focus flights (was 1.25): with the panel's backdrop blur
+      // gone and DPR regressing during motion, the shorter dolly reads
+      // snappy instead of rushed.
+      duration: isFirst ? 2.3 : 1.05,
       unlockOnLand: !focus
     };
   }, [rig, focus, camera, controlsRef]);
 
-  useFrame((_, delta) => {
+  useFrame((state, delta) => {
     const flight = flightRef.current;
     if (flight) {
+      // Tell the adaptive-DPR system we're in motion: resolution drops for
+      // the flight (blur hides it) and recovers at the framed rest pose.
+      state.performance.regress();
       flight.progress = Math.min(1, flight.progress + delta / flight.duration);
       const eased = 1 - Math.pow(1 - flight.progress, 3);
       camera.position.lerpVectors(flight.from, flight.to, eased);
@@ -288,14 +312,52 @@ function CameraDirector({
   return null;
 }
 
-// Reports "the scene is actually drawing" — by frame 3 the blocking shadow
-// bake and first compiles are behind us, so the hero can start its fade-in.
+// The desk is a still life: freeze both shadow maps after the warm-up and
+// re-render them only while a mover (chess glide, MacBook lid, tonearm)
+// holds the dirty flag. Steady-state this removes ~450 casters x 2 lights
+// of shadow draws per frame — the audit's single biggest runtime win.
+function FrozenShadows() {
+  const { gl } = useThree();
+  useEffect(() => {
+    // Render freely through the bake + first reveal, then freeze.
+    markShadowsDirty(2.0);
+    gl.shadowMap.autoUpdate = false;
+    return () => {
+      gl.shadowMap.autoUpdate = true;
+    };
+  }, [gl]);
+  useFrame(() => {
+    if (shadowsDirtyNow()) {
+      gl.shadowMap.needsUpdate = true;
+    }
+  });
+  return null;
+}
+
+// Reports "the scene is actually drawing" — and spends the load curtain on
+// upfront work: renderer.compileAsync walks the whole graph and compiles
+// every shader program before the fade-in reveals the first frame, so no
+// interaction later pays a first-compile hitch.
 function ReadySignal({ onReady }: { onReady?: () => void }) {
+  const { gl, scene, camera } = useThree();
   const framesRef = useRef(0);
+  const compileStartedRef = useRef(false);
+  const compiledRef = useRef(false);
   const firedRef = useRef(false);
   useFrame(() => {
     framesRef.current += 1;
-    if (framesRef.current >= 3 && !firedRef.current) {
+    if (!compileStartedRef.current) {
+      compileStartedRef.current = true;
+      const done = () => {
+        compiledRef.current = true;
+      };
+      try {
+        gl.compileAsync(scene, camera).then(done, done);
+      } catch {
+        done();
+      }
+    }
+    if (!firedRef.current && framesRef.current >= 3 && compiledRef.current) {
       firedRef.current = true;
       onReady?.();
     }
@@ -367,7 +429,11 @@ function SceneContents({
   return (
     <>
       <ReadySignal onReady={onReady} />
-      <SoftShadows size={18} samples={16} focus={0.42} />
+      <FrozenShadows />
+      <AdaptiveDpr />
+      {/* samples 10 (was 16): PCSS runs per-fragment scene-wide; below 10
+          the penumbra dithers, above it the eye stops noticing. */}
+      <SoftShadows size={18} samples={10} focus={0.42} />
       <SceneEnvironment />
       <LightingRig />
       <CameraDirector controlsRef={controlsRef} rig={rig} focus={focus} />
@@ -430,6 +496,9 @@ export default function DeskScene(props: DeskSceneProps) {
     <Canvas
       shadows
       dpr={[1, 1.75]}
+      // Floor for AdaptiveDpr: during camera flights (performance.regress)
+      // resolution sags to ~55% and recovers at rest — motion hides it.
+      performance={{ min: 0.55 }}
       camera={{
         fov: CAMERA.fov,
         near: 0.1,
