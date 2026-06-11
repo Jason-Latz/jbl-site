@@ -6,6 +6,38 @@
 
 ## Session log
 
+### 2026-06-10 (later) — Stage 1 COMPLETE on branch
+
+Stage 1 shipped in ~35 granular commits. The homepage is the 3D desk: all seven
+objects placed, live Spotify on the platter, full needle-drop audio chain working,
+theme-as-lamp crossfade, designed fallback, production build green (homepage
+first-load 103 kB; scene chunk lazy).
+
+Verified live in the preview browser:
+
+- Spotify → HUD → iTunes match → stream proxy → playback: end-to-end with the real
+  account (matched "Head First — Snazzy", high confidence, ~1 MB proxied stream).
+- Needle phases cycle idle → Lowering… → Lift the needle, and the natural 30-second
+  end lifts the arm via onEnded.
+- Theme bridge in both directions (attribute flip crossfades the whole scene; dark
+  mode = lamp off + MacBook screen glow spilling on the desk).
+- Mobile (375×812): portrait camera rig frames the turntable cluster; hero capped
+  at 62svh; HUD wraps.
+
+NEEDS JASON'S MANUAL CHECK (cannot be driven synthetically): clicking the lamp and
+the deck in-canvas (R3F raycasts from offsetX, synthetic events carry zero) — the
+HUD button shares the same handler and works, so risk is low. Also: real speakers —
+the synthesized thunk/crackle were only verified to schedule without errors.
+
+Fixes that came out of visual QA (committed separately): lamp yaw -0.6 so the beam
+lands on the turntable; MacBook turned to 3/4 with lighter aluminum + bigger
+stickers; tonearm metal darkened; desktop camera pulled back; portrait rig + aspect
+re-ease; mobile hero height cap.
+
+Gotchas discovered (also in CLAUDE.md): dev server vs `next build` share .next and
+conflict; preview-tool viewport emulation breaks after page reloads (resize again,
+avoid reloads, lean on HMR); iTunes previews arrive as audio/x-m4p but play fine.
+
 ### 2026-06-10 — Stage 1 kickoff (branch `claude/goofy-jang-fa9bd0`)
 
 **State: in progress.** Docs landed; three.js stack going in next; object build fan-out
@@ -27,10 +59,12 @@ Decisions made this session:
 
 Known issues / gotchas discovered:
 
-- **Pre-existing build break at branch point:** `app/layout.tsx` imports
-  `@mdxeditor/editor/style.css` but `@mdxeditor/editor` is not in package.json or the
-  lockfile. Resolution this session: TBD (verify with `npm run build`, then either
-  remove the import or add the dep — check with Jason if unclear which was intended).
+- **Pre-existing build break at branch point:** `app/layout.tsx` imported
+  `@mdxeditor/editor/style.css` but the dep only exists in the uncommitted editor
+  overhaul in Jason's main checkout. RESOLVED on this branch: dropped the vestigial
+  import and copied `lib/postTypes.ts` verbatim (two "Unblock build" commits). When
+  the editor-overhaul work lands from the main checkout, those two commits are
+  superseded — re-check layout.tsx then.
 
 ## Architecture snapshot
 

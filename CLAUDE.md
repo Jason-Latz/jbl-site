@@ -63,8 +63,14 @@ read `docs/PLAN.md` (staged roadmap) and `docs/CONTEXT.md` (live state of the bu
 
 ## Gotchas
 
+- **Never run `npm run build` while the dev server is running** — they share `.next`
+  and the build fails with phantom `PageNotFoundError`s. Stop dev, `rm -rf .next`, build.
 - Worktrees don't inherit `.env` — copy it from the main checkout
   (`cp ../../..../website/.env .env`).
+- R3F pointer handlers raycast from `offsetX/offsetY`, which synthetic PointerEvents
+  can't carry — in-canvas clicks can't be tested via JS dispatch; test by hand.
+- iTunes preview files may come back `audio/x-m4p`; Chrome sniffs the container and
+  plays them fine through the stream proxy.
 - Supabase direct DB host resolves IPv6-only here; use the pooler DSNs
   (CODEBASE_GUIDE.md §12.2).
 - `app/layout.tsx` imported `@mdxeditor/editor/style.css` without the dependency existing

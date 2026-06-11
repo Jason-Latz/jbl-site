@@ -22,28 +22,31 @@ Decisions locked with Jason (June 2026):
   Einstein — Joshua Foer), with room to add more. Book reviews come in Stage 2.
 - Commit style: granular, one object/behavior per commit (see CLAUDE.md).
 
-## Stage 1 — the room (current)
+## Stage 1 — the room (SHIPPED on branch, 2026-06-10)
 
-- [ ] Docs: CLAUDE.md, PLAN.md, CONTEXT.md
-- [ ] Three.js stack pinned and configured for Next 14 / React 18
-- [ ] Theme bridge hook (`data-theme` ⇄ scene lighting, lamp click toggles)
-- [ ] Scene shell: canvas mount, camera + clamped orbit, room + desk, lighting rig
-- [ ] Desk objects, each its own file + commit:
-  - [ ] Turntable (hero: plinth, platter, grooved vinyl, tonearm, controls)
-  - [ ] Forså desk lamp (chrome, articulated, clickable head)
-  - [ ] MacBook with three Claude stickers (screen glows in dark mode)
-  - [ ] Two-shelf bookcase with real spines (content/books.ts)
-  - [ ] Notepad + pen (static; guestbook in Stage 2)
-  - [ ] Chessboard with pieces (static; world-vs-Jason in Stage 3)
-  - [ ] Record crate with sleeves (static; history-driven sleeves in Stage 2)
-- [ ] Live Spotify wiring: vinyl spins at 33⅓ only while `isPlaying`; HUD shows track
-- [ ] Audio engine: synthesized needle thunk + crackle bed, preview playback chain
-- [ ] `/api/audio/preview` (iTunes match, cached) + `/api/audio/stream` (same-origin proxy)
-- [ ] Needle-drop interaction: click → arm swings → thunk → crackle → preview fades in
-- [ ] Lamp click toggles site theme; scene lighting crossfades; header toggle stays in sync
-- [ ] Fallback: WebGL/reduced-motion detection → designed static hero; HTML content below
-- [ ] Performance: DPR clamp, lazy import, pause when hidden; `npm run build` green
-- [ ] Visual QA via screenshots in both themes
+- [x] Docs: CLAUDE.md, PLAN.md, CONTEXT.md
+- [x] Three.js stack pinned and configured for Next 14 / React 18
+- [x] Theme bridge hook (`data-theme` ⇄ scene lighting, lamp click toggles)
+- [x] Scene shell: canvas mount, camera + clamped orbit, room + desk, lighting rig
+- [x] Desk objects, each its own file + commit:
+  - [x] Turntable (hero: plinth, platter, grooved vinyl, tonearm, controls)
+  - [x] Forså desk lamp (chrome, articulated, clickable head)
+  - [x] MacBook with three Claude stickers (screen glows in dark mode)
+  - [x] Two-shelf bookcase with real spines (content/books.ts)
+  - [x] Notepad + pen (static; guestbook in Stage 2)
+  - [x] Chessboard with pieces (static; world-vs-Jason in Stage 3)
+  - [x] Record crate with sleeves (static; history-driven sleeves in Stage 2)
+- [x] Live Spotify wiring: vinyl spins at 33⅓ only while playing; HUD shows track
+- [x] Audio engine: synthesized needle thunk + crackle bed, preview playback chain
+- [x] `/api/audio/preview` (iTunes match, cached) + `/api/audio/stream` (same-origin proxy)
+- [x] Needle-drop interaction: click → arm swings → thunk → crackle → preview fades in
+      (verified live end-to-end including natural 30s end → arm lift)
+- [x] Lamp click toggles site theme (code in; in-canvas click needs Jason's manual
+      verify — synthetic events can't drive R3F raycasts, see CONTEXT)
+- [x] Fallback: WebGL/reduced-motion detection → designed static hero; HTML content below
+- [x] Performance: DPR clamp, lazy import (homepage first-load 103 kB, scene chunk
+      deferred); `npm run build` green
+- [x] Visual QA via screenshots: both themes, desktop + mobile framing rigs
 
 ## Stage 2 — objects come alive
 
