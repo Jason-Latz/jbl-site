@@ -1495,9 +1495,11 @@ button.primary:disabled {
   display: flex;
   flex-direction: column;
   border-radius: 18px;
-  background: rgba(16, 13, 10, 0.78);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  /* No backdrop-filter: an 18px backdrop blur over the live WebGL canvas
+     forced a full readback + gaussian of the animating scene every frame —
+     it mounted at the exact moment of a focus click and dragged the whole
+     camera flight. A deeper translucency reads just as glassy. */
+  background: rgba(16, 13, 10, 0.93);
   border: 0.5px solid rgba(240, 233, 218, 0.14);
   color: #f0e9da;
   overflow: hidden;
