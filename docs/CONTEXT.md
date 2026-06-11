@@ -19,18 +19,39 @@ top-down, "at least a 45-degree angle looking down, maybe a little more". Add a
 fidelity pass modest, THEN implement Stage 2 fully. Attitude: "Create a piece of
 genuine artwork that you can be proud of."
 
-Plan of record for this session: (1) docs commit, (2) pipeline upgrade (ACES, PCSS
-SoftShadows, AccumulativeShadows bake on desk, Lightformer Environment, Bloom +
-Vignette + SMAA via @react-three/postprocessing@2.x pinned for R3F v8), (3) camera
-to ~45°, credit mark, (4) artisan fan-out one agent per object (briefs demand lathe
-profiles, chamfers, bump maps, clearcoat; raised triangle budgets, scene ≤900k),
-(5) integrate + visual QA + commits, (6) Stage 2: focus/dolly camera system (built
-by me first as the contract), then fan-out for records panel, work panel, reading
-panel (books get an optional review field — NEVER fabricate Jason's opinions; empty
-shows "review coming soon"), guestbook (desk_notes table via pooler psql, additive
-only; POST rate-limited + length cap + profanity filter), crate sleeves + vinyl
-label from real album art (image proxy route, same SSRF pattern as audio stream),
-(7) docs + memory closeout.
+PROGRESS CHECKPOINT (mid-session, for compaction recovery):
+
+DONE + COMMITTED: filmic pipeline (ACES + themed exposure, PCSS SoftShadows,
+AccumulativeShadows 120-frame bake on desk top wrapped in a z-scaled group because
+drei types scale as number, Lightformer environment, SMAA+Bloom(threshold 1)+
+Vignette composer — verified in both themes, looks dramatically better); camera at
+~45° both rigs; lacquer material helpers; "Made with Claude" credit chip;
+CameraDirector focus-flight system (FOCUS_VIEWS in layout.ts: records/work/
+reading/notes; clicking turntable/macbook/bookshelf/notepad flies to a fixed
+close-up + DeskPanel glass shell slides in; ESC or back returns; orbit only at
+rest); desk_notes table CREATED IN SUPABASE (additive, RLS no public policies);
+panel content CSS primitives (.desk-panel-*) in globals.css.
+
+IN FLIGHT (two background workflows):
+- desk-fidelity-pass (wf_0e6b3c40-e34): 9 artisan agents rewriting IN PLACE with
+  unchanged contracts: Desk(mahogany), Room(planks/plaster), DeskLamp(full Forså +
+  springs + QA fix: inner dome must not read lit when off), MacBook(3D keys,
+  raised sticker decals), Bookshelf+books.ts(hardcovers, page blocks, adds
+  review: null — never fabricate reviews), Chessboard(real Staunton lathe
+  profiles), Turntable(refine only, keep behavior), Notepad(page curl), Crate.
+- desk-stage2-fanout (wf_7d0c92b0-16c): notes-stack (/api/desk-notes GET/POST w/
+  sha256 ip rate limit 3/hr + blocklist; NotesPanel), media-routes (/api/spotify/
+  albums top-12 from history; /api/image-proxy with scdn/mzstatic allowlist),
+  RecordsPanel (props: spotify, phase, canPlay, onToggleNeedle), WorkPanel (digest
+  of real experience page, no fabrication), ReadingPanel (BOOKS, review-or-
+  "on its way").
+
+AFTER WORKFLOWS LAND (my integration, in order): commit each agent file; wire real
+panels into DeskHero (replace placeholder; RecordsPanel gets the existing needle
+state); hand-wire crate sleeves + vinyl label to real album art via /api/spotify/
+albums + /api/image-proxy (small prop additions to RecordCrate/Turntable AFTER
+artisan versions land); preview QA both themes + focus flights + guestbook POST;
+stop dev server before npm run build; docs + memory closeout.
 
 ### Earlier sessions
 
