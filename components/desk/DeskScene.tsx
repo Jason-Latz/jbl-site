@@ -29,6 +29,41 @@ const CAMERA_START = new THREE.Vector3(...CAMERA.start);
 const CAMERA_REST = new THREE.Vector3(...CAMERA.rest);
 const CAMERA_TARGET = new THREE.Vector3(...CAMERA.target);
 
+// Portrait viewports can't fit the whole desk without shrinking it to a
+// miniature, so they frame the turntable cluster instead and let visitors
+// orbit to the rest. Full mobile tuning is a Stage 4 item.
+const PORTRAIT_START = new THREE.Vector3(0.2, 1.0, 2.9);
+const PORTRAIT_REST = new THREE.Vector3(-0.12, 0.58, 1.85);
+const PORTRAIT_TARGET = new THREE.Vector3(-0.16, 0.08, -0.02);
+
+type CameraRig = {
+  start: THREE.Vector3;
+  rest: THREE.Vector3;
+  target: THREE.Vector3;
+  maxDistance: number;
+};
+
+function useCameraRig(): CameraRig {
+  const { size } = useThree();
+  return useMemo(() => {
+    const aspect = size.width / size.height;
+    if (aspect >= 0.9) {
+      return {
+        start: CAMERA_START,
+        rest: CAMERA_REST,
+        target: CAMERA_TARGET,
+        maxDistance: 1.95
+      };
+    }
+    return {
+      start: PORTRAIT_START,
+      rest: PORTRAIT_REST,
+      target: PORTRAIT_TARGET,
+      maxDistance: 2.5
+    };
+  }, [size.width, size.height]);
+}
+
 // Image-based lighting from three's built-in RoomEnvironment (no network
 // fetch) so chrome and vinyl have something real to reflect. Intensity and
 // background crossfade with the lamp/theme mix.
@@ -105,13 +140,29 @@ function LightingRig() {
 // One-time dolly from the establishing shot to the resting framing.
 // Orbit controls unlock when it lands.
 function CameraIntro({
-  controlsRef
+  controlsRef,
+  rig
 }: {
   controlsRef: React.RefObject<OrbitControlsImpl>;
+  rig: CameraRig;
 }) {
   const { camera } = useThree();
   const progressRef = useRef(0);
   const doneRef = useRef(false);
+  const fromRef = useRef<THREE.Vector3 | null>(null);
+
+  // Aspect flips (e.g. rotating a phone) swap the rig after the intro has
+  // landed — ease from wherever the camera is to the new resting framing.
+  useEffect(() => {
+    if (doneRef.current) {
+      fromRef.current = camera.position.clone();
+      progressRef.current = 0;
+      doneRef.current = false;
+      if (controlsRef.current) {
+        controlsRef.current.enabled = false;
+      }
+    }
+  }, [rig, camera, controlsRef]);
 
   useFrame((_, delta) => {
     if (doneRef.current) {
@@ -119,8 +170,8 @@ function CameraIntro({
     }
     progressRef.current = Math.min(1, progressRef.current + delta / 2.3);
     const eased = 1 - Math.pow(1 - progressRef.current, 3);
-    camera.position.lerpVectors(CAMERA_START, CAMERA_REST, eased);
-    camera.lookAt(CAMERA_TARGET);
+    camera.position.lerpVectors(fromRef.current ?? rig.start, rig.rest, eased);
+    camera.lookAt(rig.target);
     if (progressRef.current >= 1) {
       doneRef.current = true;
       if (controlsRef.current) {
@@ -153,12 +204,13 @@ function SceneContents({
   onNeedleClick
 }: DeskSceneProps) {
   const controlsRef = useRef<OrbitControlsImpl>(null!);
+  const rig = useCameraRig();
 
   return (
     <>
       <EnvironmentDriver />
       <LightingRig />
-      <CameraIntro controlsRef={controlsRef} />
+      <CameraIntro controlsRef={controlsRef} rig={rig} />
       <Room />
       <Desk />
       <Placed name="turntable">
@@ -189,13 +241,13 @@ function SceneContents({
       <OrbitControls
         ref={controlsRef}
         enabled={false}
-        target={CAMERA_TARGET.toArray()}
+        target={rig.target.toArray()}
         enablePan={false}
         enableDamping
         dampingFactor={0.08}
         rotateSpeed={0.5}
         minDistance={1.0}
-        maxDistance={1.95}
+        maxDistance={rig.maxDistance}
         minPolarAngle={0.95}
         maxPolarAngle={1.38}
         minAzimuthAngle={-0.5}

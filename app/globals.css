@@ -1444,3 +1444,10 @@ button.primary:disabled {
     font-size: 0.74rem;
   }
 }
+
+@media (max-width: 640px) {
+  .desk-hero {
+    height: min(62svh, 540px);
+    min-height: 360px;
+  }
+}
