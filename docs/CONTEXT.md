@@ -6,6 +6,63 @@
 
 ## Session log
 
+### 2026-06-11 (night) — Leak direction fix + performance pass SHIPPED
+
+Jason: the screen leak "is going backwards from the computer", and focus
+clicks took ~2 s to settle — "look for optimizations… I am interested in
+loading things upfront if possible."
+
+LEAK: the pointLight lived inside the LID group; the closed-lid rotation
+buried it behind the machine, washing the WALL. Moved to the base frame at
+the wedge mouth (hinge is +z, the ajar gap opens -z toward the viewer);
+falloff 0.6 m. Verified: cool pool now spills frontward onto the lacquer.
+
+PERF (Ultracode: 2 read-only auditors -> ranked findings; full reports in
+the session transcript). Implemented this round, in commit order:
+- .desk-panel backdrop blur(18px) removed (bg alpha 0.93) — it blurred the
+  animating canvas every frame, mounting exactly at the focus click.
+- Shadow maps FROZEN (lib/three/shadow-dirty.ts + FrozenShadows in
+  DeskScene): the still life re-rendered ~450 casters x 2 lights every
+  frame. Movers wake the maps: chess glides, MacBook lid, tonearm. NOTE
+  for future movers: call markShadowsDirty() while animating geometry
+  (light-intensity changes don't need it — maps store caster depth only).
+- EffectComposer hoisted to a stable element identity (its children dep
+  re-built every pass on every render — synchronously at click time, and
+  leaked the removed passes). Dynamics flow through refs in useFrame.
+- DepthOfField resolutionScale 0.5 (this postprocessing build defaults the
+  7-pass bokeh chain to FULL resolution; the docstring claims 0.5).
+- N8AO quality medium (halfRes upsample eats the difference).
+- Reflector FBO 1024 -> 640, blur kernel scaled (the mirror re-renders the
+  whole scene; it's roughness-blurred everywhere, 640 reads identical).
+- renderer.compileAsync behind the load curtain (every shader exists
+  before reveal) — "upfront" per Jason's preference.
+- AdaptiveDpr + performance.regress during camera flights (resolution sags
+  to 55% mid-dolly, lands sharp); flights 1.25 -> 1.05 s; PCSS 16 -> 10.
+- React: the 8 procedural objects render through React.memo with
+  identity-stable props from DeskHero (useCallback needle focus, useMemo
+  chessLastMove); ChessPanel now RECEIVES DeskHero's useChessGame result
+  (it ran a duplicate poller and cold-fetched on open — "Setting up the
+  board…" is gone, panel opens warm); both polling hooks bail out of
+  setState when value-equal.
+
+DEFERRED to task chips (audit findings, mechanical): floor-plank merge
+(111 draws -> 5), MacBook key merge (78 -> 3), crate hardware instancing
+(80 -> 3), chess decoration merge + lathe decimation, raycast hit-proxies
+or BVH (CAUTION: drei Bvh may overwrite raycast={() => null} overrides —
+the beam would steal lamp clicks; hand-test), texture right-sizing
+(chess/groove/notepad, ~45 MB), sticker-hover extraction, RecordsPanel
+album prewarm. Directional-light castShadow removal was considered and
+NOT taken (loses live wall shadows; frozen maps already killed its
+per-frame cost — only the PCSS tap cost remains).
+
+LIVE GAME NOTE: a real visitor played 1. d4 (~an hour before this entry)
+and someone left a guestbook note ("hi — anonymous"). Both left untouched
+— it's Jason's move, from /admin.
+
+Build green (homepage 123 kB). Hand-checks for Jason: the felt of the
+click on real hardware (flight + warm panel should now feel immediate),
+chess-glide shadows track (frozen-map wake path), leak direction at night.
+
 ### 2026-06-11 (evening) — Edgeless light + elevation pass SHIPPED
 
 Jason's feedback on the beauty pass: loved it overall and the motes, BUT
