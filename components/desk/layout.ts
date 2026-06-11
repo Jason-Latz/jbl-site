@@ -29,9 +29,11 @@ export const PLACEMENT: Record<string, Placement> = {
   crate: { position: [-1.08, FLOOR_Y, 0.16], rotationY: 0.5 }
 };
 
+// Rest pose sits ~45 degrees above the desk per Jason's art direction —
+// the desk surface is the canvas, the wall barely shows.
 export const CAMERA = {
   fov: 40,
-  rest: [0.04, 0.4, 1.62] as [number, number, number],
-  start: [0.42, 0.95, 2.6] as [number, number, number],
-  target: [0, 0.17, -0.05] as [number, number, number]
+  rest: [0.03, 1.1, 1.05] as [number, number, number],
+  start: [0.45, 1.7, 2.0] as [number, number, number],
+  target: [0, 0.05, -0.04] as [number, number, number]
 };
