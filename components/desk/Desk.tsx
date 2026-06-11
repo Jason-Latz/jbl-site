@@ -1,9 +1,11 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useRef, type ElementRef } from "react";
 import * as THREE from "three";
-import { RoundedBox } from "@react-three/drei";
+import { MeshReflectorMaterial, RoundedBox } from "@react-three/drei";
+import { useFrame } from "@react-three/fiber";
 import { makeCanvasTexture } from "@/lib/three/materials";
+import { useDeskTheme } from "./DeskThemeContext";
 import { DESK } from "./layout";
 
 const W = DESK.width;
@@ -23,6 +25,32 @@ const BLOCK = 0.062;
 const BLOCK_H = 0.115;
 const APRON_H = 0.1;
 const APRON_T = 0.022;
+
+// ── Lacquer reflection knobs ──────────────────────────────────────────────
+// The top surface carries the scene's ONE MeshReflectorMaterial plane (each
+// reflector re-renders the whole scene, so never add a second). Tuned wood
+// first, mirror second: the grain stays in charge and the reflection deepens
+// it like a french-polished film.
+// Plane floats 0.4 mm over the slab; the baked AccumulativeShadows plane at
+// +0.8 mm MUST stay above it so contact shadows keep landing on the lacquer.
+export const REFLECTOR_LIFT = 0.0004;
+export const REFLECTOR_RESOLUTION = 1024; // FBO size — keep <= 1024
+export const REFLECTOR_BLUR: [number, number] = [320, 120]; // soft-pass kernel
+export const REFLECTOR_MIRROR = 0.42; // how much base wood yields to reflection
+export const REFLECTOR_MIX_BLUR = 1.0; // scales roughness-map-driven blur mix
+export const REFLECTOR_MIX_CONTRAST = 1.0;
+// Reflections merge into diffuse BEFORE lighting, so they scale with
+// irradiance: the dim night room needs a stronger mix for the MacBook's
+// screen-leak streak, lamplight needs less so the mahogany stays primary.
+// mixStrength crossfades between these with the theme.
+export const REFLECTOR_MIX_STRENGTH_LIGHT = 0.7;
+export const REFLECTOR_MIX_STRENGTH_DARK = 1.35;
+// Depth fade: the oblique-clipped depth buffer reads ~1 right at the lacquer
+// and falls with height, so reflections stay anchored at each object's feet
+// and melt away toward lamp heads and tonearm tips.
+export const REFLECTOR_DEPTH_SCALE = 1.1;
+export const REFLECTOR_MIN_DEPTH_THRESHOLD = 0.35;
+export const REFLECTOR_MAX_DEPTH_THRESHOLD = 1.3;
 
 function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
@@ -309,6 +337,83 @@ export default function Desk() {
       { anisotropy: 8, srgb: false }
     );
 
+    // --- reflector composites: the lacquer plane covers the WHOLE top
+    // (field, breadboard caps, hairline seams), so its maps are recomposed
+    // from the canvases above — field copied 1:1, cap strips rotated 90° so
+    // breadboard grain runs front-to-back, seams drawn in. No new grain is
+    // invented; the plane must read as the same board, only deepened.
+    const seamFrac = (W / 2 - CAP_W - SEAM_GAP / 2) / W;
+    const capSrcY: [number, number] = [140, 610];
+    const composeTop = (
+      src: HTMLCanvasElement,
+      opts: { seam: string; tint?: string; srgb: boolean }
+    ) =>
+      makeCanvasTexture(
+        2048,
+        1024,
+        (ctx, w, h) => {
+          ctx.drawImage(src, 0, 0, w, h);
+          const capPx = Math.round((CAP_W / W) * w);
+          ([0, 1] as const).forEach((i) => {
+            const x0 = i === 0 ? 0 : w - capPx;
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(x0, 0, capPx, h);
+            ctx.clip();
+            ctx.translate(x0 + capPx / 2, h / 2);
+            ctx.rotate(Math.PI / 2);
+            // ~1:1-scale strip per cap (color and bump share source rects
+            // so pores stay registered across maps)
+            ctx.drawImage(
+              src,
+              200,
+              capSrcY[i],
+              1024,
+              112,
+              -h / 2,
+              -capPx / 2,
+              h,
+              capPx
+            );
+            if (opts.tint) {
+              ctx.globalCompositeOperation = "multiply";
+              ctx.fillStyle = opts.tint;
+              ctx.fillRect(-h / 2, -capPx / 2, h, capPx);
+            }
+            ctx.restore();
+          });
+          ctx.fillStyle = opts.seam;
+          for (const s of [-1, 1]) {
+            ctx.fillRect((0.5 + s * seamFrac) * w - 1.5, 0, 3, h);
+          }
+        },
+        { anisotropy: 8, srgb: opts.srgb }
+      );
+
+    const reflectorColor = composeTop(colorTex.image as HTMLCanvasElement, {
+      seam: "#190b06",
+      tint: "#f4e9e1", // breadboard cap tint, matching the cap material color
+      srgb: true
+    });
+    const reflectorBump = composeTop(bumpTex.image as HTMLCanvasElement, {
+      seam: "#3c3c3c",
+      srgb: false
+    });
+    // Caps share the un-rotated sheen exactly like the cap material does;
+    // only the seam grooves are added (rougher = blurrier, duller in-groove).
+    const reflectorRough = makeCanvasTexture(
+      1024,
+      512,
+      (ctx, w, h) => {
+        ctx.drawImage(sheenTex.image as HTMLCanvasElement, 0, 0, w, h);
+        ctx.fillStyle = "rgb(170,170,170)";
+        for (const s of [-1, 1]) {
+          ctx.fillRect((0.5 + s * seamFrac) * w - 1, 0, 2, h);
+        }
+      },
+      { anisotropy: 8, srgb: false }
+    );
+
     const orient = (
       tex: THREE.Texture,
       rot: number,
@@ -435,8 +540,37 @@ export default function Desk() {
       };
     });
 
-    return { top, cap, edge, apron, block, seam, dark, legGeo, legs };
+    return {
+      top,
+      cap,
+      edge,
+      apron,
+      block,
+      seam,
+      dark,
+      legGeo,
+      legs,
+      reflectorColor,
+      reflectorBump,
+      reflectorRough
+    };
   }, []);
+
+  // The lacquer leans into the room's mood: lamplight keeps the wood
+  // primary, the dim room lets reflections (the MacBook's screen-leak
+  // streak) carry more of the surface. mixStrength is uniform-backed, so
+  // writing it per-frame costs nothing and never recompiles the shader.
+  const { mixRef } = useDeskTheme();
+  const reflectorMat = useRef<ElementRef<typeof MeshReflectorMaterial>>(null);
+  useFrame(() => {
+    const mat = reflectorMat.current;
+    if (!mat) return;
+    mat.mixStrength = THREE.MathUtils.lerp(
+      REFLECTOR_MIX_STRENGTH_DARK,
+      REFLECTOR_MIX_STRENGTH_LIGHT,
+      mixRef.current
+    );
+  });
 
   const LX = W / 2 - LEG_INSET;
   const LZ = D / 2 - LEG_INSET;
@@ -449,6 +583,39 @@ export default function Desk() {
 
   return (
     <group>
+      {/* lacquer reflection film: a thin plane over the full slab wearing
+          recomposed copies of the same wood maps, so the top reads as the
+          identical board with a true reflecting finish. Inset 4 mm so it
+          never overhangs the slab's rounded corners; raycast is disabled so
+          it can't shadow object picking. mixStrength animates in useFrame
+          above (not passed as a prop, so re-renders never stomp it). */}
+      <mesh
+        position={[0, REFLECTOR_LIFT, 0]}
+        rotation-x={-Math.PI / 2}
+        receiveShadow
+        raycast={() => null}
+      >
+        <planeGeometry args={[W - 0.008, D - 0.008]} />
+        <MeshReflectorMaterial
+          ref={reflectorMat}
+          map={built.reflectorColor}
+          bumpMap={built.reflectorBump}
+          bumpScale={0.0009}
+          roughnessMap={built.reflectorRough}
+          roughness={1}
+          metalness={0.02}
+          envMapIntensity={1.2}
+          mirror={REFLECTOR_MIRROR}
+          mixBlur={REFLECTOR_MIX_BLUR}
+          mixContrast={REFLECTOR_MIX_CONTRAST}
+          blur={REFLECTOR_BLUR}
+          resolution={REFLECTOR_RESOLUTION}
+          depthScale={REFLECTOR_DEPTH_SCALE}
+          minDepthThreshold={REFLECTOR_MIN_DEPTH_THRESHOLD}
+          maxDepthThreshold={REFLECTOR_MAX_DEPTH_THRESHOLD}
+        />
+      </mesh>
+
       {/* slab field with breadboard end caps + hairline seams */}
       <RoundedBox
         args={[fieldW, TOP_H, D]}
