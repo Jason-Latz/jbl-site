@@ -146,37 +146,54 @@ export default function DeskEffects({ focus }: { focus: FocusId | null }) {
     }
   });
 
-  return (
-    <EffectComposer multisampling={0}>
-      <N8AO
-        ref={aoRef}
-        quality="high"
-        halfRes
-        depthAwareUpsampling
-        aoRadius={AO_RADIUS}
-        distanceFalloff={AO_DISTANCE_FALLOFF}
-        intensity={AO_INTENSITY_LIGHT}
-        color={AO_COLOR}
-      />
-      <SMAA />
-      <DepthOfField
-        ref={dofRef}
-        worldFocusDistance={1.4}
-        worldFocusRange={DOF_RANGE_REST}
-        bokehScale={DOF_BOKEH_REST}
-      />
-      <Bloom
-        mipmapBlur
-        intensity={BLOOM_INTENSITY}
-        luminanceThreshold={BLOOM_THRESHOLD}
-        levels={BLOOM_LEVELS}
-      />
-      <Noise opacity={GRAIN_OPACITY} />
-      <Vignette
-        eskil={false}
-        offset={VIGNETTE_OFFSET}
-        darkness={VIGNETTE_DARKNESS}
-      />
-    </EffectComposer>
+  // The element is hoisted to a STABLE identity: @react-three/postprocessing
+  // keeps the raw `children` array in its layout-effect deps, so without
+  // this every DeskHero state change (including the focus click itself)
+  // tore down and rebuilt every pass — full shader re-assembly synchronously
+  // in the commit, right as the camera flight starts (and the removed
+  // passes leaked, since removePass doesn't dispose). Everything dynamic
+  // (focus target, AO intensity) flows through refs in useFrame above, so
+  // nothing in this JSX ever needs a re-render.
+  const composer = useMemo(
+    () => (
+      <EffectComposer multisampling={0}>
+        <N8AO
+          ref={aoRef}
+          quality="medium"
+          halfRes
+          depthAwareUpsampling
+          aoRadius={AO_RADIUS}
+          distanceFalloff={AO_DISTANCE_FALLOFF}
+          intensity={AO_INTENSITY_LIGHT}
+          color={AO_COLOR}
+        />
+        <SMAA />
+        {/* resolutionScale 0.5: this postprocessing build defaults the
+            bokeh chain to FULL canvas resolution (the docstring lies) —
+            seven near-fullscreen passes for what is ultimately a blur. */}
+        <DepthOfField
+          ref={dofRef}
+          resolutionScale={0.5}
+          worldFocusDistance={1.4}
+          worldFocusRange={DOF_RANGE_REST}
+          bokehScale={DOF_BOKEH_REST}
+        />
+        <Bloom
+          mipmapBlur
+          intensity={BLOOM_INTENSITY}
+          luminanceThreshold={BLOOM_THRESHOLD}
+          levels={BLOOM_LEVELS}
+        />
+        <Noise opacity={GRAIN_OPACITY} />
+        <Vignette
+          eskil={false}
+          offset={VIGNETTE_OFFSET}
+          darkness={VIGNETTE_DARKNESS}
+        />
+      </EffectComposer>
+    ),
+    []
   );
+
+  return composer;
 }
