@@ -3,6 +3,7 @@
 import { useEffect, useMemo } from "react";
 import * as THREE from "three";
 import { RoundedBox } from "@react-three/drei";
+import { RoundedBoxGeometry } from "three-stdlib";
 import { PALETTE, makeCanvasTexture } from "@/lib/three/materials";
 import { loadProxiedTexture } from "@/lib/three/proxied-texture";
 
@@ -785,6 +786,39 @@ export default function RecordCrate({ coverArtUrls }: RecordCrateProps) {
     return { screws, plates, rivets };
   }, []);
 
+  // The 48 screws, 16 rivets, and 16 bracket plates never move, so each
+  // family draws as a single InstancedMesh instead of a mesh per fastener.
+  const hardwareMeshes = useMemo(() => {
+    const euler = new THREE.Euler();
+    const matrix = new THREE.Matrix4();
+    const instance = (
+      geometry: THREE.BufferGeometry,
+      material: THREE.Material,
+      xforms: Xform[]
+    ) => {
+      const mesh = new THREE.InstancedMesh(geometry, material, xforms.length);
+      xforms.forEach((t, i) => {
+        matrix.makeRotationFromEuler(euler.set(...t.rotation));
+        matrix.setPosition(...t.position);
+        mesh.setMatrixAt(i, matrix);
+      });
+      mesh.instanceMatrix.needsUpdate = true;
+      mesh.computeBoundingSphere();
+      mesh.castShadow = true;
+      return mesh;
+    };
+    return [
+      instance(smallGeoms.screw, hardwareMats.screw, hardware.screws),
+      instance(smallGeoms.rivet, hardwareMats.screw, hardware.rivets),
+      instance(
+        // Same rounded plate drei's RoundedBox produced, instancing-ready.
+        new RoundedBoxGeometry(BRACKET_LEG, BRACKET_H, BRACKET_T, 2, 0.0004),
+        hardwareMats.steel,
+        hardware.plates
+      )
+    ];
+  }, [smallGeoms, hardwareMats, hardware]);
+
   // Sleeves pack against the back; neighbor lean angles random-walk so
   // adjacent covers never cross through each other. Each gets its own bow.
   const sleeves = useMemo(() => {
@@ -930,37 +964,8 @@ export default function RecordCrate({ coverArtUrls }: RecordCrateProps) {
         />
       ))}
 
-      {hardware.screws.map((t, i) => (
-        <mesh
-          key={`screw${i}`}
-          geometry={smallGeoms.screw}
-          material={hardwareMats.screw}
-          position={t.position}
-          rotation={t.rotation}
-          castShadow
-        />
-      ))}
-      {hardware.plates.map((t, i) => (
-        <RoundedBox
-          key={`plate${i}`}
-          args={[BRACKET_LEG, BRACKET_H, BRACKET_T]}
-          radius={0.0004}
-          smoothness={2}
-          material={hardwareMats.steel}
-          position={t.position}
-          rotation={t.rotation}
-          castShadow
-        />
-      ))}
-      {hardware.rivets.map((t, i) => (
-        <mesh
-          key={`rivet${i}`}
-          geometry={smallGeoms.rivet}
-          material={hardwareMats.screw}
-          position={t.position}
-          rotation={t.rotation}
-          castShadow
-        />
+      {hardwareMeshes.map((mesh, i) => (
+        <primitive key={`hw${i}`} object={mesh} />
       ))}
 
       <mesh
