@@ -457,7 +457,7 @@ export default function DeskLamp() {
   useFrame((_, delta) => {
     const mix = mixRef.current;
     if (spotRef.current) {
-      spotRef.current.intensity = THREE.MathUtils.lerp(0, 7, mix);
+      spotRef.current.intensity = THREE.MathUtils.lerp(0, 5.8, mix);
     }
     bulbMat.emissiveIntensity = THREE.MathUtils.lerp(0, 3, mix);
     innerShellMat.emissiveIntensity = THREE.MathUtils.lerp(0, 1.4, mix);

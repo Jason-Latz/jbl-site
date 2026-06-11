@@ -102,6 +102,19 @@ export default function DeskHero() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
+  // Deep link straight into a focus view: /?focus=records|work|reading|notes
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get("focus");
+    if (
+      requested === "records" ||
+      requested === "work" ||
+      requested === "reading" ||
+      requested === "notes"
+    ) {
+      setFocus(requested);
+    }
+  }, []);
+
   const audioRef = useRef<TurntableAudio | null>(null);
   const timersRef = useRef<number[]>([]);
 

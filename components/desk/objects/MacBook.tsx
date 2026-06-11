@@ -1127,7 +1127,7 @@ export default function MacBook({ open }: MacBookProps) {
     return {
       open: THREE.MathUtils.degToRad(110 + (rng() - 0.5) * 3) - Math.PI / 2,
       closed: -Math.PI / 2 + 0.035,
-      ajar: -Math.PI / 2 + 0.13,
+      ajar: -Math.PI / 2 + 0.17,
       slop: (rng() - 0.5) * 0.008
     };
   }, []);
@@ -1160,9 +1160,15 @@ export default function MacBook({ open }: MacBookProps) {
       THREE.MathUtils.lerp(1.5, 0.35, mix) * openFraction;
     legendMaterial.emissiveIntensity =
       THREE.MathUtils.lerp(0.5, 0.04, mix) * openFraction;
-    if (glowRef.current) {
-      glowRef.current.intensity =
-        THREE.MathUtils.lerp(0.16, 0, mix) * openFraction;
+    if (glowRef.current && lidRef.current) {
+      const leak = THREE.MathUtils.clamp(
+        ((lidRef.current.rotation.x - lidPose.closed) /
+          (lidPose.open - lidPose.closed)) *
+          10,
+        0,
+        1
+      );
+      glowRef.current.intensity = THREE.MathUtils.lerp(0.18, 0, mix) * leak;
     }
   });
 
