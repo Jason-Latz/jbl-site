@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useChessGame, type PublicChessGame } from "@/lib/useChessGame";
+import { type PublicChessGame, type UseChessGameResult } from "@/lib/useChessGame";
 import ChessBoard2D from "./ChessBoard2D";
 
 // The chessboard panel: one persistent game, the world vs. Jason. Whoever is
@@ -82,8 +82,12 @@ function sublineFor(game: PublicChessGame): string {
   )}`;
 }
 
-export default function ChessPanel() {
-  const { game, error, isLoading, refresh, makeMove } = useChessGame();
+// The hook result comes from DeskHero (which already polls for the 3D
+// board) instead of a second useChessGame here: the panel used to open on
+// a cold "Setting up the board…" fetch for state the app already held,
+// and ran a duplicate 30 s poller while open.
+export default function ChessPanel({ chess }: { chess: UseChessGameResult }) {
+  const { game, error, isLoading, refresh, makeMove } = chess;
 
   const [posting, setPosting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);

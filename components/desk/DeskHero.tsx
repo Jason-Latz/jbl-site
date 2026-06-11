@@ -80,7 +80,21 @@ export default function DeskHero() {
   const [sceneReady, setSceneReady] = useState(false);
   const handleSceneReady = useCallback(() => setSceneReady(true), []);
   const { data } = useSpotifyLive();
-  const { game: chessGame } = useChessGame();
+  // One chess poller for both consumers: the 3D board (fen/lastMove) and
+  // ChessPanel (which takes the whole result as a prop — a second hook
+  // instance used to cold-fetch state the app already held).
+  const chess = useChessGame();
+  const chessGame = chess.game;
+  // Identity-stable props for the memoized scene objects: a fresh object
+  // literal or closure here would defeat React.memo on every render.
+  const chessLastMove = useMemo(
+    () =>
+      chessGame?.lastMove
+        ? { from: chessGame.lastMove.from, to: chessGame.lastMove.to }
+        : null,
+    [chessGame?.lastMove?.from, chessGame?.lastMove?.to]
+  );
+  const handleNeedleFocus = useCallback(() => setFocus("records"), []);
 
   // Heavy-rotation art for the crate sleeves, fetched once.
   useEffect(() => {
@@ -271,17 +285,13 @@ export default function DeskHero() {
             <DeskScene
               turntablePlaying={turntablePlaying}
               armDown={armDown}
-              onNeedleClick={() => setFocus("records")}
+              onNeedleClick={handleNeedleFocus}
               focus={focus}
               onFocus={setFocus}
               labelArtUrl={leadTrack?.albumImageUrl ?? null}
               coverArtUrls={coverArtUrls}
               chessFen={chessGame?.fen ?? null}
-              chessLastMove={
-                chessGame?.lastMove
-                  ? { from: chessGame.lastMove.from, to: chessGame.lastMove.to }
-                  : null
-              }
+              chessLastMove={chessLastMove}
               onReady={handleSceneReady}
             />
           </div>
@@ -307,7 +317,7 @@ export default function DeskHero() {
           ) : focus === "reading" ? (
             <ReadingPanel />
           ) : focus === "chess" ? (
-            <ChessPanel />
+            <ChessPanel chess={chess} />
           ) : (
             <NotesPanel />
           )}
