@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import * as THREE from "three";
-import { RoundedBoxGeometry } from "three-stdlib";
+import { RoundedBoxGeometry, mergeBufferGeometries } from "three-stdlib";
 import { lacquerMaterial, makeCanvasTexture } from "@/lib/three/materials";
 import { FLOOR_Y } from "./layout";
 
@@ -277,21 +277,30 @@ function shoeShape(): THREE.Shape {
   return s;
 }
 
-type Plank = {
-  geometry: THREE.BufferGeometry;
-  material: THREE.MeshPhysicalMaterial;
-  position: [number, number, number];
-  rotationY: number;
-};
-
 export default function Room() {
   const built = useMemo(() => {
     const rng = mulberry32(0x5eed_f100);
 
     const grains = OAK_TONES.map((trio) => oakGrainTexture(rng, trio));
 
+    // One material per grain canvas; each plank's tint rides in vertex
+    // colors so all boards sharing a canvas draw as a single mesh.
+    // Standard (no clearcoat) — old varnish, mostly worn matte.
+    const floorMaterials = grains.map(
+      (grain) =>
+        new THREE.MeshStandardMaterial({
+          map: grain,
+          bumpMap: grain,
+          bumpScale: 0.0008,
+          vertexColors: true,
+          roughness: 0.52,
+          metalness: 0,
+          envMapIntensity: 0.65
+        })
+    );
+
     // Lay the floor row by row, wall outward, cutting boards to fit.
-    const planks: Plank[] = [];
+    const planksByGrain: THREE.BufferGeometry[][] = grains.map(() => []);
     let z = FLOOR_Z_MIN;
     while (z < FLOOR_Z_MAX - 0.02) {
       const rowW = Math.min(PLANK_W, FLOOR_Z_MAX - z);
@@ -340,29 +349,37 @@ export default function Room() {
           tint.offsetHSL(0.004, 0.03, -0.07);
         }
 
-        const grain = grains[Math.floor(rng() * grains.length)];
-        const material = new THREE.MeshPhysicalMaterial({
-          map: grain,
-          bumpMap: grain,
-          bumpScale: 0.0008,
-          color: tint,
-          roughness: 0.45 + rng() * 0.15,
-          metalness: 0,
-          clearcoat: 0.2 + rng() * 0.12, // old varnish, mostly worn matte
-          clearcoatRoughness: 0.28 + rng() * 0.12,
-          envMapIntensity: 0.65
-        });
+        const grainIndex = Math.floor(rng() * grains.length);
+        // The retired per-plank material drew roughness + two clearcoat
+        // numbers here; keep the draws so the lay stays identical.
+        rng();
+        rng();
+        rng();
 
-        planks.push({
-          geometry,
-          material,
-          position: [x + len / 2, FLOOR_Y - PLANK_T / 2, z + rowW / 2],
-          rotationY: (rng() < 0.5 ? Math.PI : 0) + (rng() - 0.5) * 0.0016
-        });
+        // Tint baked per-vertex: what used to be material.color.
+        const colors = new Float32Array(uv.count * 3);
+        for (let i = 0; i < uv.count; i++) {
+          colors[i * 3] = tint.r;
+          colors[i * 3 + 1] = tint.g;
+          colors[i * 3 + 2] = tint.b;
+        }
+        geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+
+        geometry.rotateY((rng() < 0.5 ? Math.PI : 0) + (rng() - 0.5) * 0.0016);
+        geometry.translate(x + len / 2, FLOOR_Y - PLANK_T / 2, z + rowW / 2);
+        planksByGrain[grainIndex].push(geometry);
         x += len;
       }
       z += rowW + GAP;
     }
+
+    // ~111 boards collapse into one mesh per grain canvas (5 draws).
+    const floor = planksByGrain.flatMap((geometries, i) => {
+      const geometry = mergeBufferGeometries(geometries);
+      return geometry
+        ? [{ geometry, material: floorMaterials[i] }]
+        : [];
+    });
 
     const underlayMaterial = new THREE.MeshStandardMaterial({
       color: "#15100a",
@@ -424,7 +441,7 @@ export default function Room() {
     });
 
     return {
-      planks,
+      floor,
       underlayMaterial,
       wallMaterial,
       trimMaterial,
@@ -450,13 +467,11 @@ export default function Room() {
         <planeGeometry args={[FLOOR_X_MAX - FLOOR_X_MIN, floorDepth]} />
       </mesh>
 
-      {built.planks.map((plank, index) => (
+      {built.floor.map((batch, index) => (
         <mesh
           key={index}
-          geometry={plank.geometry}
-          material={plank.material}
-          position={plank.position}
-          rotation-y={plank.rotationY}
+          geometry={batch.geometry}
+          material={batch.material}
           receiveShadow
         />
       ))}
