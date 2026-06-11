@@ -1756,3 +1756,292 @@ button.primary:disabled {
   font-size: 11px;
   color: rgba(240, 233, 218, 0.6);
 }
+
+/* ---------------------------------------------------------------------------
+   The Desk — chess (the world vs. Jason)
+   --------------------------------------------------------------------------- */
+
+.desk-chess-status {
+  margin: 0 0 4px;
+  font-size: 14.5px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: #f7f1e4;
+}
+
+.desk-chess-board-frame {
+  position: relative;
+  width: min(340px, 100%);
+  margin: 0 auto;
+  padding: 8px;
+  border-radius: 12px;
+  background: linear-gradient(150deg, #5d3f28, #442e1d);
+  box-shadow:
+    inset 0 1px 0 rgba(240, 233, 218, 0.14),
+    0 10px 24px rgba(0, 0, 0, 0.35);
+}
+
+.desk-chess-board {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.45);
+}
+
+.desk-chess-square {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  margin: 0;
+  padding: 0;
+  border: none;
+  font: inherit;
+  cursor: default;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.desk-chess-square--light {
+  background: #ecdfc3;
+}
+
+.desk-chess-square--dark {
+  background: #7b5839;
+}
+
+.desk-chess-square--actionable:not(:disabled) {
+  cursor: pointer;
+}
+
+/* Last-move tint sits under everything else. */
+.desk-chess-square--last::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(199, 88, 51, 0.3);
+  pointer-events: none;
+}
+
+.desk-chess-square--selected {
+  box-shadow: inset 0 0 0 2px #c75833;
+}
+
+/* Warm warning glow under a king in check. */
+.desk-chess-square--check::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle,
+    rgba(178, 52, 36, 0.55) 0%,
+    rgba(178, 52, 36, 0) 68%
+  );
+  pointer-events: none;
+}
+
+.desk-chess-square:focus-visible {
+  outline: 2px solid #d97757;
+  outline-offset: -2px;
+  z-index: 1;
+}
+
+.desk-chess-piece {
+  position: absolute;
+  inset: 4%;
+  pointer-events: none;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.3));
+}
+
+.desk-chess-glyph {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Legal-move hints: a dot on empty squares, a ring around captures. */
+.desk-chess-dot {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.desk-chess-dot::after {
+  content: "";
+  width: 28%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: rgba(199, 88, 51, 0.55);
+}
+
+.desk-chess-dot--capture::after {
+  width: 86%;
+  background: transparent;
+  border: 2.5px solid rgba(199, 88, 51, 0.65);
+  box-sizing: border-box;
+}
+
+.desk-chess-coord {
+  position: absolute;
+  font-size: 8.5px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.2px;
+  pointer-events: none;
+  user-select: none;
+}
+
+.desk-chess-coord--rank {
+  top: 2px;
+  left: 3px;
+}
+
+.desk-chess-coord--file {
+  bottom: 2px;
+  right: 3px;
+}
+
+.desk-chess-square--light .desk-chess-coord {
+  color: rgba(123, 88, 57, 0.85);
+}
+
+.desk-chess-square--dark .desk-chess-coord {
+  color: rgba(236, 223, 195, 0.85);
+}
+
+/* Inline promotion picker, floating over the board. */
+.desk-chess-promo {
+  position: absolute;
+  inset: 8px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border-radius: 6px;
+  background: rgba(16, 13, 10, 0.84);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.desk-chess-promo-label {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 1.4px;
+  color: rgba(240, 233, 218, 0.6);
+}
+
+.desk-chess-promo-options {
+  display: flex;
+  gap: 8px;
+}
+
+.desk-chess-promo-button {
+  width: 52px;
+  height: 52px;
+  padding: 4px;
+  border-radius: 10px;
+  border: 0.5px solid rgba(240, 233, 218, 0.25);
+  background: rgba(240, 233, 218, 0.08);
+  cursor: pointer;
+}
+
+.desk-chess-promo-button:hover,
+.desk-chess-promo-button:focus-visible {
+  background: rgba(217, 119, 87, 0.28);
+}
+
+.desk-chess-promo-button:focus-visible {
+  outline: 2px solid #d97757;
+  outline-offset: 2px;
+}
+
+.desk-chess-promo-button .desk-chess-glyph {
+  width: 100%;
+  height: 100%;
+}
+
+.desk-chess-promo-cancel {
+  border: none;
+  background: none;
+  padding: 2px 6px;
+  font-size: 11.5px;
+  color: rgba(240, 233, 218, 0.6);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.desk-chess-promo-cancel:hover {
+  color: #f0e9da;
+}
+
+.desk-chess-posting {
+  margin-top: 8px;
+  text-align: center;
+}
+
+.desk-chess-notice {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: #e8b491;
+  text-align: center;
+}
+
+.desk-chess-moves {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 132px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+.desk-chess-move-row {
+  display: grid;
+  grid-template-columns: 30px 1fr 1fr;
+  gap: 6px;
+  align-items: baseline;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 12.5px;
+}
+
+.desk-chess-move-row:nth-child(odd) {
+  background: rgba(240, 233, 218, 0.05);
+}
+
+.desk-chess-move-no {
+  color: rgba(240, 233, 218, 0.45);
+}
+
+.desk-chess-move {
+  color: #f0e9da;
+}
+
+.desk-chess-move--jason {
+  color: #e8b491;
+}
+
+.desk-chess-move--pending {
+  color: rgba(240, 233, 218, 0.35);
+}
+
+.desk-chess-retry {
+  margin-top: 10px;
+}
+
+.desk-chess-footnote {
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  font-style: italic;
+  line-height: 1.5;
+  color: rgba(240, 233, 218, 0.5);
+}
