@@ -735,7 +735,10 @@ export default function DeskLamp() {
               color="#ffd9a8"
               intensity={0}
               angle={0.62}
-              penumbra={0.55}
+              // 0.85 (was 0.55): the pool's defined rim was part of the
+              // "clear delineation of where the light is and isn't" Jason
+              // flagged. Real lamplight melts off, it doesn't stop.
+              penumbra={0.85}
               decay={2}
               distance={3.5}
               castShadow
