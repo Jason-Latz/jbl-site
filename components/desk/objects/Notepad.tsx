@@ -3,12 +3,9 @@
 import { useMemo } from "react";
 import * as THREE from "three";
 import {
-  PALETTE,
-  brushedMetalMaterial,
   chromeMaterial,
   lacquerMaterial,
-  makeCanvasTexture,
-  paperMaterial
+  makeCanvasTexture
 } from "@/lib/three/materials";
 
 const PAD_W = 0.148;
@@ -139,35 +136,62 @@ const drawPaperBase: Draw = (ctx, w, h, rand) => {
   ctx.globalAlpha = 1;
 };
 
+// Rules and holes seed their own jitter (and keep it resolution-relative) so
+// the printed albedo map and the deboss height field regenerate the EXACT
+// same lines — the print sits inside its pressed channel, never beside it.
 function drawRulesAndHoles(
   ctx: CanvasRenderingContext2D,
   w: number,
   h: number,
-  rand: () => number,
-  opts: { lineAlpha: number; holeAlpha: number }
+  opts: { lineAlpha: number; holeAlpha: number; bump?: boolean }
 ): void {
+  const rand = seededRand(7);
   const top = h * 0.132;
   const step = (0.008 / PAD_D) * h;
-  ctx.strokeStyle = "#cfc0a3";
   for (let y = top; y < h - step * 0.4; y += step) {
-    ctx.lineWidth = Math.max(1, h * 0.001) + rand() * 0.6;
-    ctx.globalAlpha = opts.lineAlpha * (0.8 + rand() * 0.2);
-    ctx.beginPath();
+    const lw = Math.max(1, h * 0.001) + rand() * h * 0.0003;
+    const alphaJit = 0.8 + rand() * 0.2;
     const x0 = w * 0.018;
-    ctx.moveTo(x0, y + (rand() - 0.5) * 1.5);
+    const pts: [number, number][] = [[x0, y + (rand() - 0.5) * h * 0.00073]];
     const segs = 8;
     for (let s2 = 1; s2 <= segs; s2++) {
-      ctx.lineTo(
+      pts.push([
         x0 + (w * 0.964 * s2) / segs,
-        y + Math.sin(s2 * 1.3 + y) * h * 0.0005 + (rand() - 0.5) * 1.2
-      );
+        y +
+          Math.sin(s2 * 1.3 + (y / h) * 97) * h * 0.0005 +
+          (rand() - 0.5) * h * 0.00059
+      ]);
     }
-    ctx.stroke();
+    const strokePoly = () => {
+      ctx.beginPath();
+      ctx.moveTo(pts[0][0], pts[0][1]);
+      for (let i = 1; i < pts.length; i++) {
+        ctx.lineTo(pts[i][0], pts[i][1]);
+      }
+      ctx.stroke();
+    };
+    if (opts.bump) {
+      // each rule is pressed into the tooth: a wide soft channel with a
+      // narrower, deeper floor where the printing roller bit hardest
+      ctx.strokeStyle = "#6f6f6f";
+      ctx.lineWidth = lw * 3.2;
+      ctx.globalAlpha = opts.lineAlpha * 0.45 * alphaJit;
+      strokePoly();
+      ctx.strokeStyle = "#585858";
+      ctx.lineWidth = lw * 1.3;
+      ctx.globalAlpha = opts.lineAlpha * 0.8 * alphaJit;
+      strokePoly();
+    } else {
+      ctx.strokeStyle = "#cfc0a3";
+      ctx.lineWidth = lw;
+      ctx.globalAlpha = opts.lineAlpha * alphaJit;
+      strokePoly();
+    }
   }
-  // margin line
-  ctx.strokeStyle = "#cb8b7a";
-  ctx.lineWidth = Math.max(1.4, h * 0.0013);
-  ctx.globalAlpha = opts.lineAlpha * 0.95;
+  // margin line (red ink presses a touch shallower than the rules)
+  ctx.strokeStyle = opts.bump ? "#666666" : "#cb8b7a";
+  ctx.lineWidth = Math.max(1.4, h * 0.0013) * (opts.bump ? 2.2 : 1);
+  ctx.globalAlpha = opts.lineAlpha * (opts.bump ? 0.4 : 0.95);
   ctx.beginPath();
   ctx.moveTo(w * 0.148, h * 0.1);
   ctx.quadraticCurveTo(w * 0.1495, h * 0.55, w * 0.148, h * 0.995);
@@ -178,29 +202,44 @@ function drawRulesAndHoles(
   const holeY = (HOLE_INSET / PAD_D) * h;
   const holeR = (0.0016 / PAD_W) * w;
   for (const lx of LOOP_XS) {
-    const x = ((lx + PAD_W / 2) / PAD_W) * w + (rand() - 0.5) * 2;
-    const g = ctx.createRadialGradient(x, holeY, holeR * 0.15, x, holeY, holeR);
-    g.addColorStop(0, "#564d40");
-    g.addColorStop(0.72, "#6e6354");
-    g.addColorStop(1, "#a4977f");
-    ctx.fillStyle = g;
-    ctx.globalAlpha = opts.holeAlpha;
-    ctx.beginPath();
-    ctx.arc(x, holeY, holeR, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = "#fdf8ec";
-    ctx.globalAlpha = opts.holeAlpha * 0.35;
-    ctx.lineWidth = 1.3;
-    ctx.beginPath();
-    ctx.arc(x, holeY, holeR + 1.1, 0, Math.PI * 2);
-    ctx.stroke();
+    const x = ((lx + PAD_W / 2) / PAD_W) * w + (rand() - 0.5) * w * 0.0014;
+    if (opts.bump) {
+      // raised burr where the punch pushed fiber outward, then the drop
+      ctx.strokeStyle = "#c6c6c6";
+      ctx.globalAlpha = 0.55;
+      ctx.lineWidth = Math.max(1.4, w * 0.0024);
+      ctx.beginPath();
+      ctx.arc(x, holeY, holeR + ctx.lineWidth * 0.5, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = "#262626";
+      ctx.globalAlpha = opts.holeAlpha;
+      ctx.beginPath();
+      ctx.arc(x, holeY, holeR, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      const g = ctx.createRadialGradient(x, holeY, holeR * 0.15, x, holeY, holeR);
+      g.addColorStop(0, "#564d40");
+      g.addColorStop(0.72, "#6e6354");
+      g.addColorStop(1, "#a4977f");
+      ctx.fillStyle = g;
+      ctx.globalAlpha = opts.holeAlpha;
+      ctx.beginPath();
+      ctx.arc(x, holeY, holeR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#fdf8ec";
+      ctx.globalAlpha = opts.holeAlpha * 0.35;
+      ctx.lineWidth = 1.3;
+      ctx.beginPath();
+      ctx.arc(x, holeY, holeR + 1.1, 0, Math.PI * 2);
+      ctx.stroke();
+    }
   }
   ctx.globalAlpha = 1;
 
-  // shading where the page dives toward the coil
+  // shading (and, in the height field, the dip) where the page dives to the coil
   const grad = ctx.createLinearGradient(0, 0, 0, h * 0.07);
-  grad.addColorStop(0, "rgba(96, 84, 64, 0.16)");
-  grad.addColorStop(1, "rgba(96, 84, 64, 0)");
+  grad.addColorStop(0, opts.bump ? "rgba(0, 0, 0, 0.32)" : "rgba(96, 84, 64, 0.16)");
+  grad.addColorStop(1, opts.bump ? "rgba(0, 0, 0, 0)" : "rgba(96, 84, 64, 0)");
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, w, h * 0.07);
 }
@@ -208,10 +247,26 @@ function drawRulesAndHoles(
 const INK = "#3a3026";
 const HAND_FONT = "'Segoe Script','Bradley Hand','Comic Sans MS',Georgia,cursive";
 
-const drawTopSheet: Draw = (ctx, w, h, rand) => {
-  drawPaperBase(ctx, w, h, rand);
-  drawRulesAndHoles(ctx, w, h, rand, { lineAlpha: 0.85, holeAlpha: 1 });
+// Soft multi-tap offsets (in em) that fatten bump-mode text into the broad
+// pressure halo a ballpoint leaves around its stroke.
+const PRESS_TAPS: [number, number][] = [
+  [0, 0],
+  [0.04, 0.025],
+  [-0.032, 0.032],
+  [0.014, -0.034]
+];
 
+// The handwriting, drawn twice from the same seed: once as ink on the albedo
+// map, once as pen pressure in the height field. Every rand() call happens in
+// both modes so the two renders stay in registration.
+function drawScribbles(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  mode: "ink" | "bump"
+): void {
+  const rand = seededRand(131);
+  const bump = mode === "bump";
   const top = h * 0.132;
   const step = (0.008 / PAD_D) * h;
 
@@ -234,11 +289,19 @@ const drawTopSheet: Draw = (ctx, w, h, rand) => {
       ctx.save();
       ctx.translate(cx, dy);
       ctx.rotate(rot);
-      ctx.fillStyle = INK;
-      ctx.globalAlpha = 0.26;
-      ctx.fillText(word, size * 0.018, size * 0.016);
-      ctx.globalAlpha = 0.92;
-      ctx.fillText(word, 0, 0);
+      if (bump) {
+        ctx.fillStyle = "#565656";
+        ctx.globalAlpha = 0.16;
+        for (const [ox, oy] of PRESS_TAPS) {
+          ctx.fillText(word, ox * size, oy * size);
+        }
+      } else {
+        ctx.fillStyle = INK;
+        ctx.globalAlpha = 0.26;
+        ctx.fillText(word, size * 0.018, size * 0.016);
+        ctx.globalAlpha = 0.92;
+        ctx.fillText(word, 0, 0);
+      }
       ctx.restore();
       cx += ctx.measureText(`${word} `).width;
     }
@@ -251,24 +314,27 @@ const drawTopSheet: Draw = (ctx, w, h, rand) => {
   writeLine("for every visitor", w * 0.24, top + 4 * step - step * 0.18, step * 0.6, -0.006);
 
   // squiggle underline
-  ctx.strokeStyle = INK;
+  ctx.strokeStyle = bump ? "#5e5e5e" : INK;
   ctx.lineCap = "round";
-  ctx.lineWidth = h * 0.0016;
-  ctx.globalAlpha = 0.8;
+  ctx.lineWidth = h * (bump ? 0.0024 : 0.0016);
+  ctx.globalAlpha = bump ? 0.4 : 0.8;
   ctx.beginPath();
   const uy = top + 2 * step + step * 0.1;
   ctx.moveTo(w * 0.2, uy);
   for (let s2 = 1; s2 <= 14; s2++) {
     const ux = w * 0.2 + (w * 0.34 * s2) / 14;
-    ctx.lineTo(ux, uy + Math.sin(s2 * 1.9) * h * 0.0022 + (rand() - 0.5) * 2);
+    ctx.lineTo(
+      ux,
+      uy + Math.sin(s2 * 1.9) * h * 0.0022 + (rand() - 0.5) * h * 0.001
+    );
   }
   ctx.stroke();
 
   // sunburst doodle, slightly lopsided like a real margin doodle
   const cx = w * 0.78;
   const cy = h * 0.83;
-  ctx.lineWidth = h * 0.0021;
-  ctx.globalAlpha = 0.85;
+  ctx.lineWidth = h * (bump ? 0.003 : 0.0021);
+  ctx.globalAlpha = bump ? 0.38 : 0.85;
   ctx.beginPath();
   ctx.arc(cx, cy, w * 0.013, 0.25, Math.PI * 2 - 0.15);
   ctx.stroke();
@@ -277,25 +343,42 @@ const drawTopSheet: Draw = (ctx, w, h, rand) => {
     const a = (i / rays) * Math.PI * 2 + 0.32 + (rand() - 0.5) * 0.14;
     const inner = w * (0.02 + rand() * 0.004);
     const outer = inner + w * (0.018 + rand() * 0.014);
-    ctx.globalAlpha = 0.7 + rand() * 0.25;
+    const alpha = 0.7 + rand() * 0.25;
+    ctx.globalAlpha = bump ? 0.35 : alpha;
     ctx.beginPath();
     ctx.moveTo(cx + Math.cos(a) * inner, cy + Math.sin(a) * inner);
     ctx.lineTo(cx + Math.cos(a) * outer, cy + Math.sin(a) * outer);
     ctx.stroke();
   }
   ctx.globalAlpha = 1;
+}
+
+const drawTopSheet: Draw = (ctx, w, h, rand) => {
+  drawPaperBase(ctx, w, h, rand);
+  drawRulesAndHoles(ctx, w, h, { lineAlpha: 0.85, holeAlpha: 1 });
+  drawScribbles(ctx, w, h, "ink");
 };
 
-// Underside of the curled sheet: blank paper with rule show-through.
+// Underside of the curled sheet: blank paper with rule show-through, plus a
+// baked occlusion crawl — brightest at the exposed lip, sinking into shadow
+// where the curl folds back over the page below.
 const drawSheetBack: Draw = (ctx, w, h, rand) => {
   drawPaperBase(ctx, w, h, rand);
-  drawRulesAndHoles(ctx, w, h, rand, { lineAlpha: 0.18, holeAlpha: 0.85 });
+  drawRulesAndHoles(ctx, w, h, { lineAlpha: 0.18, holeAlpha: 0.85 });
+  const R = (0.085 / PAD_D) * h; // curl footprint; corner uv(1,0) = canvas (w,h)
+  const g = ctx.createRadialGradient(w, h, R * 0.12, w, h, R);
+  g.addColorStop(0, "rgba(60, 44, 24, 0)");
+  g.addColorStop(0.55, "rgba(60, 44, 24, 0.1)");
+  g.addColorStop(0.9, "rgba(60, 44, 24, 0.26)");
+  g.addColorStop(1, "rgba(60, 44, 24, 0.3)");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, w, h);
 };
 
 // Second page, revealed under the lifted corner.
 const drawUnderSheet: Draw = (ctx, w, h, rand) => {
   drawPaperBase(ctx, w, h, rand);
-  drawRulesAndHoles(ctx, w, h, rand, { lineAlpha: 0.62, holeAlpha: 0.9 });
+  drawRulesAndHoles(ctx, w, h, { lineAlpha: 0.62, holeAlpha: 0.9 });
 };
 
 // Leaf striations for the three open page-block sides.
@@ -326,6 +409,13 @@ const drawPageEdge: Draw = (ctx, w, h, rand) => {
     ctx.fillRect(0, by, w, 8 + rand() * 26);
   }
   ctx.globalAlpha = 1;
+  // the bottom leaves have sat on the desk longest — warmer, a touch foxed
+  const age = ctx.createLinearGradient(0, h * 0.35, 0, h);
+  age.addColorStop(0, "rgba(150, 114, 64, 0)");
+  age.addColorStop(0.75, "rgba(150, 114, 64, 0.1)");
+  age.addColorStop(1, "rgba(140, 100, 52, 0.22)");
+  ctx.fillStyle = age;
+  ctx.fillRect(0, 0, w, h);
 };
 
 const drawKraft: Draw = (ctx, w, h, rand) => {
@@ -345,17 +435,61 @@ const drawKraft: Draw = (ctx, w, h, rand) => {
   ctx.globalAlpha = 1;
 };
 
-const drawPaperNoise: Draw = (ctx, w, h, rand) => {
-  ctx.fillStyle = "#808080";
+// Height field for the writing surface: paper tooth and cockle with the
+// rules, punch holes and handwriting pressed INTO it, so the print reads as
+// debossed wherever light grazes the sheet. Drawn in sheet space (no tiling)
+// to stay registered with the albedo maps.
+function drawSheetBump(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+  const rand = seededRand(17);
+  ctx.fillStyle = "#888888";
   ctx.fillRect(0, 0, w, h);
-  for (let i = 0; i < 2600; i++) {
-    const v = 96 + Math.floor(rand() * 64);
+  // cockle: broad soft swells so a grazing key undulates across the sheet
+  for (let i = 0; i < 26; i++) {
+    const r = (0.05 + rand() * 0.16) * w;
+    const x = rand() * w;
+    const y = rand() * h;
+    const up = rand() > 0.5;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, up ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)");
+    g.addColorStop(1, up ? "rgba(255,255,255,0)" : "rgba(0,0,0,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(x - r, y - r, r * 2, r * 2);
+  }
+  // tooth: dense speckle, visible only where light rakes
+  for (let i = 0; i < 9000; i++) {
+    const v = 96 + Math.floor(rand() * 72);
     ctx.fillStyle = `rgb(${v},${v},${v})`;
-    ctx.globalAlpha = 0.5;
-    ctx.fillRect(rand() * w, rand() * h, 1 + rand() * 2, 1 + rand() * 2);
+    ctx.globalAlpha = 0.4 + rand() * 0.3;
+    ctx.fillRect(rand() * w, rand() * h, 1 + rand() * 1.6, 1 + rand() * 1.6);
+  }
+  // short pressed-felt fibers
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 700; i++) {
+    const v = 110 + Math.floor(rand() * 60);
+    ctx.strokeStyle = `rgb(${v},${v},${v})`;
+    ctx.globalAlpha = 0.18 + rand() * 0.2;
+    const x = rand() * w;
+    const y = rand() * h;
+    const a = rand() * Math.PI;
+    const l = (0.003 + rand() * 0.008) * w;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l);
+    ctx.stroke();
   }
   ctx.globalAlpha = 1;
-};
+  drawRulesAndHoles(ctx, w, h, { lineAlpha: 0.5, holeAlpha: 1, bump: true });
+  drawScribbles(ctx, w, h, "bump");
+}
+
+// Paper scatters forward ever so slightly; a whisper of warm sheen reads
+// truer than pure lambert when the sheet sits edge-on to the key light.
+// Module-scoped so material memos can share it without dependency churn.
+const PAPER_SHEEN = {
+  sheen: 0.15,
+  sheenRoughness: 0.9,
+  sheenColor: new THREE.Color("#ffefdb")
+} as const;
 
 // Spiral-bound A5 notepad lying flat, pen resting alongside.
 // The future guestbook — top sheet promises notes from visitors.
@@ -379,12 +513,23 @@ export default function Notepad() {
     const m = new THREE.MeshStandardMaterial({
       map: tex,
       bumpMap: tex,
-      bumpScale: 0.0006,
+      bumpScale: 0.0008,
       roughness: 0.9,
       metalness: 0
     });
+    // chipboard is dead fiber — barely answers the room at all
+    m.envMapIntensity = 0.7;
     return m;
   }, []);
+
+  // Shared deboss/tooth height field for every writing surface. The second
+  // page reuses it too, so the ballpoint pressure from the top sheet ghosts
+  // through onto the page below — exactly what a real pad does.
+  const sheetBumpTex = useMemo(
+    () =>
+      makeCanvasTexture(724, 1024, drawSheetBump, { srgb: false, anisotropy: 8 }),
+    []
+  );
 
   const edgeMat = useMemo(() => {
     const rand = seededRand(23);
@@ -394,12 +539,17 @@ export default function Notepad() {
       (c, w, h) => drawPageEdge(c, w, h, rand),
       { anisotropy: 8, repeat: [1, 1] }
     );
-    return new THREE.MeshStandardMaterial({
+    // dozens of hairline leaves: striated bump catches grazing light, and a
+    // soft cross-sheen gives the block the satin shimmer stacked edges have
+    return new THREE.MeshPhysicalMaterial({
       map: tex,
       bumpMap: tex,
-      bumpScale: 0.0005,
+      bumpScale: 0.0007,
       roughness: 0.96,
-      metalness: 0
+      metalness: 0,
+      sheen: 0.1,
+      sheenRoughness: PAPER_SHEEN.sheenRoughness,
+      sheenColor: PAPER_SHEEN.sheenColor
     });
   }, []);
 
@@ -411,19 +561,29 @@ export default function Notepad() {
       (c, w, h) => drawUnderSheet(c, w, h, rand),
       { anisotropy: 8 }
     );
-    return new THREE.MeshStandardMaterial({
+    return new THREE.MeshPhysicalMaterial({
       map: tex,
+      bumpMap: sheetBumpTex,
+      bumpScale: 0.0004,
       roughness: 0.94,
-      metalness: 0
+      metalness: 0,
+      ...PAPER_SHEEN
     });
-  }, []);
+  }, [sheetBumpTex]);
 
   // loose bottom sheets that stick out a hair unevenly
   const strays = useMemo(() => {
     const rand = seededRand(53);
     const tints = ["#efe5d0", "#f3ead7", "#ebe1ca"];
     return tints.map((tint, i) => ({
-      material: paperMaterial(tint),
+      material: new THREE.MeshPhysicalMaterial({
+        color: tint,
+        roughness: 0.95,
+        metalness: 0,
+        sheen: 0.12,
+        sheenRoughness: PAPER_SHEEN.sheenRoughness,
+        sheenColor: PAPER_SHEEN.sheenColor
+      }),
       x: (rand() - 0.3) * 0.0017,
       z: (rand() - 0.25) * 0.002,
       rot: (rand() - 0.5) * 0.018,
@@ -466,43 +626,47 @@ export default function Notepad() {
 
   const sheetMats = useMemo(() => {
     const rand = seededRand(89);
-    const noise = makeCanvasTexture(
-      256,
-      256,
-      (c, w, h) => drawPaperNoise(c, w, h, rand),
-      { srgb: false, repeat: [6, 8], anisotropy: 8 }
-    );
-    const front = new THREE.MeshStandardMaterial({
+    const front = new THREE.MeshPhysicalMaterial({
       map: makeCanvasTexture(1448, 2048, (c, w, h) => drawTopSheet(c, w, h, rand), {
         anisotropy: 8
       }),
-      bumpMap: noise,
-      bumpScale: 0.00045,
-      roughness: 0.93,
+      bumpMap: sheetBumpTex,
+      bumpScale: 0.00055,
+      roughness: 0.94,
       metalness: 0,
-      side: THREE.FrontSide
+      side: THREE.FrontSide,
+      sheen: 0.18,
+      sheenRoughness: PAPER_SHEEN.sheenRoughness,
+      sheenColor: PAPER_SHEEN.sheenColor
     });
-    const back = new THREE.MeshStandardMaterial({
+    const back = new THREE.MeshPhysicalMaterial({
       map: makeCanvasTexture(724, 1024, (c, w, h) => drawSheetBack(c, w, h, rand), {
         anisotropy: 8
       }),
-      bumpMap: noise,
+      bumpMap: sheetBumpTex,
       bumpScale: 0.00045,
       roughness: 0.95,
       metalness: 0,
-      side: THREE.BackSide
+      side: THREE.BackSide,
+      ...PAPER_SHEEN
     });
     return [front, back];
-  }, []);
+  }, [sheetBumpTex]);
 
   // --- coil: one continuous wire helix ---------------------------------------
-  const gunmetal = useMemo(() => {
-    const m = new THREE.MeshStandardMaterial({
-      color: "#454850",
-      metalness: 0.92,
-      roughness: 0.35
+  // Drawn nickel-plated wire — the pad's jewelry. Die-drawing scores hairlines
+  // ALONG the wire, so the highlight stretches around its circumference: with
+  // TubeGeometry's U running down the length, rotating the anisotropy 90deg
+  // puts the stretch on V and every loop carries a crisp bead of environment.
+  const coilSteel = useMemo(() => {
+    const m = new THREE.MeshPhysicalMaterial({
+      color: "#c2c6cc",
+      metalness: 1,
+      roughness: 0.18,
+      anisotropy: 0.45,
+      anisotropyRotation: Math.PI / 2
     });
-    m.envMapIntensity = 1.15;
+    m.envMapIntensity = 1.4;
     return m;
   }, []);
 
@@ -533,24 +697,57 @@ export default function Notepad() {
     }
     const curve = new THREE.CatmullRomCurve3(pts);
     return {
-      tube: new THREE.TubeGeometry(curve, 420, WIRE_R, 8, false),
-      cap: new THREE.SphereGeometry(WIRE_R * 1.02, 10, 8),
+      // 16 radial segments: the specular bead needs a smooth cross-section
+      // or it snaps facet-to-facet as the camera moves
+      tube: new THREE.TubeGeometry(curve, 520, WIRE_R, 16, false),
+      cap: new THREE.SphereGeometry(WIRE_R * 1.02, 12, 10),
       ends: [pts[0], pts[n]] as const
     };
   }, []);
 
   // --- pen: lathe-turned instrument ------------------------------------------
-  const chrome = useMemo(() => chromeMaterial(), []);
-  const brushed = useMemo(() => brushedMetalMaterial("#cac5b9"), []);
-  const penDark = useMemo(
-    () =>
-      lacquerMaterial(PALETTE.inkDark, {
-        clearcoat: 0.6,
-        clearcoatRoughness: 0.16,
-        roughness: 0.3
-      }),
-    []
-  );
+  // Nose cone + center band: polished plate, tighter than stock chrome so the
+  // env reflection stays crisp at the notes/chess focus distance.
+  const penChrome = useMemo(() => {
+    const m = chromeMaterial();
+    m.roughness = 0.1;
+    m.envMapIntensity = 1.35;
+    return m;
+  }, []);
+  // Stamped spring-steel clip, rolled along its length — same circumferential
+  // anisotropy trick as the coil so it reads as one continuous glint line.
+  const clipSteel = useMemo(() => {
+    const m = new THREE.MeshPhysicalMaterial({
+      color: "#d8d4c8",
+      metalness: 1,
+      roughness: 0.2,
+      anisotropy: 0.5,
+      anisotropyRotation: Math.PI / 2
+    });
+    m.envMapIntensity = 1.35;
+    return m;
+  }, []);
+  // Barrel and cap: deep warm-black lacquer, same recipe as the turntable's
+  // piano-black plate — full clearcoat skin so the room streaks across it.
+  const penLacquer = useMemo(() => {
+    const m = lacquerMaterial("#1a1410", {
+      clearcoat: 1,
+      clearcoatRoughness: 0.09,
+      roughness: 0.32
+    });
+    m.envMapIntensity = 1.3;
+    return m;
+  }, []);
+  // Hairline brand band: hot-stamped brass foil near the finial.
+  const foilBrass = useMemo(() => {
+    const m = new THREE.MeshStandardMaterial({
+      color: "#c39a4f",
+      metalness: 1,
+      roughness: 0.26
+    });
+    m.envMapIntensity = 1.25;
+    return m;
+  }, []);
 
   const pen = useMemo(() => {
     // grip waist + seat, then a gently bellied barrel (y = distance from tip)
@@ -679,12 +876,12 @@ export default function Notepad() {
       />
 
       {/* one continuous wire coil through the punch holes */}
-      <mesh geometry={coil.tube} material={gunmetal} castShadow />
+      <mesh geometry={coil.tube} material={coilSteel} castShadow />
       {coil.ends.map((p, i) => (
         <mesh
           key={i}
           geometry={coil.cap}
-          material={gunmetal}
+          material={coilSteel}
           position={[p.x, p.y, p.z]}
         />
       ))}
@@ -693,15 +890,24 @@ export default function Notepad() {
       <group position={[0.113, 0.006, 0.028]} rotation={[0, 1.1, 0]}>
         <group rotation={[0, 0, 0.04]}>
           <group position={[-PEN_HALF, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
-            <mesh geometry={pen.tip} material={chrome} castShadow />
-            <mesh geometry={pen.body} material={penDark} castShadow />
-            <mesh geometry={pen.band} material={chrome} castShadow />
-            <mesh geometry={pen.cap} material={penDark} castShadow />
+            <mesh geometry={pen.tip} material={penChrome} castShadow />
+            <mesh geometry={pen.body} material={penLacquer} castShadow />
+            <mesh geometry={pen.band} material={penChrome} castShadow />
+            <mesh geometry={pen.cap} material={penLacquer} castShadow />
+            {/* brand band: a proud hairline of brass foil that picks up the
+                env where the lacquer goes dark */}
+            <mesh
+              position={[0, 0.1005, 0]}
+              rotation={[Math.PI / 2, 0, 0]}
+              material={foilBrass}
+            >
+              <torusGeometry args={[0.00639, 0.00016, 8, 64]} />
+            </mesh>
           </group>
-          <mesh geometry={pen.clip} material={brushed} castShadow />
+          <mesh geometry={pen.clip} material={clipSteel} castShadow />
           <mesh
             geometry={pen.ball}
-            material={brushed}
+            material={clipSteel}
             position={[0.0208, 0.0066, 0]}
             castShadow
           />
