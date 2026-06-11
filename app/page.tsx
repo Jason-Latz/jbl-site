@@ -1,17 +1,18 @@
 import Link from "next/link";
+import DeskHero from "@/components/desk/DeskHero";
 import DuolingoStreak from "@/components/DuolingoStreak";
 import SpotifyNowPlaying from "@/components/SpotifyNowPlaying";
 import { formatDate } from "@/lib/date";
-import { fetchPublishedPosts } from "@/lib/posts";
+import { fetchLatestPublishedPost } from "@/lib/posts";
 
 export const revalidate = 60;
 
 export default async function HomePage() {
-  const posts = await fetchPublishedPosts();
-  const latestPost = posts[0] ?? null;
+  const latestPost = await fetchLatestPublishedPost();
 
   return (
     <div className="hero">
+      <DeskHero />
       <div className="activity-ribbon" aria-label="Live activity">
         <SpotifyNowPlaying />
         <DuolingoStreak />

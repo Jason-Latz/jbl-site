@@ -1,4 +1,5 @@
 import AdminEditor from "./AdminEditor";
+import ChessAdmin from "./ChessAdmin";
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -24,12 +25,21 @@ export default async function AdminPage() {
   }
 
   return (
-    <section className="section">
-      <h1>Content admin</h1>
-      <p className="post-meta">
-        Create and publish articles, then upload travel photos for the mosaic page.
-      </p>
-      <AdminEditor />
-    </section>
+    <>
+      <section className="section">
+        <h1>Content admin</h1>
+        <p className="post-meta">
+          Create and publish articles, then upload travel photos for the mosaic page.
+        </p>
+        <AdminEditor />
+      </section>
+      <section className="section">
+        <h2>The chessboard</h2>
+        <p className="post-meta">
+          One global game — the world vs. Jason. This is your side of the table.
+        </p>
+        <ChessAdmin />
+      </section>
+    </>
   );
 }

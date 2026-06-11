@@ -190,11 +190,20 @@ function formatTrackLine(trackName: string, artists: string[]) {
   return `${trackName} — ${artists.join(", ")}`;
 }
 
+function getIsDocumentVisible() {
+  if (typeof document === "undefined") {
+    return true;
+  }
+
+  return document.visibilityState !== "hidden";
+}
+
 export default function SpotifyNowPlaying() {
   const [data, setData] = useState<SpotifyLiveResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [consecutiveErrors, setConsecutiveErrors] = useState(0);
+  const [isPageVisible, setIsPageVisible] = useState(getIsDocumentVisible);
   const consecutiveErrorsRef = useRef(0);
 
   useEffect(() => {
@@ -214,6 +223,23 @@ export default function SpotifyNowPlaying() {
     } catch {
       // Ignore cache read errors.
     }
+  }, []);
+
+  useEffect(() => {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    const updateVisibility = () => {
+      setIsPageVisible(getIsDocumentVisible());
+    };
+
+    updateVisibility();
+    document.addEventListener("visibilitychange", updateVisibility);
+
+    return () => {
+      document.removeEventListener("visibilitychange", updateVisibility);
+    };
   }, []);
 
   const fetchSpotifyLive = useCallback(async () => {
@@ -266,6 +292,10 @@ export default function SpotifyNowPlaying() {
   }, []);
 
   useEffect(() => {
+    if (!isPageVisible) {
+      return;
+    }
+
     let disposed = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
 
@@ -291,7 +321,7 @@ export default function SpotifyNowPlaying() {
         clearTimeout(timer);
       }
     };
-  }, [fetchSpotifyLive]);
+  }, [fetchSpotifyLive, isPageVisible]);
 
   const trackLine = useMemo(() => {
     if (data?.nowPlaying) {

@@ -101,7 +101,7 @@ This means every route is rendered inside the same visual shell by default.
 
 ### 4.2 Public pages
 
-- `/` (`app/page.tsx`): hero content, single-line collapsible Spotify + Duolingo activity ribbon, dynamic “latest writing” card sourced from published posts, and a “now” card. The home page also uses ISR (`revalidate = 60`) so newly published posts are not pinned to an old static render.
+- `/` (`app/page.tsx`): hero content, single-line collapsible Spotify + Duolingo activity ribbon, dynamic “latest writing” card sourced from a dedicated single-row published-post query, and a “now” card. The home page also uses ISR (`revalidate = 60`) so newly published posts are not pinned to an old static render.
 - `/experience` (`app/experience/page.tsx`): static, resume-style sections (education, professional experience, projects, technical skills, activities) rendered as cards.
 - `/travel` (`app/travel/page.tsx`): server-rendered gallery route that hydrates a client-side gapless mosaic (`PhotoMosaic`) built from storage images plus metadata from `public.photos`; the mosaic renders an initial top batch, appends additional photos as the user scrolls, uses justified row packing (not fixed columns) so photos rewrap for best fit, calibrates `100%` zoom to the denser look that was previously around `200%`, and serves width-only transformed tile images at roughly `q92` so aspect ratio is preserved without crop.
 - `/travel/quality-lab` (`app/travel/quality-lab/page.tsx`): visual tuning route that renders the same sampled photos side-by-side as `Preferred (q92)`, `Fallback (q90)`, and `Original` to compare sharpness versus payload strategy.
@@ -126,7 +126,7 @@ The home page includes `components/SpotifyNowPlaying.tsx` and `components/Duolin
 - expanded panel = full detail card content
 - panel expansion is independent, so opening one panel does not reserve dropdown height for the other panel
 
-`SpotifyNowPlaying.tsx` polls `/api/spotify/live` every 45 seconds and renders:
+`SpotifyNowPlaying.tsx` polls `/api/spotify/live` every 45 seconds while the page is visible, pauses that loop for hidden tabs, and fetches immediately when the tab becomes visible again. It renders:
 
 1. Spotify-branded label icon in the card header
 2. Current track summary in the ribbon row, with marquee-style horizontal scroll when text is long
@@ -156,13 +156,13 @@ The home page includes `components/SpotifyNowPlaying.tsx` and `components/Duolin
 
 This scheduled sync is the Hobby-plan backstop for the "Top 5 artists this week" list. The home widget still triggers the same catch-up logic opportunistically through `/api/spotify/live`, so visiting the site can pull in newer plays before the next daily cron.
 
-`DuolingoStreak.tsx` polls `/api/duolingo/streak` every 60 seconds and renders:
+`DuolingoStreak.tsx` polls `/api/duolingo/streak` every 60 seconds while the page is visible, then refreshes immediately when the tab becomes visible again. It renders:
 
 1. Compact streak summary in the ribbon row
 2. Profile link, streak count, and status details in the expanded panel
 3. Last-known cached data and retry messaging when the API is temporarily unavailable
 
-Response caching is disabled (`Cache-Control: no-store`) on the Spotify route so the widget data is always fresh. Both client pollers guard against transient non-JSON route responses (for example, dev-time HTML error pages) and fall back to status-based retry messaging instead of JSON parse errors.
+Response caching is disabled (`Cache-Control: no-store`) on the Spotify route so the widget data is always fresh. Both client pollers guard against transient non-JSON route responses (for example, dev-time HTML error pages), pause background polling when the tab is hidden, and fall back to status-based retry messaging instead of JSON parse errors.
 
 ### 4.4 Admin area
 
@@ -463,14 +463,17 @@ This is an app-level guard layered on top of RLS.
 - Returns lightweight travel manifest for cross-page background warmup:
   - `generatedAt`
   - top 12 photos (`path`, `url`)
+- Reads only the top 12 storage objects through `fetchRecentPublicPhotoUrls(12)` instead of loading the full `/travel` metadata catalog first
 - Uses response caching headers:
   - `Cache-Control: public, s-maxage=300, stale-while-revalidate=3600`
 
 ### `GET /api/travel/prewarm` (`app/api/travel/prewarm/route.ts`)
 
 - Cron-target endpoint for transformed travel image warmup
+- On the current Vercel Hobby plan, `vercel.json` runs it once daily at `12:30 UTC` (`30 12 * * *`)
 - Requires `Authorization: Bearer <CRON_SECRET>`
 - Loads top 24 photos and warms light high-impact widths (`960`, `1248`, `1600`)
+- Uses the same limited path/url helper as `/api/travel/prefetch`, so cron warmup does not join `public.photos` metadata rows it never reads
 - Uses concurrency-limited fetch fan-out to transformed Supabase render URLs
 - Returns:
   - `generatedAt`
@@ -498,18 +501,21 @@ Important current behavior:
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 
+The helper reuses one public Supabase client instance per server runtime so repeated public post reads do not rebuild the same client object.
+
 Functions:
 
 - `fetchPublishedPosts()`:
   - returns only published records
   - excludes full `content` for list efficiency
   - ordered by `published_at DESC`
+- `fetchLatestPublishedPost()`:
+  - returns only the newest published row for the home-page card
+  - avoids loading the full archive when `/` only needs one post summary
 - `fetchPostBySlug(slug)`:
   - returns one published post including full body content
   - body is rendered as markdown by default (`react-markdown` + `remark-gfm`)
   - if body looks like legacy HTML, route falls back to direct HTML render
-
-Both are wrapped in React `cache(...)`, so repeated calls during one render tree reuse results.
 
 If env vars are missing, helpers safely return empty/null data rather than throwing.
 
@@ -519,9 +525,16 @@ If env vars are missing, helpers safely return empty/null data rather than throw
   - lists objects in Storage bucket `photos`
   - fetches matching metadata rows from `public.photos` by `storage_path`
   - merges both into one ordered catalog with public URL + metadata fields
+- `listRecentPublicPhotoUrls(supabase, baseUrl, limit)`:
+  - lists only the newest `limit` storage objects
+  - builds lightweight `{ path, url }` entries without fetching metadata rows
+  - used by warmup-only routes that care about transformed image URLs, not captions or modal metadata
 - `fetchPublicPhotos()`:
   - wraps `listPhotoCatalog(...)` using public env credentials for server components
   - returns data used by the public `/travel` route and `PhotoMosaic`
+- `fetchRecentPublicPhotoUrls(limit)`:
+  - cached server helper for `/api/travel/prefetch` and `/api/travel/prewarm`
+  - keeps background image warmup cost proportional to the warmed subset instead of the full travel catalog
 
 `lib/travel-image.ts` centralizes travel image delivery/warmup behavior:
 
@@ -638,7 +651,7 @@ Setup sequence:
 6. Ensure `jasonlatz0@gmail.com` has a `public.profiles` row with `is_editor = true`
 7. `npm run dev`
 8. Use `/admin` to manage posts and upload travel
-9. In Vercel production, set `CRON_SECRET` and keep `vercel.json` cron enabled for daily `GET /api/spotify/sync` (Hobby-safe) plus hourly `GET /api/travel/prewarm`
+9. In Vercel production, set `CRON_SECRET` and keep `vercel.json` cron enabled for daily `GET /api/spotify/sync` plus daily `GET /api/travel/prewarm` (`30 12 * * *`, Hobby-safe)
 
 ### 12.1 Current provisioned state (completed on March 4, 2026 local time)
 
@@ -766,14 +779,14 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 11. Mosaic tiles use width-only transformed URLs (`q92` target, `resize=contain`) to keep captured aspect ratios while reducing transfer/decode cost; requested widths are quantized into fixed buckets so small zoom drags reuse cached image variants.
 12. If a transformed tile request fails, `PhotoMosaic` falls back that tile to its original public object URL so zoom-level edge cases do not show a broken image icon.
 13. `/travel` includes a draggable zoom slider (25% to 200%) with a single Reset action and no on-screen percentage text labels; zoom changes row target height and triggers reflow (instead of scaling one fixed block), with `100%` tuned to the denser look that was previously around `200%`. Zoom control state is deferred for row recomputation to keep slider interaction smooth.
-14. Non-travel routes run one idle-time warmup per session via `GET /api/travel/prefetch`; Vercel cron calls `GET /api/travel/prewarm` hourly to refresh a light top-image variant set.
+14. Non-travel routes run one idle-time warmup per session via `GET /api/travel/prefetch`; on the current Hobby-plan deployment, Vercel cron calls `GET /api/travel/prewarm` once daily to refresh a light top-image variant set. Both routes intentionally use the limited `{ path, url }` helper in `lib/photos.ts` so they only list the top storage objects they warm instead of rebuilding the full `/travel` metadata catalog.
 15. Clicking a photo opens metadata in the modal with the original image URL.
 
 ## 16) File-by-file quick reference
 
 - `app/layout.tsx`: global app shell and typography setup, plus Supabase preconnect/dns-prefetch hints and background travel warmup mount.
 - `app/page.tsx`: landing content + shared one-line activity ribbon.
-  - latest writing card is dynamically populated from most recent published post
+  - latest writing card is dynamically populated from a dedicated newest-post query instead of loading the full archive
 - `app/travel/page.tsx`: travel route shell that loads photo catalog and renders `PhotoMosaic`.
 - `app/travel/quality-lab/page.tsx`: side-by-side travel image quality comparison route for evaluating `q92`, `q90`, and original delivery against the same photos.
 - `app/photography/page.tsx`: legacy redirect shim from `/photography` to `/travel`.
@@ -787,8 +800,8 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 - `app/admin/[id]/page.tsx`: dedicated edit route wrapping `PostEditorPage`.
 - `app/api/spotify/live/route.ts`: server route for Spotify now-playing, daily stats, playlist context, last-10 listening history, and weekly top artists.
 - `app/api/travel/route.ts`: editor-only photo API (`GET` list, `POST` upload, `PATCH` metadata, `DELETE` photo).
-- `app/api/travel/prefetch/route.ts`: public top-12 travel manifest for cross-page background warmup.
-- `app/api/travel/prewarm/route.ts`: cron-protected endpoint that warms top travel transformed variants on an hourly schedule.
+- `app/api/travel/prefetch/route.ts`: public top-12 travel manifest for cross-page background warmup, backed by the limited path/url helper rather than the full photo catalog join.
+- `app/api/travel/prewarm/route.ts`: cron-protected endpoint that warms top travel transformed variants on a daily Hobby-safe schedule using the same limited helper.
 - `app/api/photos/route.ts`: legacy compatibility alias that re-exports `/api/travel` handlers.
 - `app/api/posts/route.ts`: list/create post APIs (editor-only).
 - `app/api/posts/[id]/route.ts`: fetch/update single post API (editor-only).
@@ -800,8 +813,10 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 - `components/PhotoMosaic.tsx`: justified row packer with progressive top-down batch loading, width-only `q92` transformed tile URLs (`resize=contain`) with quantized width buckets and per-tile original-URL fallback on transform errors, draggable 25%-200% zoom + reset (no on-screen percent labels) that reflows rows (with `100%` mapped to the denser former `200%` look and deferred layout recompute), and click-to-open metadata modal on `/travel`.
 - `components/TravelBackgroundWarmup.tsx`: one-time-per-session idle warmup runner for non-travel routes that preloads likely first-view travel transformed variants.
 - `lib/posts.ts`: public content fetch functions.
+  - reuses one public Supabase client per server runtime for public post reads
+  - exposes separate archive-list, newest-post summary, and slug-detail fetch helpers
   - used by home page and writings pages for published content lists/details
-- `lib/photos.ts`: merged photo catalog helper (storage objects + metadata table rows) plus public render URL builder for display-sized image variants.
+- `lib/photos.ts`: merged photo catalog helper for `/travel`, limited path/url helper for background warmup routes, and public render URL builder for display-sized image variants.
 - `lib/travel-image.ts`: canonical travel render quality/width constants, transformed URL builders, and warmup width sets shared by mosaic/background/admin/cron.
 - `lib/spotify.ts`: Spotify token refresh, API fetches, and payload shaping.
 - `lib/requireEditor.ts`: reusable editor authorization check.
@@ -809,7 +824,7 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 - `middleware.ts`: Supabase session middleware on admin/api routes.
 - `supabase/schema.sql`: complete DB schema + triggers + RLS policies (including `public.photos` metadata table + storage policies).
 - `scripts/spotify-refresh-token.mjs`: local command-line helper for Spotify OAuth token bootstrap.
-- `vercel.json`: hourly cron schedule for `GET /api/travel/prewarm`.
+- `vercel.json`: daily cron schedule for `GET /api/travel/prewarm` at `12:30 UTC`.
 
 ## 17) Practical next improvements (if you extend this code)
 

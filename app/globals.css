@@ -1198,3 +1198,957 @@ button.primary:disabled {
     padding-right: 1.5rem;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   The Desk — 3D homepage hero
+   --------------------------------------------------------------------------- */
+
+.desk-hero {
+  position: relative;
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-top: -3.5rem;
+  margin-bottom: 2.5rem;
+  height: min(86svh, 800px);
+  min-height: 420px;
+  background: #0e0a07;
+  overflow: hidden;
+}
+
+:root[data-theme="light"] .desk-hero,
+:root:not([data-theme]) .desk-hero {
+  background: #efe4cf;
+}
+
+.desk-hero canvas {
+  display: block;
+  outline: none;
+  touch-action: pan-y;
+}
+
+.desk-hero-loading {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 42% 38%, #2a1f14 0%, #0e0a07 72%);
+}
+
+:root[data-theme="light"] .desk-hero-loading,
+:root:not([data-theme]) .desk-hero-loading {
+  background: radial-gradient(ellipse at 42% 38%, #f4ead6 0%, #e3d4ba 72%);
+}
+
+.desk-hero-fallback {
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-top: -3.5rem;
+  margin-bottom: 2.5rem;
+  padding: 5rem 1.5rem 4rem;
+  background: linear-gradient(180deg, var(--surface-soft), var(--bg));
+}
+
+.desk-hero-fallback-inner {
+  max-width: var(--max-width);
+  margin: 0 auto;
+}
+
+.desk-hero-fallback-title {
+  margin: 0 0 0.75rem;
+  font-size: clamp(1.9rem, 4.5vw, 2.8rem);
+  line-height: 1.12;
+}
+
+.desk-hero-fallback-copy {
+  margin: 0;
+  max-width: 38rem;
+  color: var(--muted);
+}
+
+/* ---------------------------------------------------------------------------
+   The Desk — now-playing HUD (DOM overlay floating above the 3D canvas).
+   Deliberately not themed: dark glass reads well over both the lamp-lit and
+   daylight renders, so colors here are fixed rather than var(--surface) etc.
+   --------------------------------------------------------------------------- */
+
+.desk-hud {
+  position: absolute;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  max-width: min(92%, 580px);
+  padding: 0.55rem 0.6rem 0.55rem 0.95rem;
+  border: 1px solid rgba(240, 233, 218, 0.14);
+  border-radius: 999px;
+  background: rgba(14, 12, 9, 0.72);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(240, 233, 218, 0.07);
+  color: #f0e9da;
+  pointer-events: auto;
+}
+
+.desk-hud-dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #8d8474;
+}
+
+.desk-hud-dot-live {
+  background: #1db954;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .desk-hud-dot-live {
+    animation: desk-hud-pulse 2.2s ease-out infinite;
+  }
+
+  @keyframes desk-hud-pulse {
+    0% {
+      box-shadow: 0 0 0 0 rgba(29, 185, 84, 0.55);
+    }
+    70% {
+      box-shadow: 0 0 0 7px rgba(29, 185, 84, 0);
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgba(29, 185, 84, 0);
+    }
+  }
+}
+
+.desk-hud-track {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.32;
+}
+
+.desk-hud-title {
+  font-size: 0.86rem;
+  font-weight: 500;
+  max-width: 38ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desk-hud-artist {
+  font-size: 0.76rem;
+  color: rgba(240, 233, 218, 0.62);
+  max-width: 38ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desk-hud-empty {
+  font-size: 0.86rem;
+  color: rgba(240, 233, 218, 0.66);
+}
+
+.desk-hud-note {
+  margin-top: 1px;
+  font-size: 11px;
+  color: rgba(240, 233, 218, 0.48);
+  max-width: 38ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desk-hud-needle {
+  flex: none;
+  appearance: none;
+  border: 1px solid rgba(240, 233, 218, 0.28);
+  border-radius: 999px;
+  background: rgba(240, 233, 218, 0.08);
+  color: #f0e9da;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  padding: 0.42rem 0.85rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease;
+}
+
+.desk-hud-needle:hover:not(:disabled) {
+  background: rgba(240, 233, 218, 0.16);
+  border-color: rgba(240, 233, 218, 0.45);
+}
+
+.desk-hud-needle:active:not(:disabled) {
+  background: rgba(240, 233, 218, 0.22);
+}
+
+.desk-hud-needle[aria-pressed="true"] {
+  background: rgba(29, 185, 84, 0.16);
+  border-color: rgba(29, 185, 84, 0.5);
+}
+
+.desk-hud-needle:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.desk-hud-needle:focus-visible {
+  outline: 2px solid rgba(240, 233, 218, 0.9);
+  outline-offset: 2px;
+}
+
+.desk-hud-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (max-width: 560px) {
+  .desk-hud {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.45rem 0.55rem;
+    bottom: 12px;
+    max-width: calc(100% - 24px);
+    padding: 0.5rem 0.65rem;
+    border-radius: 18px;
+  }
+
+  .desk-hud-track {
+    align-items: center;
+    text-align: center;
+  }
+
+  .desk-hud-title,
+  .desk-hud-artist,
+  .desk-hud-note {
+    max-width: 26ch;
+  }
+
+  .desk-hud-needle {
+    padding: 0.36rem 0.7rem;
+    font-size: 0.74rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .desk-hero {
+    height: min(62svh, 540px);
+    min-height: 360px;
+  }
+}
+
+.desk-credit {
+  position: absolute;
+  right: 14px;
+  bottom: 12px;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(14, 12, 9, 0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: rgba(240, 233, 218, 0.82);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  pointer-events: auto;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.desk-credit:hover {
+  background: rgba(14, 12, 9, 0.68);
+  color: #f0e9da;
+}
+
+.desk-credit svg {
+  display: block;
+}
+
+/* ---------------------------------------------------------------------------
+   The Desk — focus panels
+   --------------------------------------------------------------------------- */
+
+.desk-panel {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  bottom: 16px;
+  z-index: 5;
+  width: min(420px, calc(100vw - 32px));
+  display: flex;
+  flex-direction: column;
+  border-radius: 18px;
+  /* No backdrop-filter: an 18px backdrop blur over the live WebGL canvas
+     forced a full readback + gaussian of the animating scene every frame —
+     it mounted at the exact moment of a focus click and dragged the whole
+     camera flight. A deeper translucency reads just as glassy. */
+  background: rgba(16, 13, 10, 0.93);
+  border: 0.5px solid rgba(240, 233, 218, 0.14);
+  color: #f0e9da;
+  overflow: hidden;
+  animation: desk-panel-in 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes desk-panel-in {
+  from {
+    transform: translateX(40px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .desk-panel {
+    animation: none;
+  }
+}
+
+.desk-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 20px 14px;
+  border-bottom: 0.5px solid rgba(240, 233, 218, 0.12);
+}
+
+.desk-panel-eyebrow {
+  margin: 0 0 2px;
+  font-size: 11px;
+  letter-spacing: 1.6px;
+  color: rgba(240, 233, 218, 0.55);
+}
+
+.desk-panel-title {
+  margin: 0;
+  font-size: 1.3rem;
+  line-height: 1.2;
+  color: #f7f1e4;
+}
+
+.desk-panel-close {
+  flex: none;
+  border: 0.5px solid rgba(240, 233, 218, 0.25);
+  background: transparent;
+  color: #ece4d2;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.desk-panel-close:hover {
+  background: rgba(240, 233, 218, 0.1);
+}
+
+.desk-panel-close:focus-visible {
+  outline: 2px solid #d97757;
+  outline-offset: 2px;
+}
+
+.desk-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px 20px;
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
+.desk-panel-body a {
+  color: #e8b491;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+@media (max-width: 640px) {
+  .desk-panel {
+    top: auto;
+    right: 8px;
+    left: 8px;
+    bottom: 8px;
+    width: auto;
+    max-height: 72%;
+  }
+
+  .desk-panel-close-label {
+    display: none;
+  }
+}
+
+/* Shared content primitives inside focus panels */
+
+.desk-panel-section {
+  margin: 0 0 18px;
+}
+
+.desk-panel-section-title {
+  margin: 0 0 8px;
+  font-size: 11px;
+  letter-spacing: 1.4px;
+  color: rgba(240, 233, 218, 0.5);
+}
+
+.desk-panel-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.desk-panel-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.desk-panel-thumb {
+  width: 38px;
+  height: 38px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex: none;
+  background: rgba(240, 233, 218, 0.08);
+}
+
+.desk-panel-row-main {
+  min-width: 0;
+}
+
+.desk-panel-row-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: #f3ecdc;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.desk-panel-meta {
+  margin: 0;
+  font-size: 11.5px;
+  color: rgba(240, 233, 218, 0.55);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.desk-panel-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.desk-panel-grid img {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  object-fit: cover;
+  background: rgba(240, 233, 218, 0.08);
+}
+
+.desk-panel-note {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(240, 233, 218, 0.06);
+  border: 0.5px solid rgba(240, 233, 218, 0.1);
+}
+
+.desk-panel-note-body {
+  margin: 0;
+  font-family: var(--font-serif), Georgia, serif;
+  font-style: italic;
+  font-size: 14px;
+  color: #f0e9da;
+}
+
+.desk-panel-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.desk-panel-input,
+.desk-panel-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 8px;
+  border: 0.5px solid rgba(240, 233, 218, 0.22);
+  background: rgba(240, 233, 218, 0.06);
+  color: #f0e9da;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.desk-panel-textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+
+.desk-panel-input:focus-visible,
+.desk-panel-textarea:focus-visible {
+  outline: 2px solid #d97757;
+  outline-offset: 1px;
+}
+
+.desk-panel-button {
+  align-self: flex-start;
+  border: 0.5px solid rgba(240, 233, 218, 0.3);
+  background: rgba(217, 119, 87, 0.18);
+  color: #f3ecdc;
+  border-radius: 999px;
+  padding: 7px 16px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.desk-panel-button:hover:not(:disabled) {
+  background: rgba(217, 119, 87, 0.32);
+}
+
+.desk-panel-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.desk-panel-empty {
+  margin: 0;
+  font-size: 12.5px;
+  color: rgba(240, 233, 218, 0.55);
+}
+
+.desk-credit-anchored {
+  position: static;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.desk-credit-line {
+  font-weight: 500;
+  color: #f0e9da;
+}
+
+.desk-credit-sub {
+  font-size: 11px;
+  color: rgba(240, 233, 218, 0.6);
+}
+
+/* ---------------------------------------------------------------------------
+   The Desk — chess (the world vs. Jason)
+   --------------------------------------------------------------------------- */
+
+.desk-chess-status {
+  margin: 0 0 4px;
+  font-size: 14.5px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: #f7f1e4;
+}
+
+.desk-chess-board-frame {
+  position: relative;
+  width: min(340px, 100%);
+  margin: 0 auto;
+  padding: 8px;
+  border-radius: 12px;
+  background: linear-gradient(150deg, #5d3f28, #442e1d);
+  box-shadow:
+    inset 0 1px 0 rgba(240, 233, 218, 0.14),
+    0 10px 24px rgba(0, 0, 0, 0.35);
+}
+
+.desk-chess-board {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.45);
+}
+
+.desk-chess-square {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  margin: 0;
+  padding: 0;
+  border: none;
+  font: inherit;
+  cursor: default;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.desk-chess-square--light {
+  background: #ecdfc3;
+}
+
+.desk-chess-square--dark {
+  background: #7b5839;
+}
+
+.desk-chess-square--actionable:not(:disabled) {
+  cursor: pointer;
+}
+
+/* Last-move tint sits under everything else. */
+.desk-chess-square--last::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(199, 88, 51, 0.3);
+  pointer-events: none;
+}
+
+.desk-chess-square--selected {
+  box-shadow: inset 0 0 0 2px #c75833;
+}
+
+/* Warm warning glow under a king in check. */
+.desk-chess-square--check::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle,
+    rgba(178, 52, 36, 0.55) 0%,
+    rgba(178, 52, 36, 0) 68%
+  );
+  pointer-events: none;
+}
+
+.desk-chess-square:focus-visible {
+  outline: 2px solid #d97757;
+  outline-offset: -2px;
+  z-index: 1;
+}
+
+.desk-chess-piece {
+  position: absolute;
+  inset: 4%;
+  pointer-events: none;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.3));
+}
+
+.desk-chess-glyph {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Legal-move hints: a dot on empty squares, a ring around captures. */
+.desk-chess-dot {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.desk-chess-dot::after {
+  content: "";
+  width: 28%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: rgba(199, 88, 51, 0.55);
+}
+
+.desk-chess-dot--capture::after {
+  width: 86%;
+  background: transparent;
+  border: 2.5px solid rgba(199, 88, 51, 0.65);
+  box-sizing: border-box;
+}
+
+.desk-chess-coord {
+  position: absolute;
+  font-size: 8.5px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.2px;
+  pointer-events: none;
+  user-select: none;
+}
+
+.desk-chess-coord--rank {
+  top: 2px;
+  left: 3px;
+}
+
+.desk-chess-coord--file {
+  bottom: 2px;
+  right: 3px;
+}
+
+.desk-chess-square--light .desk-chess-coord {
+  color: rgba(123, 88, 57, 0.85);
+}
+
+.desk-chess-square--dark .desk-chess-coord {
+  color: rgba(236, 223, 195, 0.85);
+}
+
+/* Inline promotion picker, floating over the board. */
+.desk-chess-promo {
+  position: absolute;
+  inset: 8px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border-radius: 6px;
+  background: rgba(16, 13, 10, 0.84);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.desk-chess-promo-label {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 1.4px;
+  color: rgba(240, 233, 218, 0.6);
+}
+
+.desk-chess-promo-options {
+  display: flex;
+  gap: 8px;
+}
+
+.desk-chess-promo-button {
+  width: 52px;
+  height: 52px;
+  padding: 4px;
+  border-radius: 10px;
+  border: 0.5px solid rgba(240, 233, 218, 0.25);
+  background: rgba(240, 233, 218, 0.08);
+  cursor: pointer;
+}
+
+.desk-chess-promo-button:hover,
+.desk-chess-promo-button:focus-visible {
+  background: rgba(217, 119, 87, 0.28);
+}
+
+.desk-chess-promo-button:focus-visible {
+  outline: 2px solid #d97757;
+  outline-offset: 2px;
+}
+
+.desk-chess-promo-button .desk-chess-glyph {
+  width: 100%;
+  height: 100%;
+}
+
+.desk-chess-promo-cancel {
+  border: none;
+  background: none;
+  padding: 2px 6px;
+  font-size: 11.5px;
+  color: rgba(240, 233, 218, 0.6);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.desk-chess-promo-cancel:hover {
+  color: #f0e9da;
+}
+
+.desk-chess-posting {
+  margin-top: 8px;
+  text-align: center;
+}
+
+.desk-chess-notice {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: #e8b491;
+  text-align: center;
+}
+
+.desk-chess-moves {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 132px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+.desk-chess-move-row {
+  display: grid;
+  grid-template-columns: 30px 1fr 1fr;
+  gap: 6px;
+  align-items: baseline;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 12.5px;
+}
+
+.desk-chess-move-row:nth-child(odd) {
+  background: rgba(240, 233, 218, 0.05);
+}
+
+.desk-chess-move-no {
+  color: rgba(240, 233, 218, 0.45);
+}
+
+.desk-chess-move {
+  color: #f0e9da;
+}
+
+.desk-chess-move--jason {
+  color: #e8b491;
+}
+
+.desk-chess-move--pending {
+  color: rgba(240, 233, 218, 0.35);
+}
+
+.desk-chess-retry {
+  margin-top: 10px;
+}
+
+.desk-chess-footnote {
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  font-style: italic;
+  line-height: 1.5;
+  color: rgba(240, 233, 218, 0.5);
+}
+
+/* ---------------------------------------------------------------------------
+   Admin — Jason's seat at the chessboard
+   --------------------------------------------------------------------------- */
+
+/* The chess admin borrows the desk panel's dark warm stage so the shared
+   .desk-chess-* board styles (cream text, wood frame) read correctly on the
+   light admin page too. Solid background — this sits on paper, not canvas. */
+.chess-admin-shell {
+  margin-top: 1rem;
+  padding: 20px;
+  border-radius: 18px;
+  border: 0.5px solid rgba(240, 233, 218, 0.18);
+  background: #181310;
+  color: #f0e9da;
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
+.chess-admin-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 356px) minmax(220px, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+@media (max-width: 760px) {
+  .chess-admin-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.chess-admin-aside {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* More breathing room than the desk panel's 132px — the admin page has space. */
+.chess-admin-moves {
+  max-height: 264px;
+}
+
+/* The desk panel centers notices under the board; in the aside they read
+   better flush left. */
+.chess-admin-notice {
+  text-align: left;
+}
+
+.chess-admin-info {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: rgba(240, 233, 218, 0.8);
+}
+
+.chess-admin-confirm-copy {
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+
+.chess-admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Quiet variant for the mid-game reset — present, not tempting. */
+.chess-admin-button--quiet {
+  background: rgba(240, 233, 218, 0.05);
+  border-color: rgba(240, 233, 218, 0.22);
+  color: rgba(240, 233, 218, 0.8);
+}
+
+.chess-admin-button--quiet:hover:not(:disabled) {
+  background: rgba(240, 233, 218, 0.12);
+}
+
+.chess-admin-cancel {
+  border: none;
+  background: none;
+  padding: 2px 6px;
+  font-size: 11.5px;
+  color: rgba(240, 233, 218, 0.6);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.chess-admin-cancel:hover:not(:disabled) {
+  color: #f0e9da;
+}
+
+.chess-admin-cancel:focus-visible {
+  outline: 2px solid #d97757;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.chess-admin-cancel:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

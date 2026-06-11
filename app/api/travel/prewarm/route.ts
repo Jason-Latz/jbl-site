@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { fetchPublicPhotos } from "@/lib/photos";
+import { fetchRecentPublicPhotoUrls } from "@/lib/photos";
 import {
   buildTravelRenderUrlForRequestWidth,
   CRON_WARM_WIDTHS,
@@ -104,7 +104,7 @@ export async function GET(request: Request) {
   }
 
   const startedAt = Date.now();
-  const photos = (await fetchPublicPhotos()).slice(0, TRAVEL_CRON_WARM_LIMIT);
+  const photos = await fetchRecentPublicPhotoUrls(TRAVEL_CRON_WARM_LIMIT);
   const targets: WarmTarget[] = photos.flatMap((photo) =>
     CRON_WARM_WIDTHS.map((width) => ({
       path: photo.path,
