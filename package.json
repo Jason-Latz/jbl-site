@@ -12,9 +12,11 @@
   "dependencies": {
     "@react-three/drei": "^9.114.3",
     "@react-three/fiber": "^8.17.10",
+    "@react-three/postprocessing": "^2.16.3",
     "@supabase/auth-helpers-nextjs": "^0.9.0",
     "@supabase/supabase-js": "^2.45.3",
     "next": "14.2.5",
+    "postprocessing": "^6.36.4",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "react-markdown": "^10.1.0",
