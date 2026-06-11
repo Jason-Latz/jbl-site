@@ -184,7 +184,44 @@ export default function Desk() {
       x: rg() * 1024,
       y: rg() * 512,
       r: 90 + rg() * 230,
-      v: 88 + rg() * 42
+      v: 76 + rg() * 56
+    }));
+    // Sheen lanes follow the grain: french polish levels differently over
+    // hard/soft ribbon, so gloss varies in long streaks, not blobs.
+    const lanes = Array.from({ length: 110 }, () => ({
+      y: rg() * 512,
+      x0: rg() * 1200 - 90,
+      len: 260 + rg() * 760,
+      lw: 5 + rg() * 16,
+      up: rg() > 0.5,
+      dv: 6 + rg() * 9,
+      alpha: 0.1 + rg() * 0.14,
+      phase: rg() * Math.PI * 2
+    }));
+
+    const rw = mulberry32(0x5eed07);
+    // Polish pools: where the french polish is freshest the reflection goes
+    // near-sharp. Biased left/center and mid-depth — the lamp pool's runway.
+    const pools = Array.from({ length: 7 }, () => ({
+      x: 80 + rw() * 700,
+      y: 40 + rw() * 300,
+      r: 55 + rw() * 95,
+      v: 62 + rw() * 18,
+      stretch: 1.8 + rw() * 1.4
+    }));
+    // Worn matte tracks along the front edge where forearms lived (canvas
+    // bottom = world front): keyboard zone, a drag track, the mouse side.
+    const wearTracks = [
+      { x: 652, y: 448, rx: 170, ry: 26, v: 152 },
+      { x: 540, y: 472, rx: 230, ry: 20, v: 146 },
+      { x: 806, y: 438, rx: 110, ry: 22, v: 156 }
+    ] as const;
+    const scuffs = Array.from({ length: 70 }, () => ({
+      x: rw() * 1024,
+      y: 416 + rw() * 86,
+      len: 18 + rw() * 42,
+      v: 158 + rw() * 12,
+      alpha: 0.12 + rw() * 0.14
     }));
 
     // --- ribbon-stripe mahogany color map (2048x1024) ---
@@ -197,32 +234,53 @@ export default function Desk() {
 
         for (const b of bands) {
           bandPath(ctx, b, w);
-          ctx.globalAlpha = b.alpha;
-          ctx.fillStyle = b.light ? "#5d3120" : "#33170d";
+          // Under the reflector film (mirror 0.42) half the diffuse read is
+          // gone, so the stripes carry more of the load: stronger band
+          // separation keeps the mahogany from flattening to one tone.
+          ctx.globalAlpha = Math.min(1, b.alpha * 1.45);
+          ctx.fillStyle = b.light ? "#653523" : "#2c1209";
           ctx.fill();
 
-          // interlocked chatoyance: lightness flips along the band
+          // interlocked chatoyance: lightness flips along the band — this is
+          // the ribbon shimmer the lamp sweep plays across, so it gets the
+          // biggest contrast lift of the pass.
           bandPath(ctx, b, w);
           const g = ctx.createLinearGradient(0, 0, w, 0);
           for (let s = 0; s <= b.flips; s++) {
             const bright = (s % 2 === 0) === b.light;
             g.addColorStop(
               s / b.flips,
-              bright ? "rgba(207,138,86,0.6)" : "rgba(22,9,4,0.6)"
+              bright ? "rgba(216,146,88,0.75)" : "rgba(16,6,3,0.78)"
             );
           }
-          ctx.globalAlpha = 0.07 + (b.amp / 11) * 0.06;
+          ctx.globalAlpha = 0.1 + (b.amp / 11) * 0.09;
           ctx.fillStyle = g;
           ctx.fill();
         }
 
+        // Cathedral figure: dark late-wood line with a warm early-wood
+        // shoulder just inside it, the way a crown-cut arch actually prints.
         for (const f of figures) {
-          for (let ring = 1; ring <= 5; ring++) {
-            ctx.strokeStyle = "#2c1208";
-            ctx.globalAlpha = 0.09 - ring * 0.013;
-            ctx.lineWidth = 2.2;
+          for (let ring = 1; ring <= 7; ring++) {
+            ctx.strokeStyle = "#2a1106";
+            ctx.globalAlpha = Math.max(0.12 - ring * 0.013, 0);
+            ctx.lineWidth = 2.4;
             ctx.beginPath();
             ctx.ellipse(f.cx, f.cy, f.rx * ring * 0.55, f.ry * ring * 0.5, f.rot, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.strokeStyle = "#9a5a32";
+            ctx.globalAlpha = Math.max(0.07 - ring * 0.008, 0);
+            ctx.lineWidth = 3.2;
+            ctx.beginPath();
+            ctx.ellipse(
+              f.cx,
+              f.cy,
+              f.rx * (ring * 0.55 - 0.12),
+              f.ry * (ring * 0.5 - 0.1),
+              f.rot,
+              0,
+              Math.PI * 2
+            );
             ctx.stroke();
           }
         }
@@ -256,7 +314,7 @@ export default function Desk() {
           const g = ctx.createRadialGradient(t.x, t.y, 0, t.x, t.y, t.r);
           g.addColorStop(0, t.dark ? "rgba(20,8,4,0.5)" : "rgba(190,120,72,0.4)");
           g.addColorStop(1, "rgba(0,0,0,0)");
-          ctx.globalAlpha = 0.12;
+          ctx.globalAlpha = 0.15;
           ctx.fillStyle = g;
           ctx.fillRect(0, 0, w, h);
         }
@@ -265,7 +323,8 @@ export default function Desk() {
       { anisotropy: 8 }
     );
 
-    // --- linear bump map: band relief + open pores (aligned with color) ---
+    // --- linear bump map: band relief, cathedral figure, open pores (all
+    // registered with the color pass so highlights land on the right grain) ---
     const bumpTex = makeCanvasTexture(
       2048,
       1024,
@@ -274,12 +333,25 @@ export default function Desk() {
         ctx.fillRect(0, 0, w, h);
         for (const b of bands) {
           bandPath(ctx, b, w);
-          ctx.globalAlpha = 0.5;
-          ctx.fillStyle = b.light ? "#888888" : "#767676";
+          ctx.globalAlpha = 0.6;
+          ctx.fillStyle = b.light ? "#8e8e8e" : "#6e6e6e";
           ctx.fill();
         }
+        // Cathedral arches get real relief: the late-wood line sits proud of
+        // the early wood, so a raking lamp draws the figure even where the
+        // albedo contrast is subtle.
+        for (const f of figures) {
+          for (let ring = 1; ring <= 6; ring++) {
+            ctx.strokeStyle = ring % 2 ? "#6a6a6a" : "#929292";
+            ctx.globalAlpha = Math.max(0.4 - ring * 0.05, 0);
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.ellipse(f.cx, f.cy, f.rx * ring * 0.55, f.ry * ring * 0.5, f.rot, 0, Math.PI * 2);
+            ctx.stroke();
+          }
+        }
         for (const s of streaks) {
-          ctx.strokeStyle = s.lightTone ? "#8c8c8c" : "#717171";
+          ctx.strokeStyle = s.lightTone ? "#929292" : "#6a6a6a";
           ctx.globalAlpha = s.alpha * 0.8;
           ctx.lineWidth = s.lw;
           ctx.beginPath();
@@ -292,9 +364,19 @@ export default function Desk() {
           }
           ctx.stroke();
         }
+        // Open pores: a dark trench with a 1px bright shoulder under it —
+        // the shoulder is what actually catches light when the lamp rakes
+        // the slab, turning each pore into a tiny specular tick.
         for (const p of pores) {
-          ctx.strokeStyle = "#545454";
-          ctx.globalAlpha = 0.45;
+          ctx.strokeStyle = "#969696";
+          ctx.globalAlpha = 0.3;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(p.x, p.y + 1.2);
+          ctx.lineTo(p.x + p.len, p.y + p.len * 0.04 + 1.2);
+          ctx.stroke();
+          ctx.strokeStyle = "#484848";
+          ctx.globalAlpha = 0.55;
           ctx.lineWidth = p.lw;
           ctx.beginPath();
           ctx.moveTo(p.x, p.y);
@@ -306,33 +388,101 @@ export default function Desk() {
       { anisotropy: 8, srgb: false }
     );
 
-    // --- french-polish sheen: roughness 0.35-0.5 blotches + wear pools ---
+    // --- french-polish sheen map. This is the desk's highest-leverage
+    // texture: it is the roughnessMap on the slab AND (recomposed) the
+    // per-texel blur driver on the reflector film, so every value here is
+    // literally how sharp the room reflects at that spot. Three registers:
+    // grain-following lanes (subtle), polish pools where light skates
+    // (gloss, ~0.25), and matte forearm tracks along the front edge that
+    // drink the reflection (~0.6). ---
     const sheenTex = makeCanvasTexture(
       1024,
       512,
       (ctx, w, h) => {
-        ctx.fillStyle = "rgb(108,108,108)";
+        ctx.fillStyle = "rgb(112,112,112)";
         ctx.fillRect(0, 0, w, h);
+
+        for (const l of lanes) {
+          const v = Math.round(l.up ? 112 + l.dv : 112 - l.dv);
+          ctx.strokeStyle = `rgb(${v},${v},${v})`;
+          ctx.globalAlpha = l.alpha;
+          ctx.lineWidth = l.lw;
+          ctx.beginPath();
+          ctx.moveTo(l.x0, l.y);
+          for (let i = 1; i <= 6; i++) {
+            ctx.lineTo(l.x0 + (l.len * i) / 6, l.y + Math.sin(i * 1.1 + l.phase) * 3);
+          }
+          ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+
         for (const blot of blots) {
           const v = Math.round(blot.v);
           const g = ctx.createRadialGradient(blot.x, blot.y, 0, blot.x, blot.y, blot.r);
-          g.addColorStop(0, `rgba(${v},${v},${v},0.55)`);
+          g.addColorStop(0, `rgba(${v},${v},${v},0.5)`);
           g.addColorStop(1, `rgba(${v},${v},${v},0)`);
           ctx.fillStyle = g;
           ctx.fillRect(0, 0, w, h);
         }
-        // polished-smooth wear where forearms rest along the front edge
-        for (const [wx, wy, wr] of [
-          [w * 0.5, h * 0.86, 300],
-          [w * 0.24, h * 0.8, 170],
-          [w * 0.76, h * 0.82, 190]
-        ] as const) {
-          const g = ctx.createRadialGradient(wx, wy, 0, wx, wy, wr);
-          g.addColorStop(0, "rgba(86,86,86,0.5)");
-          g.addColorStop(1, "rgba(86,86,86,0)");
+
+        // Polish pools, stretched along the grain — under the lamp these
+        // read as the lacquer "skating" highlights; in the reflector they
+        // open near-sharp windows onto the room.
+        for (const p of pools) {
+          const v = Math.round(p.v);
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.scale(p.stretch, 1);
+          const g = ctx.createRadialGradient(0, 0, 0, 0, 0, p.r);
+          g.addColorStop(0, `rgba(${v},${v},${v},0.6)`);
+          g.addColorStop(1, `rgba(${v},${v},${v},0)`);
           ctx.fillStyle = g;
-          ctx.fillRect(0, 0, w, h);
+          ctx.fillRect(-p.r, -p.r, p.r * 2, p.r * 2);
+          ctx.restore();
         }
+
+        // Matte wear where forearms lived: soft-edged horizontal smudges
+        // that blur and dull whatever reflects there.
+        for (const t of wearTracks) {
+          ctx.save();
+          ctx.translate(t.x, t.y);
+          ctx.scale(t.rx / t.ry, 1);
+          const g = ctx.createRadialGradient(0, 0, 0, 0, 0, t.ry);
+          g.addColorStop(0, `rgba(${t.v},${t.v},${t.v},0.55)`);
+          g.addColorStop(0.7, `rgba(${t.v},${t.v},${t.v},0.32)`);
+          g.addColorStop(1, `rgba(${t.v},${t.v},${t.v},0)`);
+          ctx.fillStyle = g;
+          ctx.fillRect(-t.ry, -t.ry, t.ry * 2, t.ry * 2);
+          ctx.restore();
+        }
+        // Micro-scuffs inside the wear zone: fine matte hairlines that keep
+        // the worn band from reading as one smooth gradient up close.
+        for (const s of scuffs) {
+          const v = Math.round(s.v);
+          ctx.strokeStyle = `rgb(${v},${v},${v})`;
+          ctx.globalAlpha = s.alpha;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(s.x, s.y);
+          ctx.lineTo(s.x + s.len, s.y + s.len * 0.03);
+          ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+
+        // Two dull cup rings, front-right: dried residue kills the polish
+        // in a thin circle — a close-focus detail that costs nothing.
+        for (const [cx, cy, cr] of [
+          [846, 408, 27],
+          [818, 424, 23]
+        ] as const) {
+          ctx.strokeStyle = "rgb(150,150,150)";
+          ctx.globalAlpha = 0.4;
+          ctx.lineWidth = 3.5;
+          ctx.beginPath();
+          ctx.arc(cx, cy, cr, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
       },
       { anisotropy: 8, srgb: false }
     );
@@ -346,7 +496,7 @@ export default function Desk() {
     const capSrcY: [number, number] = [140, 610];
     const composeTop = (
       src: HTMLCanvasElement,
-      opts: { seam: string; tint?: string; srgb: boolean }
+      opts: { seam: string; seamShoulder?: string; tint?: string; srgb: boolean }
     ) =>
       makeCanvasTexture(
         2048,
@@ -382,33 +532,50 @@ export default function Desk() {
             }
             ctx.restore();
           });
-          ctx.fillStyle = opts.seam;
+          // Real seams read as a dark wax line flanked by the rounded
+          // lacquer shoulders on each board edge — shoulders first, then
+          // the core drawn over the middle.
           for (const s of [-1, 1]) {
-            ctx.fillRect((0.5 + s * seamFrac) * w - 1.5, 0, 3, h);
+            const x = (0.5 + s * seamFrac) * w;
+            if (opts.seamShoulder) {
+              ctx.globalAlpha = 0.55;
+              ctx.fillStyle = opts.seamShoulder;
+              ctx.fillRect(x - 2.5, 0, 5, h);
+              ctx.globalAlpha = 1;
+            }
+            ctx.fillStyle = opts.seam;
+            ctx.fillRect(x - 1.5, 0, 3, h);
           }
         },
         { anisotropy: 8, srgb: opts.srgb }
       );
 
     const reflectorColor = composeTop(colorTex.image as HTMLCanvasElement, {
-      seam: "#190b06",
+      seam: "#140803", // old wax, darker than any grain line
+      seamShoulder: "#8a4d2c", // lacquer rounds pale where it meets the gap
       tint: "#f4e9e1", // breadboard cap tint, matching the cap material color
       srgb: true
     });
     const reflectorBump = composeTop(bumpTex.image as HTMLCanvasElement, {
-      seam: "#3c3c3c",
+      seam: "#2c2c2c", // the groove drops…
+      seamShoulder: "#a6a6a6", // …and its beads sit proud, catching light
       srgb: false
     });
-    // Caps share the un-rotated sheen exactly like the cap material does;
-    // only the seam grooves are added (rougher = blurrier, duller in-groove).
+    // Caps share the un-rotated sheen exactly like the cap material does.
+    // Seams in the roughness map: a dull waxed core (reflection dies in the
+    // groove) between polished bead shoulders — the thin bright lines that
+    // make the seams read in the records/notes focus views.
     const reflectorRough = makeCanvasTexture(
       1024,
       512,
       (ctx, w, h) => {
         ctx.drawImage(sheenTex.image as HTMLCanvasElement, 0, 0, w, h);
-        ctx.fillStyle = "rgb(170,170,170)";
         for (const s of [-1, 1]) {
-          ctx.fillRect((0.5 + s * seamFrac) * w - 1, 0, 2, h);
+          const x = (0.5 + s * seamFrac) * w;
+          ctx.fillStyle = "rgb(92,92,92)";
+          ctx.fillRect(x - 2, 0, 4, h);
+          ctx.fillStyle = "rgb(168,168,168)";
+          ctx.fillRect(x - 1, 0, 2, h);
         }
       },
       { anisotropy: 8, srgb: false }
@@ -452,12 +619,12 @@ export default function Desk() {
     };
 
     const top = physical(colorTex, bumpTex, {
-      roughness: 1, // roughnessMap carries the 0.35-0.5 sheen variation
+      roughness: 1, // roughnessMap carries the ~0.25-0.6 sheen variation
       roughnessMap: sheenTex,
-      clearcoat: 0.8,
-      clearcoatRoughness: 0.16
+      clearcoat: 0.85,
+      clearcoatRoughness: 0.13
     });
-    top.envMapIntensity = 1.2;
+    top.envMapIntensity = 1.3;
 
     const cap = physical(
       orient(colorTex, Math.PI / 2),
@@ -465,46 +632,102 @@ export default function Desk() {
       {
         roughness: 1,
         roughnessMap: sheenTex,
-        clearcoat: 0.8,
-        clearcoatRoughness: 0.17,
+        clearcoat: 0.85,
+        clearcoatRoughness: 0.14,
         color: "#f4e9e1"
       }
     );
-    cap.envMapIntensity = 1.2;
+    cap.envMapIntensity = 1.3;
 
+    // Profile faces (edge band, aprons, legs) live outside the lamp pool, so
+    // the environment map is most of the light they ever see: env intensity
+    // up and clearcoat tightened so their curves draw thin specular lines in
+    // both themes instead of dissolving into shadow.
     const edge = physical(
       orient(colorTex, 0, 1, 0.05, 0, 0.35),
       orient(bumpTex, 0, 1, 0.05, 0, 0.35),
-      { clearcoat: 0.55, clearcoatRoughness: 0.26, color: "#e9d9d0" }
+      { clearcoat: 0.75, clearcoatRoughness: 0.18, color: "#e9d9d0" }
     );
-    edge.envMapIntensity = 0.9;
+    edge.envMapIntensity = 1.25;
 
     const apron = physical(
       orient(colorTex, 0, 1.4, 0.32, 0.1, 0.2),
       orient(bumpTex, 0, 1.4, 0.32, 0.1, 0.2),
-      { clearcoat: 0.6, clearcoatRoughness: 0.24, color: "#f2e4dc" }
+      { clearcoat: 0.75, clearcoatRoughness: 0.18, color: "#f2e4dc" }
     );
-    apron.envMapIntensity = 0.9;
+    apron.envMapIntensity = 1.2;
 
+    // Legs get the tightest coat of the base: the lathe bead and cove each
+    // catch their own hairline of env light, which is what keeps the turned
+    // profile legible at night. Clones (blocks, per-leg tints) inherit this.
     const legBase = physical(
       orient(colorTex, Math.PI / 2),
       orient(bumpTex, Math.PI / 2),
-      { clearcoat: 0.65, clearcoatRoughness: 0.2 }
+      { clearcoat: 0.85, clearcoatRoughness: 0.13 }
     );
+    legBase.envMapIntensity = 1.35;
 
     const block = legBase.clone();
     block.color = new THREE.Color("#f0e3db");
 
-    const seam = new THREE.MeshStandardMaterial({
-      color: "#190b06",
-      roughness: 0.55,
-      metalness: 0
+    // Seam gap material: old wax — near-black but satin, so the line glints
+    // faintly at grazing angles in the close focus views instead of reading
+    // as a flat painted stripe.
+    const seam = new THREE.MeshPhysicalMaterial({
+      color: "#140803",
+      roughness: 0.38,
+      metalness: 0,
+      clearcoat: 0.35,
+      clearcoatRoughness: 0.3
     });
     const dark = new THREE.MeshStandardMaterial({
       color: "#2b1610",
       roughness: 0.85,
       metalness: 0
     });
+
+    // --- breadboard end grain: crosscut faces drink finish and light, so
+    // they sit darker and matter than every long-grain face around them ---
+    const re = mulberry32(0x5eed08);
+    const endGrainTex = makeCanvasTexture(256, 128, (ctx, w, h) => {
+      ctx.fillStyle = "#371a0d";
+      ctx.fillRect(0, 0, w, h);
+      // growth-ring arcs sweeping up through the crosscut
+      for (let i = 0; i < 14; i++) {
+        ctx.strokeStyle = i % 2 ? "#2a1207" : "#482412";
+        ctx.globalAlpha = 0.5;
+        ctx.lineWidth = 2 + re() * 3;
+        ctx.beginPath();
+        ctx.arc(
+          w * 0.5 + (re() - 0.5) * 60,
+          h + 140,
+          150 + i * 9 + re() * 5,
+          Math.PI * 1.15,
+          Math.PI * 1.85
+        );
+        ctx.stroke();
+      }
+      // open pores read as dots on end grain, not lines
+      for (let i = 0; i < 500; i++) {
+        const g = 14 + Math.floor(re() * 26);
+        ctx.fillStyle = `rgb(${g + 18},${g},${Math.max(g - 8, 4)})`;
+        ctx.globalAlpha = 0.35 + re() * 0.4;
+        ctx.beginPath();
+        ctx.arc(re() * w, re() * h, 0.6 + re() * 1.1, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    });
+    const endGrain = new THREE.MeshPhysicalMaterial({
+      map: endGrainTex,
+      roughness: 0.74,
+      metalness: 0,
+      clearcoat: 0.12,
+      clearcoatRoughness: 0.5
+    });
+    endGrain.bumpMap = endGrainTex;
+    endGrain.bumpScale = 0.0005;
+    endGrain.envMapIntensity = 0.55;
 
     // --- turned leg lathe ---
     const legLen = H - T - BLOCK_H + 0.005;
@@ -548,6 +771,7 @@ export default function Desk() {
       block,
       seam,
       dark,
+      endGrain,
       legGeo,
       legs,
       reflectorColor,
@@ -675,6 +899,27 @@ export default function Desk() {
           material={built.seam}
         >
           <boxGeometry args={[0.0015, TOP_H, D - 0.002]} />
+        </mesh>
+      ))}
+
+      {/* breadboard end grain: the caps' grain runs front-to-back, so their
+          crosscut shows on the desk's front/back faces — thin veneer planes
+          0.3 mm proud of the cap, darker and matter, anchoring the joinery
+          when light rakes the front edge */}
+      {([
+        [-1, -1],
+        [-1, 1],
+        [1, -1],
+        [1, 1]
+      ] as const).map(([sx, fz]) => (
+        <mesh
+          key={`endgrain${sx}:${fz}`}
+          position={[sx * (W / 2 - CAP_W / 2), -TOP_H / 2, fz * (D / 2 + 0.0003)]}
+          rotation={[0, fz === 1 ? 0 : Math.PI, 0]}
+          receiveShadow
+          material={built.endGrain}
+        >
+          <planeGeometry args={[CAP_W - 0.009, TOP_H - 0.007]} />
         </mesh>
       ))}
 
