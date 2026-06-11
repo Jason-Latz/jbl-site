@@ -1051,8 +1051,8 @@ export default function Chessboard({ fen = null, lastMove = null }: ChessboardPr
           [0.0022, 0.0286],
           [0.0001, 0.0292]
         ],
-        32,
-        48
+        28,
+        40
       )
     ];
 
@@ -1085,8 +1085,8 @@ export default function Chessboard({ fen = null, lastMove = null }: ChessboardPr
           [0.0047, 0.0284],
           [0.0006, 0.0282]
         ],
-        42,
-        64
+        28,
+        40
       ),
       ...Array.from({ length: 8 }, (_, i) => {
         const a = (i * Math.PI) / 4 + Math.PI / 8;
@@ -1165,7 +1165,7 @@ export default function Chessboard({ fen = null, lastMove = null }: ChessboardPr
           [0.0006, 0.015]
         ],
         26,
-        64
+        40
       ),
       part(headGeo, [0, FELT_H + 0.0146, 0]),
       part(maneGeo, [0, FELT_H + 0.0146, 0])
@@ -1203,8 +1203,8 @@ export default function Chessboard({ fen = null, lastMove = null }: ChessboardPr
           [0.0013, 0.0412],
           [0.0001, 0.0421]
         ],
-        44,
-        64
+        28,
+        40
       ),
       // The mitre cut: a flattened dark ring sunk into the head, tilted.
       part(
@@ -1244,8 +1244,8 @@ export default function Chessboard({ fen = null, lastMove = null }: ChessboardPr
           [0.0048, 0.0452],
           [0.0012, 0.045]
         ],
-        46,
-        64
+        28,
+        40
       ),
       ...Array.from({ length: 8 }, (_, i) => {
         const a = (i * Math.PI) / 4;
@@ -1288,8 +1288,8 @@ export default function Chessboard({ fen = null, lastMove = null }: ChessboardPr
           [0.0034, 0.049],
           [0.0001, 0.05]
         ],
-        46,
-        64
+        28,
+        40
       ),
       part(crossV, [0, FELT_H + 0.053, 0]),
       part(crossH, [0, FELT_H + 0.0538, 0])
