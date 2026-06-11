@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { loadProxiedTexture } from "@/lib/three/proxied-texture";
+import { markShadowsDirty } from "@/lib/three/shadow-dirty";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import { RoundedBox } from "@react-three/drei";
 import * as THREE from "three";
@@ -648,6 +649,10 @@ export default function Turntable({
 
     if (yawRef.current && pitchRef.current) {
       const yawTarget = armDown ? YAW_PLAY : YAW_PARK;
+      if (Math.abs(yawRef.current.rotation.y - yawTarget) > 0.004) {
+        // The tonearm in motion casts a moving shadow — wake the frozen maps.
+        markShadowsDirty();
+      }
       yawRef.current.rotation.y = THREE.MathUtils.damp(
         yawRef.current.rotation.y,
         yawTarget,

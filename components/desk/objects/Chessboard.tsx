@@ -3,6 +3,7 @@
 import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
+import { markShadowsDirty } from "@/lib/three/shadow-dirty";
 import {
   feltMaterial,
   lacquerMaterial,
@@ -1330,6 +1331,8 @@ export default function Chessboard({ fen = null, lastMove = null }: ChessboardPr
     for (let i = 0; i < roster.length; i++) {
       const a = roster[i];
       if (a.settled) continue;
+      // A piece in flight casts a moving shadow — wake the frozen maps.
+      markShadowsDirty();
       a.t += delta;
       if (a.t <= 0) continue; // the hand hasn't reached this piece yet
       let k = a.t / a.duration;
