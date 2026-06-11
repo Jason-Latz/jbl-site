@@ -1,60 +1,585 @@
 "use client";
 
 import { useMemo } from "react";
-import { woodMaterial } from "@/lib/three/materials";
+import * as THREE from "three";
+import { RoundedBox } from "@react-three/drei";
+import { makeCanvasTexture } from "@/lib/three/materials";
 import { DESK } from "./layout";
 
-const LEG_RADIUS = 0.027;
-const LEG_INSET = 0.1;
+const W = DESK.width;
+const D = DESK.depth;
+const T = DESK.thickness;
+const H = DESK.height;
 
-// The desk itself: solid wood slab, four turned legs, back apron.
-// Top surface sits exactly at y=0 per scene convention.
+// Slab edge profile: top board, chamfer band, undercut reveal (stacked).
+const TOP_H = 0.026;
+const BAND_H = 0.008;
+const REVEAL_H = T - TOP_H - BAND_H + 0.002;
+const CAP_W = 0.09; // breadboard end caps
+const SEAM_GAP = 0.0012;
+
+const LEG_INSET = 0.105;
+const BLOCK = 0.062;
+const BLOCK_H = 0.115;
+const APRON_H = 0.1;
+const APRON_T = 0.022;
+
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+type Band = {
+  y: number;
+  h: number;
+  light: boolean;
+  phase: number;
+  amp: number;
+  slope: number;
+  alpha: number;
+  flips: number;
+};
+
+function bandPath(ctx: CanvasRenderingContext2D, b: Band, w: number) {
+  const top = (x: number) =>
+    b.y + Math.sin(x * 0.0045 + b.phase) * b.amp + (x / w) * b.slope;
+  const bot = (x: number) =>
+    b.y + b.h + Math.sin(x * 0.0045 + b.phase + 1.7) * b.amp + (x / w) * b.slope;
+  ctx.beginPath();
+  ctx.moveTo(0, top(0));
+  for (let x = 64; x <= w; x += 64) ctx.lineTo(x, top(x));
+  ctx.lineTo(w, bot(w));
+  for (let x = w - 64; x >= 0; x -= 64) ctx.lineTo(x, bot(x));
+  ctx.closePath();
+}
+
+// Turned leg silhouette, bottom-up: ball foot, long taper, twin ring
+// beads, vase swell, collar meeting the square top block. Heights sum
+// to 0.595 and get rescaled to the actual leg length.
+const LEG_PROFILE: [number, number][] = [
+  [0.001, 0.0],
+  [0.017, 0.0],
+  [0.0205, 0.005],
+  [0.0275, 0.013],
+  [0.032, 0.027],
+  [0.029, 0.041],
+  [0.0205, 0.05],
+  [0.018, 0.057],
+  [0.0185, 0.09],
+  [0.02, 0.16],
+  [0.0215, 0.26],
+  [0.023, 0.36],
+  [0.0245, 0.44],
+  [0.0252, 0.462],
+  [0.026, 0.47],
+  [0.032, 0.4775],
+  [0.0262, 0.4855],
+  [0.0312, 0.4925],
+  [0.0258, 0.5],
+  [0.029, 0.5095],
+  [0.037, 0.527],
+  [0.0425, 0.5505],
+  [0.0408, 0.5685],
+  [0.033, 0.5825],
+  [0.029, 0.5865],
+  [0.0288, 0.5905],
+  [0.0288, 0.595]
+];
+
 export default function Desk() {
-  const wood = useMemo(() => woodMaterial(), []);
-  const legWood = useMemo(
-    () => woodMaterial({ base: "#634428", streak: "#503722", roughness: 0.6 }),
-    []
-  );
+  const built = useMemo(() => {
+    // --- seeded imperfection data, shared by color + bump passes ---
+    const rb = mulberry32(0x5eed01);
+    const bands: Band[] = [];
+    let by = -30;
+    let light = rb() > 0.5;
+    while (by < 1024 + 60) {
+      const bh = 30 + rb() * 72;
+      bands.push({
+        y: by,
+        h: bh,
+        light,
+        phase: rb() * Math.PI * 2,
+        amp: 3 + rb() * 8,
+        slope: (rb() - 0.5) * 36,
+        alpha: 0.1 + rb() * 0.16,
+        flips: 2 + Math.floor(rb() * 3)
+      });
+      by += bh * (0.8 + rb() * 0.45);
+      light = !light;
+    }
 
-  const legX = DESK.width / 2 - LEG_INSET;
-  const legZ = DESK.depth / 2 - LEG_INSET;
-  const legHeight = DESK.height - DESK.thickness;
-  const legY = -DESK.thickness - legHeight / 2;
+    const rs = mulberry32(0x5eed02);
+    const streaks = Array.from({ length: 480 }, () => ({
+      y: rs() * 1024,
+      x0: rs() * 1200 - 100,
+      len: 500 + rs() * 1400,
+      lw: 0.5 + rs() * 1.5,
+      alpha: 0.04 + rs() * 0.1,
+      lightTone: rs() > 0.62,
+      wobble: 1 + rs() * 3,
+      phase: rs() * Math.PI * 2
+    }));
 
-  const legPositions: [number, number, number][] = [
-    [-legX, legY, -legZ],
-    [legX, legY, -legZ],
-    [-legX, legY, legZ],
-    [legX, legY, legZ]
-  ];
+    const rp = mulberry32(0x5eed03);
+    const pores = Array.from({ length: 1700 }, () => ({
+      x: rp() * 2048,
+      y: rp() * 1024,
+      len: 5 + rp() * 22,
+      lw: 0.6 + rp() * 0.9,
+      alpha: 0.05 + rp() * 0.08
+    }));
+
+    const rf = mulberry32(0x5eed04);
+    const figures = Array.from({ length: 3 }, () => ({
+      cx: 200 + rf() * 1648,
+      cy: 150 + rf() * 724,
+      rx: 60 + rf() * 90,
+      ry: 26 + rf() * 30,
+      rot: (rf() - 0.5) * 0.5
+    }));
+    const patches = Array.from({ length: 5 }, () => ({
+      x: rf() * 2048,
+      y: rf() * 1024,
+      r: 250 + rf() * 450,
+      dark: rf() > 0.5
+    }));
+
+    const rg = mulberry32(0x5eed05);
+    const blots = Array.from({ length: 26 }, () => ({
+      x: rg() * 1024,
+      y: rg() * 512,
+      r: 90 + rg() * 230,
+      v: 88 + rg() * 42
+    }));
+
+    // --- ribbon-stripe mahogany color map (2048x1024) ---
+    const colorTex = makeCanvasTexture(
+      2048,
+      1024,
+      (ctx, w, h) => {
+        ctx.fillStyle = "#4a2417";
+        ctx.fillRect(0, 0, w, h);
+
+        for (const b of bands) {
+          bandPath(ctx, b, w);
+          ctx.globalAlpha = b.alpha;
+          ctx.fillStyle = b.light ? "#5d3120" : "#33170d";
+          ctx.fill();
+
+          // interlocked chatoyance: lightness flips along the band
+          bandPath(ctx, b, w);
+          const g = ctx.createLinearGradient(0, 0, w, 0);
+          for (let s = 0; s <= b.flips; s++) {
+            const bright = (s % 2 === 0) === b.light;
+            g.addColorStop(
+              s / b.flips,
+              bright ? "rgba(207,138,86,0.6)" : "rgba(22,9,4,0.6)"
+            );
+          }
+          ctx.globalAlpha = 0.07 + (b.amp / 11) * 0.06;
+          ctx.fillStyle = g;
+          ctx.fill();
+        }
+
+        for (const f of figures) {
+          for (let ring = 1; ring <= 5; ring++) {
+            ctx.strokeStyle = "#2c1208";
+            ctx.globalAlpha = 0.09 - ring * 0.013;
+            ctx.lineWidth = 2.2;
+            ctx.beginPath();
+            ctx.ellipse(f.cx, f.cy, f.rx * ring * 0.55, f.ry * ring * 0.5, f.rot, 0, Math.PI * 2);
+            ctx.stroke();
+          }
+        }
+
+        for (const s of streaks) {
+          ctx.strokeStyle = s.lightTone ? "#7a4226" : "#2a1108";
+          ctx.globalAlpha = s.alpha;
+          ctx.lineWidth = s.lw;
+          ctx.beginPath();
+          ctx.moveTo(s.x0, s.y);
+          for (let i = 1; i <= 9; i++) {
+            ctx.lineTo(
+              s.x0 + (s.len * i) / 9,
+              s.y + Math.sin(i * 1.3 + s.phase) * s.wobble
+            );
+          }
+          ctx.stroke();
+        }
+
+        for (const p of pores) {
+          ctx.strokeStyle = "#1f0c05";
+          ctx.globalAlpha = p.alpha;
+          ctx.lineWidth = p.lw;
+          ctx.beginPath();
+          ctx.moveTo(p.x, p.y);
+          ctx.lineTo(p.x + p.len, p.y + p.len * 0.04);
+          ctx.stroke();
+        }
+
+        for (const t of patches) {
+          const g = ctx.createRadialGradient(t.x, t.y, 0, t.x, t.y, t.r);
+          g.addColorStop(0, t.dark ? "rgba(20,8,4,0.5)" : "rgba(190,120,72,0.4)");
+          g.addColorStop(1, "rgba(0,0,0,0)");
+          ctx.globalAlpha = 0.12;
+          ctx.fillStyle = g;
+          ctx.fillRect(0, 0, w, h);
+        }
+        ctx.globalAlpha = 1;
+      },
+      { anisotropy: 8 }
+    );
+
+    // --- linear bump map: band relief + open pores (aligned with color) ---
+    const bumpTex = makeCanvasTexture(
+      2048,
+      1024,
+      (ctx, w, h) => {
+        ctx.fillStyle = "#808080";
+        ctx.fillRect(0, 0, w, h);
+        for (const b of bands) {
+          bandPath(ctx, b, w);
+          ctx.globalAlpha = 0.5;
+          ctx.fillStyle = b.light ? "#888888" : "#767676";
+          ctx.fill();
+        }
+        for (const s of streaks) {
+          ctx.strokeStyle = s.lightTone ? "#8c8c8c" : "#717171";
+          ctx.globalAlpha = s.alpha * 0.8;
+          ctx.lineWidth = s.lw;
+          ctx.beginPath();
+          ctx.moveTo(s.x0, s.y);
+          for (let i = 1; i <= 9; i++) {
+            ctx.lineTo(
+              s.x0 + (s.len * i) / 9,
+              s.y + Math.sin(i * 1.3 + s.phase) * s.wobble
+            );
+          }
+          ctx.stroke();
+        }
+        for (const p of pores) {
+          ctx.strokeStyle = "#545454";
+          ctx.globalAlpha = 0.45;
+          ctx.lineWidth = p.lw;
+          ctx.beginPath();
+          ctx.moveTo(p.x, p.y);
+          ctx.lineTo(p.x + p.len, p.y + p.len * 0.04);
+          ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+      },
+      { anisotropy: 8, srgb: false }
+    );
+
+    // --- french-polish sheen: roughness 0.35-0.5 blotches + wear pools ---
+    const sheenTex = makeCanvasTexture(
+      1024,
+      512,
+      (ctx, w, h) => {
+        ctx.fillStyle = "rgb(108,108,108)";
+        ctx.fillRect(0, 0, w, h);
+        for (const blot of blots) {
+          const v = Math.round(blot.v);
+          const g = ctx.createRadialGradient(blot.x, blot.y, 0, blot.x, blot.y, blot.r);
+          g.addColorStop(0, `rgba(${v},${v},${v},0.55)`);
+          g.addColorStop(1, `rgba(${v},${v},${v},0)`);
+          ctx.fillStyle = g;
+          ctx.fillRect(0, 0, w, h);
+        }
+        // polished-smooth wear where forearms rest along the front edge
+        for (const [wx, wy, wr] of [
+          [w * 0.5, h * 0.86, 300],
+          [w * 0.24, h * 0.8, 170],
+          [w * 0.76, h * 0.82, 190]
+        ] as const) {
+          const g = ctx.createRadialGradient(wx, wy, 0, wx, wy, wr);
+          g.addColorStop(0, "rgba(86,86,86,0.5)");
+          g.addColorStop(1, "rgba(86,86,86,0)");
+          ctx.fillStyle = g;
+          ctx.fillRect(0, 0, w, h);
+        }
+      },
+      { anisotropy: 8, srgb: false }
+    );
+
+    const orient = (
+      tex: THREE.Texture,
+      rot: number,
+      rx = 1,
+      ry = 1,
+      ox = 0,
+      oy = 0
+    ) => {
+      const t = tex.clone();
+      t.wrapS = THREE.RepeatWrapping;
+      t.wrapT = THREE.RepeatWrapping;
+      t.center.set(0.5, 0.5);
+      t.rotation = rot;
+      t.repeat.set(rx, ry);
+      t.offset.set(ox, oy);
+      t.needsUpdate = true;
+      return t;
+    };
+
+    const physical = (
+      map: THREE.Texture,
+      bump: THREE.Texture,
+      opts: Partial<THREE.MeshPhysicalMaterialParameters> = {}
+    ) => {
+      const m = new THREE.MeshPhysicalMaterial({
+        map,
+        roughness: 0.4,
+        metalness: 0.02,
+        clearcoat: 0.65,
+        clearcoatRoughness: 0.22,
+        ...opts
+      });
+      m.bumpMap = bump;
+      m.bumpScale = 0.0009;
+      return m;
+    };
+
+    const top = physical(colorTex, bumpTex, {
+      roughness: 1, // roughnessMap carries the 0.35-0.5 sheen variation
+      roughnessMap: sheenTex,
+      clearcoat: 0.8,
+      clearcoatRoughness: 0.16
+    });
+    top.envMapIntensity = 1.2;
+
+    const cap = physical(
+      orient(colorTex, Math.PI / 2),
+      orient(bumpTex, Math.PI / 2),
+      {
+        roughness: 1,
+        roughnessMap: sheenTex,
+        clearcoat: 0.8,
+        clearcoatRoughness: 0.17,
+        color: "#f4e9e1"
+      }
+    );
+    cap.envMapIntensity = 1.2;
+
+    const edge = physical(
+      orient(colorTex, 0, 1, 0.05, 0, 0.35),
+      orient(bumpTex, 0, 1, 0.05, 0, 0.35),
+      { clearcoat: 0.55, clearcoatRoughness: 0.26, color: "#e9d9d0" }
+    );
+    edge.envMapIntensity = 0.9;
+
+    const apron = physical(
+      orient(colorTex, 0, 1.4, 0.32, 0.1, 0.2),
+      orient(bumpTex, 0, 1.4, 0.32, 0.1, 0.2),
+      { clearcoat: 0.6, clearcoatRoughness: 0.24, color: "#f2e4dc" }
+    );
+    apron.envMapIntensity = 0.9;
+
+    const legBase = physical(
+      orient(colorTex, Math.PI / 2),
+      orient(bumpTex, Math.PI / 2),
+      { clearcoat: 0.65, clearcoatRoughness: 0.2 }
+    );
+
+    const block = legBase.clone();
+    block.color = new THREE.Color("#f0e3db");
+
+    const seam = new THREE.MeshStandardMaterial({
+      color: "#190b06",
+      roughness: 0.55,
+      metalness: 0
+    });
+    const dark = new THREE.MeshStandardMaterial({
+      color: "#2b1610",
+      roughness: 0.85,
+      metalness: 0
+    });
+
+    // --- turned leg lathe ---
+    const legLen = H - T - BLOCK_H + 0.005;
+    const sy = legLen / 0.595;
+    const curve = new THREE.CatmullRomCurve3(
+      LEG_PROFILE.map(([r, y]) => new THREE.Vector3(r, y * sy, 0)),
+      false,
+      "catmullrom",
+      0.5
+    );
+    const legGeo = new THREE.LatheGeometry(
+      curve.getPoints(140).map((p) => new THREE.Vector2(Math.max(p.x, 0.0012), p.y)),
+      48
+    );
+
+    const rl = mulberry32(0x5eed06);
+    const tints = ["#ffffff", "#f5ece7", "#fff3ea", "#f1e6df"];
+    const legs = ([
+      [-1, -1],
+      [1, -1],
+      [-1, 1],
+      [1, 1]
+    ] as const).map(([sx, sz], i) => {
+      const mat = legBase.clone();
+      mat.color = new THREE.Color(tints[i]);
+      return {
+        sx,
+        sz,
+        mat,
+        yaw: rl() * Math.PI,
+        tiltX: (rl() - 0.5) * 0.006,
+        tiltZ: (rl() - 0.5) * 0.006
+      };
+    });
+
+    return { top, cap, edge, apron, block, seam, dark, legGeo, legs };
+  }, []);
+
+  const LX = W / 2 - LEG_INSET;
+  const LZ = D / 2 - LEG_INSET;
+  const APR_Z = LZ + BLOCK / 2 - 0.006 - APRON_T / 2;
+  const APR_X = LX + BLOCK / 2 - 0.006 - APRON_T / 2;
+  const apronY = -T - APRON_H / 2 + 0.001;
+  const beadY = -T - APRON_H + 0.0045;
+  const fieldW = W - 2 * CAP_W - 2 * SEAM_GAP;
+  const seamX = W / 2 - CAP_W - SEAM_GAP / 2;
 
   return (
     <group>
-      <mesh
-        position={[0, -DESK.thickness / 2, 0]}
+      {/* slab field with breadboard end caps + hairline seams */}
+      <RoundedBox
+        args={[fieldW, TOP_H, D]}
+        radius={0.0035}
+        smoothness={4}
+        position={[0, -TOP_H / 2, 0]}
         castShadow
         receiveShadow
-        material={wood}
-      >
-        <boxGeometry args={[DESK.width, DESK.thickness, DESK.depth]} />
-      </mesh>
-      {legPositions.map((position, index) => (
-        <mesh
-          key={index}
-          position={position}
+        material={built.top}
+      />
+      {[-1, 1].map((s) => (
+        <RoundedBox
+          key={`cap${s}`}
+          args={[CAP_W, TOP_H, D]}
+          radius={0.0035}
+          smoothness={4}
+          position={[s * (W / 2 - CAP_W / 2), -TOP_H / 2, 0]}
           castShadow
-          material={legWood}
+          receiveShadow
+          material={built.cap}
+        />
+      ))}
+      {[-1, 1].map((s) => (
+        <mesh
+          key={`seam${s}`}
+          position={[s * seamX, -TOP_H / 2 - 0.0008, 0]}
+          material={built.seam}
         >
-          <cylinderGeometry args={[LEG_RADIUS, LEG_RADIUS * 0.82, legHeight, 14]} />
+          <boxGeometry args={[0.0015, TOP_H, D - 0.002]} />
         </mesh>
       ))}
-      <mesh
-        position={[0, -DESK.thickness - 0.05, -DESK.depth / 2 + 0.05]}
+
+      {/* routed edge: chamfer band, then undercut reveal */}
+      <RoundedBox
+        args={[W - 0.011, BAND_H, D - 0.011]}
+        radius={0.0025}
+        smoothness={4}
+        position={[0, -TOP_H - BAND_H / 2 + 0.001, 0]}
         castShadow
-        material={legWood}
-      >
-        <boxGeometry args={[DESK.width - LEG_INSET * 2.6, 0.09, 0.025]} />
-      </mesh>
+        receiveShadow
+        material={built.edge}
+      />
+      <RoundedBox
+        args={[W - 0.024, REVEAL_H, D - 0.024]}
+        radius={0.003}
+        smoothness={4}
+        position={[0, -T + REVEAL_H / 2, 0]}
+        castShadow
+        material={built.edge}
+      />
+
+      {/* turned legs under square top blocks */}
+      {built.legs.map((leg, i) => (
+        <group key={`leg${i}`}>
+          <group
+            position={[leg.sx * LX, -H, leg.sz * LZ]}
+            rotation={[leg.tiltX, leg.yaw, leg.tiltZ]}
+          >
+            <mesh geometry={built.legGeo} material={leg.mat} castShadow receiveShadow />
+          </group>
+          <RoundedBox
+            args={[BLOCK, BLOCK_H, BLOCK]}
+            radius={0.004}
+            smoothness={4}
+            position={[leg.sx * LX, -T - BLOCK_H / 2 + 0.001, leg.sz * LZ]}
+            castShadow
+            material={built.block}
+          />
+        </group>
+      ))}
+
+      {/* aprons with beaded lower strips */}
+      {[-1, 1].map((s) => (
+        <group key={`apfb${s}`}>
+          <RoundedBox
+            args={[2 * LX, APRON_H, APRON_T]}
+            radius={0.003}
+            smoothness={4}
+            position={[0, apronY, s * APR_Z]}
+            castShadow
+            receiveShadow
+            material={built.apron}
+          />
+          <mesh
+            position={[0, beadY, s * (APR_Z + APRON_T / 2 - 0.002)]}
+            rotation={[0, 0, Math.PI / 2]}
+            castShadow
+            material={built.edge}
+          >
+            <cylinderGeometry args={[0.0045, 0.0045, 2 * LX - 0.05, 18]} />
+          </mesh>
+        </group>
+      ))}
+      {[-1, 1].map((s) => (
+        <group key={`apside${s}`}>
+          <RoundedBox
+            args={[APRON_T, APRON_H, 2 * LZ + 0.02]}
+            radius={0.003}
+            smoothness={4}
+            position={[s * APR_X, apronY, 0]}
+            castShadow
+            receiveShadow
+            material={built.apron}
+          />
+          <mesh
+            position={[s * (APR_X + APRON_T / 2 - 0.002), beadY, 0]}
+            rotation={[Math.PI / 2, 0, 0]}
+            castShadow
+            material={built.edge}
+          >
+            <cylinderGeometry args={[0.0045, 0.0045, 2 * LZ - 0.05, 18]} />
+          </mesh>
+        </group>
+      ))}
+
+      {/* interior corner blocks bracing apron-to-leg joints */}
+      {([
+        [-1, -1],
+        [1, -1],
+        [-1, 1],
+        [1, 1]
+      ] as const).map(([sx, sz], i) => (
+        <mesh
+          key={`brace${i}`}
+          position={[sx * (LX - 0.052), apronY, sz * (LZ - 0.052)]}
+          rotation={[0, sx * sz > 0 ? Math.PI / 4 : -Math.PI / 4, 0]}
+          material={built.dark}
+        >
+          <boxGeometry args={[0.085, 0.07, 0.016]} />
+        </mesh>
+      ))}
     </group>
   );
 }
