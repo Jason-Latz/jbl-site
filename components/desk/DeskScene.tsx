@@ -36,6 +36,10 @@ export type DeskSceneProps = {
   onFocus: (id: FocusId) => void;
   labelArtUrl: string | null;
   coverArtUrls: string[];
+  // Live world-vs-Jason game state for the 3D board (null until loaded;
+  // the board falls back to the start position).
+  chessFen: string | null;
+  chessLastMove: { from: string; to: string } | null;
   // Fires once a few frames in — i.e. after the synchronous shadow bake —
   // so the hero can fade the canvas in instead of showing the freeze.
   onReady?: () => void;
@@ -350,6 +354,8 @@ function SceneContents({
   onFocus,
   labelArtUrl,
   coverArtUrls,
+  chessFen,
+  chessLastMove,
   onReady
 }: DeskSceneProps) {
   const controlsRef = useRef<OrbitControlsImpl>(null!);
@@ -385,8 +391,8 @@ function SceneContents({
       <Placed name="bookshelf" focusId="reading" onFocus={onFocus}>
         <Bookshelf />
       </Placed>
-      <Placed name="chessboard">
-        <Chessboard />
+      <Placed name="chessboard" focusId="chess" onFocus={onFocus}>
+        <Chessboard fen={chessFen} lastMove={chessLastMove} />
       </Placed>
       <Placed name="notepad" focusId="notes" onFocus={onFocus}>
         <Notepad />

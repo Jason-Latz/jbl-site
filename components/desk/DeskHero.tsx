@@ -3,9 +3,11 @@
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { TurntableAudio } from "@/lib/audio/turntable-audio";
+import { useChessGame } from "@/lib/useChessGame";
 import { useSpotifyLive } from "@/lib/useSpotifyLive";
 import { type FocusId } from "./layout";
 import NowPlayingHUD, { type NeedlePhase } from "./NowPlayingHUD";
+import ChessPanel from "./panels/ChessPanel";
 import DeskPanel from "./panels/DeskPanel";
 import NotesPanel from "./panels/NotesPanel";
 import ReadingPanel from "./panels/ReadingPanel";
@@ -16,7 +18,8 @@ const PANEL_META: Record<FocusId, { eyebrow: string; title: string }> = {
   records: { eyebrow: "listening", title: "On the platter" },
   work: { eyebrow: "working", title: "What I'm building" },
   reading: { eyebrow: "reading", title: "The bookshelf" },
-  notes: { eyebrow: "guestbook", title: "Leave a note" }
+  notes: { eyebrow: "guestbook", title: "Leave a note" },
+  chess: { eyebrow: "playing", title: "The world vs. Jason" }
 };
 
 const DeskScene = dynamic(() => import("./DeskScene"), {
@@ -77,6 +80,7 @@ export default function DeskHero() {
   const [sceneReady, setSceneReady] = useState(false);
   const handleSceneReady = useCallback(() => setSceneReady(true), []);
   const { data } = useSpotifyLive();
+  const { game: chessGame } = useChessGame();
 
   // Heavy-rotation art for the crate sleeves, fetched once.
   useEffect(() => {
@@ -107,14 +111,16 @@ export default function DeskHero() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  // Deep link straight into a focus view: /?focus=records|work|reading|notes
+  // Deep link straight into a focus view:
+  // /?focus=records|work|reading|notes|chess
   useEffect(() => {
     const requested = new URLSearchParams(window.location.search).get("focus");
     if (
       requested === "records" ||
       requested === "work" ||
       requested === "reading" ||
-      requested === "notes"
+      requested === "notes" ||
+      requested === "chess"
     ) {
       setFocus(requested);
     }
@@ -270,6 +276,12 @@ export default function DeskHero() {
               onFocus={setFocus}
               labelArtUrl={leadTrack?.albumImageUrl ?? null}
               coverArtUrls={coverArtUrls}
+              chessFen={chessGame?.fen ?? null}
+              chessLastMove={
+                chessGame?.lastMove
+                  ? { from: chessGame.lastMove.from, to: chessGame.lastMove.to }
+                  : null
+              }
               onReady={handleSceneReady}
             />
           </div>
@@ -294,6 +306,8 @@ export default function DeskHero() {
             <WorkPanel />
           ) : focus === "reading" ? (
             <ReadingPanel />
+          ) : focus === "chess" ? (
+            <ChessPanel />
           ) : (
             <NotesPanel />
           )}

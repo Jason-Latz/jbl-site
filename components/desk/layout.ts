@@ -43,7 +43,7 @@ export const CAMERA = {
 // Stage 2 focus views: clicking an object dollies the camera to a fixed,
 // art-directed close-up while its panel slides in. Fixed views are the whole
 // philosophy — each one is hand-framed.
-export type FocusId = "records" | "work" | "reading" | "notes";
+export type FocusId = "records" | "work" | "reading" | "notes" | "chess";
 
 export const FOCUS_VIEWS: Record<
   FocusId,
@@ -52,5 +52,9 @@ export const FOCUS_VIEWS: Record<
   records: { position: [-0.5, 0.62, 0.72], target: [-0.52, 0.04, 0.02] },
   work: { position: [0.16, 0.32, 0.46], target: [0.28, 0.13, -0.08] },
   reading: { position: [0.66, 0.5, 0.45], target: [0.71, 0.24, -0.29] },
-  notes: { position: [0.04, 0.55, 0.52], target: [0.02, 0.01, 0.25] }
+  notes: { position: [0.04, 0.55, 0.52], target: [0.02, 0.01, 0.25] },
+  // Elevated three-quarter view from the front-left so the whole board
+  // reads plus the graveyard flanks (captured pieces park ±0.218m from
+  // board center in local x — keep them in frame).
+  chess: { position: [0.42, 0.52, 0.58], target: [0.6, 0.02, 0.21] }
 };
