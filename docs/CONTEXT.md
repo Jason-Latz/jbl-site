@@ -6,7 +6,14 @@
 
 ## Session log
 
-### 2026-06-11 — Stage 1.5 + Stage 2 SHIPPED (this branch, ~146 commits total)
+### 2026-06-11 — Stage 1.5 + Stage 2 SHIPPED — pushed to origin/the-desk
+
+Branch strategy per Jason: `main` stays the live regular site; The Desk
+develops on `origin/the-desk` (Vercel auto-builds a preview deployment for it).
+Local worktree branch tracks origin/the-desk. Merge to main only when Jason
+calls it ready.
+
+(~146 commits total at push time.)
 
 Everything below this entry's plan landed. Final state:
 
