@@ -4,7 +4,16 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { TurntableAudio } from "@/lib/audio/turntable-audio";
 import { useSpotifyLive } from "@/lib/useSpotifyLive";
+import { type FocusId } from "./layout";
 import NowPlayingHUD, { type NeedlePhase } from "./NowPlayingHUD";
+import DeskPanel from "./panels/DeskPanel";
+
+const PANEL_META: Record<FocusId, { eyebrow: string; title: string }> = {
+  records: { eyebrow: "listening", title: "On the platter" },
+  work: { eyebrow: "working", title: "What I'm building" },
+  reading: { eyebrow: "reading", title: "The bookshelf" },
+  notes: { eyebrow: "guestbook", title: "Leave a note" }
+};
 
 const DeskScene = dynamic(() => import("./DeskScene"), {
   ssr: false,
@@ -56,7 +65,18 @@ export default function DeskHero() {
   const [capability, setCapability] = useState<Capability>("pending");
   const [phase, setPhase] = useState<NeedlePhase>("idle");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [focus, setFocus] = useState<FocusId | null>(null);
   const { data } = useSpotifyLive();
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setFocus(null);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   const audioRef = useRef<TurntableAudio | null>(null);
   const timersRef = useRef<number[]>([]);
@@ -193,11 +213,22 @@ export default function DeskHero() {
         <DeskScene
           turntablePlaying={turntablePlaying}
           armDown={armDown}
-          onNeedleClick={handleToggleNeedle}
+          onNeedleClick={() => setFocus("records")}
+          focus={focus}
+          onFocus={setFocus}
         />
       ) : (
         <div className="desk-hero-loading" aria-hidden="true" />
       )}
+      {focus ? (
+        <DeskPanel
+          eyebrow={PANEL_META[focus].eyebrow}
+          title={PANEL_META[focus].title}
+          onClose={() => setFocus(null)}
+        >
+          <p>Coming together — this panel's contents land with Stage 2.</p>
+        </DeskPanel>
+      ) : null}
       <a
         className="desk-credit"
         href="https://claude.com/claude-code"

@@ -37,3 +37,18 @@ export const CAMERA = {
   start: [0.45, 1.7, 2.0] as [number, number, number],
   target: [0, 0.05, -0.04] as [number, number, number]
 };
+
+// Stage 2 focus views: clicking an object dollies the camera to a fixed,
+// art-directed close-up while its panel slides in. Fixed views are the whole
+// philosophy — each one is hand-framed.
+export type FocusId = "records" | "work" | "reading" | "notes";
+
+export const FOCUS_VIEWS: Record<
+  FocusId,
+  { position: [number, number, number]; target: [number, number, number] }
+> = {
+  records: { position: [-0.5, 0.62, 0.72], target: [-0.52, 0.04, 0.02] },
+  work: { position: [0.2, 0.5, 0.55], target: [0.27, 0.14, -0.1] },
+  reading: { position: [0.66, 0.5, 0.45], target: [0.71, 0.24, -0.29] },
+  notes: { position: [0.04, 0.55, 0.52], target: [0.02, 0.01, 0.25] }
+};

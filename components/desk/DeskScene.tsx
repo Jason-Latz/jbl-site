@@ -18,9 +18,10 @@ import {
 } from "@react-three/postprocessing";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import * as THREE from "three";
+import type { ThreeEvent } from "@react-three/fiber";
 import { DeskThemeProvider, useDeskTheme } from "./DeskThemeContext";
 import { useSiteTheme } from "./useSiteTheme";
-import { CAMERA, PLACEMENT } from "./layout";
+import { CAMERA, FOCUS_VIEWS, PLACEMENT, type FocusId } from "./layout";
 import Desk from "./Desk";
 import Room from "./Room";
 import Bookshelf from "./objects/Bookshelf";
@@ -35,6 +36,8 @@ export type DeskSceneProps = {
   turntablePlaying: boolean;
   armDown: boolean;
   onNeedleClick: () => void;
+  focus: FocusId | null;
+  onFocus: (id: FocusId) => void;
 };
 
 const CAMERA_START = new THREE.Vector3(...CAMERA.start);
@@ -203,46 +206,72 @@ function LightingRig() {
   );
 }
 
-// One-time dolly from the establishing shot to the resting framing.
-// Orbit controls unlock when it lands.
-function CameraIntro({
+type CameraFlight = {
+  from: THREE.Vector3;
+  fromTarget: THREE.Vector3;
+  to: THREE.Vector3;
+  toTarget: THREE.Vector3;
+  progress: number;
+  duration: number;
+  unlockOnLand: boolean;
+};
+
+// Every camera move is a hand-framed flight between fixed views: the intro
+// dolly, focus close-ups (click an object), the return to rest, and aspect
+// flips. Orbit controls only unlock at the resting view.
+function CameraDirector({
   controlsRef,
-  rig
+  rig,
+  focus
 }: {
   controlsRef: React.RefObject<OrbitControlsImpl>;
   rig: CameraRig;
+  focus: FocusId | null;
 }) {
   const { camera } = useThree();
-  const progressRef = useRef(0);
-  const doneRef = useRef(false);
-  const fromRef = useRef<THREE.Vector3 | null>(null);
+  const flightRef = useRef<CameraFlight | null>(null);
+  const currentTarget = useRef(rig.target.clone());
+  const firstFlightRef = useRef(true);
 
-  // Aspect flips (e.g. rotating a phone) swap the rig after the intro has
-  // landed — ease from wherever the camera is to the new resting framing.
   useEffect(() => {
-    if (doneRef.current) {
-      fromRef.current = camera.position.clone();
-      progressRef.current = 0;
-      doneRef.current = false;
-      if (controlsRef.current) {
-        controlsRef.current.enabled = false;
-      }
+    const view = focus ? FOCUS_VIEWS[focus] : null;
+    const isFirst = firstFlightRef.current;
+    firstFlightRef.current = false;
+    if (controlsRef.current) {
+      controlsRef.current.enabled = false;
     }
-  }, [rig, camera, controlsRef]);
+    flightRef.current = {
+      from: isFirst ? rig.start.clone() : camera.position.clone(),
+      fromTarget: currentTarget.current.clone(),
+      to: view ? new THREE.Vector3(...view.position) : rig.rest.clone(),
+      toTarget: view ? new THREE.Vector3(...view.target) : rig.target.clone(),
+      progress: 0,
+      duration: isFirst ? 2.3 : 1.25,
+      unlockOnLand: !focus
+    };
+  }, [rig, focus, camera, controlsRef]);
 
   useFrame((_, delta) => {
-    if (doneRef.current) {
+    const flight = flightRef.current;
+    if (flight) {
+      flight.progress = Math.min(1, flight.progress + delta / flight.duration);
+      const eased = 1 - Math.pow(1 - flight.progress, 3);
+      camera.position.lerpVectors(flight.from, flight.to, eased);
+      currentTarget.current.lerpVectors(flight.fromTarget, flight.toTarget, eased);
+      camera.lookAt(currentTarget.current);
+      if (flight.progress >= 1) {
+        const unlock = flight.unlockOnLand;
+        flightRef.current = null;
+        if (unlock && controlsRef.current) {
+          controlsRef.current.target.copy(currentTarget.current);
+          controlsRef.current.enabled = true;
+          controlsRef.current.update();
+        }
+      }
       return;
     }
-    progressRef.current = Math.min(1, progressRef.current + delta / 2.3);
-    const eased = 1 - Math.pow(1 - progressRef.current, 3);
-    camera.position.lerpVectors(fromRef.current ?? rig.start, rig.rest, eased);
-    camera.lookAt(rig.target);
-    if (progressRef.current >= 1) {
-      doneRef.current = true;
-      if (controlsRef.current) {
-        controlsRef.current.enabled = true;
-      }
+    if (controlsRef.current?.enabled) {
+      currentTarget.current.copy(controlsRef.current.target);
     }
   });
 
@@ -251,14 +280,45 @@ function CameraIntro({
 
 function Placed({
   name,
+  focusId,
+  onFocus,
   children
 }: {
   name: keyof typeof PLACEMENT;
+  focusId?: FocusId;
+  onFocus?: (id: FocusId) => void;
   children: React.ReactNode;
 }) {
   const placement = PLACEMENT[name];
+  const clickable = Boolean(focusId && onFocus);
   return (
-    <group position={placement.position} rotation-y={placement.rotationY}>
+    <group
+      position={placement.position}
+      rotation-y={placement.rotationY}
+      onClick={
+        clickable
+          ? (event: ThreeEvent<MouseEvent>) => {
+              event.stopPropagation();
+              onFocus!(focusId!);
+            }
+          : undefined
+      }
+      onPointerOver={
+        clickable
+          ? (event: ThreeEvent<PointerEvent>) => {
+              event.stopPropagation();
+              document.body.style.cursor = "pointer";
+            }
+          : undefined
+      }
+      onPointerOut={
+        clickable
+          ? () => {
+              document.body.style.cursor = "auto";
+            }
+          : undefined
+      }
+    >
       {children}
     </group>
   );
@@ -267,7 +327,9 @@ function Placed({
 function SceneContents({
   turntablePlaying,
   armDown,
-  onNeedleClick
+  onNeedleClick,
+  focus,
+  onFocus
 }: DeskSceneProps) {
   const controlsRef = useRef<OrbitControlsImpl>(null!);
   const rig = useCameraRig();
@@ -277,7 +339,7 @@ function SceneContents({
       <SoftShadows size={18} samples={16} focus={0.42} />
       <SceneEnvironment />
       <LightingRig />
-      <CameraIntro controlsRef={controlsRef} rig={rig} />
+      <CameraDirector controlsRef={controlsRef} rig={rig} focus={focus} />
       <Room />
       <Desk />
       <BakedDeskShadows />
@@ -291,16 +353,16 @@ function SceneContents({
       <Placed name="lamp">
         <DeskLamp />
       </Placed>
-      <Placed name="macbook">
+      <Placed name="macbook" focusId="work" onFocus={onFocus}>
         <MacBook />
       </Placed>
-      <Placed name="bookshelf">
+      <Placed name="bookshelf" focusId="reading" onFocus={onFocus}>
         <Bookshelf />
       </Placed>
       <Placed name="chessboard">
         <Chessboard />
       </Placed>
-      <Placed name="notepad">
+      <Placed name="notepad" focusId="notes" onFocus={onFocus}>
         <Notepad />
       </Placed>
       <Placed name="crate">
