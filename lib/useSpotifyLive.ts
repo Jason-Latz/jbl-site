@@ -174,7 +174,19 @@ export function useSpotifyLive(): UseSpotifyLiveResult {
         }
 
         consecutiveErrors = 0;
-        setData(payload);
+        // Value-equal bailout (fetchedAt excluded): most 45 s polls return
+        // the same track and stats, and an always-fresh object identity
+        // re-rendered the hero mid-animation for nothing.
+        setData((prev) => {
+          if (prev) {
+            const { fetchedAt: _a, ...prevRest } = prev;
+            const { fetchedAt: _b, ...nextRest } = payload;
+            if (JSON.stringify(prevRest) === JSON.stringify(nextRest)) {
+              return prev;
+            }
+          }
+          return payload;
+        });
         setHasError(false);
         writeCachedResponse(payload);
       } catch (err) {

@@ -90,6 +90,20 @@ export function useChessGame(): UseChessGameResult {
   const disposedRef = useRef(false);
 
   const applyGame = useCallback((next: PublicChessGame) => {
+    // Value-equal bailout: the global game can sit unchanged for days, and
+    // an unconditional setGame every 30 s poll re-rendered the hero (and,
+    // before memoization, the whole canvas tree) for nothing.
+    const prev = gameRef.current;
+    if (
+      prev &&
+      prev.id === next.id &&
+      prev.ply === next.ply &&
+      prev.fen === next.fen &&
+      prev.status === next.status
+    ) {
+      setError(null);
+      return;
+    }
     gameRef.current = next;
     setGame(next);
     setError(null);
