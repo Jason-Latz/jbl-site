@@ -146,3 +146,44 @@ export function paperMaterial(
 export function feltMaterial(color: string): THREE.MeshStandardMaterial {
   return new THREE.MeshStandardMaterial({ color, roughness: 1, metalness: 0 });
 }
+
+export function lacquerMaterial(
+  color: string,
+  options: {
+    clearcoat?: number;
+    clearcoatRoughness?: number;
+    roughness?: number;
+    metalness?: number;
+  } = {}
+): THREE.MeshPhysicalMaterial {
+  return new THREE.MeshPhysicalMaterial({
+    color,
+    clearcoat: options.clearcoat ?? 1,
+    clearcoatRoughness: options.clearcoatRoughness ?? 0.14,
+    roughness: options.roughness ?? 0.35,
+    metalness: options.metalness ?? 0.02
+  });
+}
+
+export function lacqueredWoodMaterial(
+  options: {
+    base?: string;
+    streak?: string;
+    roughness?: number;
+    clearcoat?: number;
+    clearcoatRoughness?: number;
+    bumpScale?: number;
+  } = {}
+): THREE.MeshPhysicalMaterial {
+  const grain = woodGrainTexture(options.base, options.streak);
+  const material = new THREE.MeshPhysicalMaterial({
+    map: grain,
+    roughness: options.roughness ?? 0.42,
+    metalness: 0.02,
+    clearcoat: options.clearcoat ?? 0.7,
+    clearcoatRoughness: options.clearcoatRoughness ?? 0.22
+  });
+  material.bumpMap = grain;
+  material.bumpScale = options.bumpScale ?? 0.0012;
+  return material;
+}
