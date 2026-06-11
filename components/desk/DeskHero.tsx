@@ -71,6 +71,11 @@ export default function DeskHero() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [focus, setFocus] = useState<FocusId | null>(null);
   const [coverArtUrls, setCoverArtUrls] = useState<string[]>([]);
+  // The shadow bake + shader compiles freeze the first frames; the canvas
+  // stays invisible over the shimmer until the scene reports it's drawing,
+  // then fades in (and the lamp plays its warm-up as the curtain rises).
+  const [sceneReady, setSceneReady] = useState(false);
+  const handleSceneReady = useCallback(() => setSceneReady(true), []);
   const { data } = useSpotifyLive();
 
   // Heavy-rotation art for the crate sleeves, fetched once.
@@ -247,15 +252,28 @@ export default function DeskHero() {
       aria-label="Jason's desk — an interactive 3D scene"
     >
       {capability === "scene" ? (
-        <DeskScene
-          turntablePlaying={turntablePlaying}
-          armDown={armDown}
-          onNeedleClick={() => setFocus("records")}
-          focus={focus}
-          onFocus={setFocus}
-          labelArtUrl={leadTrack?.albumImageUrl ?? null}
-          coverArtUrls={coverArtUrls}
-        />
+        <>
+          <div className="desk-hero-loading" aria-hidden="true" />
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              opacity: sceneReady ? 1 : 0,
+              transition: "opacity 1.15s ease"
+            }}
+          >
+            <DeskScene
+              turntablePlaying={turntablePlaying}
+              armDown={armDown}
+              onNeedleClick={() => setFocus("records")}
+              focus={focus}
+              onFocus={setFocus}
+              labelArtUrl={leadTrack?.albumImageUrl ?? null}
+              coverArtUrls={coverArtUrls}
+              onReady={handleSceneReady}
+            />
+          </div>
+        </>
       ) : (
         <div className="desk-hero-loading" aria-hidden="true" />
       )}

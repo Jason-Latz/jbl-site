@@ -40,6 +40,9 @@ export type DeskSceneProps = {
   onFocus: (id: FocusId) => void;
   labelArtUrl: string | null;
   coverArtUrls: string[];
+  // Fires once a few frames in — i.e. after the synchronous shadow bake —
+  // so the hero can fade the canvas in instead of showing the freeze.
+  onReady?: () => void;
 };
 
 const CAMERA_START = new THREE.Vector3(...CAMERA.start);
@@ -137,15 +140,17 @@ function SceneEnvironment() {
   );
 }
 
-// The precomputation Jason asked for, made literal: 120 randomized light
+// The precomputation Jason asked for, made literal: 220 randomized light
 // samples accumulate once into a soft baked contact-shadow layer on the desk
-// top. After the bake it costs one textured plane.
+// top (2k map — he approved spending seconds of load on this). After the
+// bake it costs one textured plane.
 function BakedDeskShadows() {
   return (
     <group scale={[1, 1, 0.52]}>
       <AccumulativeShadows
         temporal={false}
-        frames={120}
+        frames={220}
+        resolution={2048}
         alphaTest={0.78}
         opacity={0.7}
         color="#3a2414"
@@ -280,6 +285,21 @@ function CameraDirector({
   return null;
 }
 
+// Reports "the scene is actually drawing" — by frame 3 the blocking shadow
+// bake and first compiles are behind us, so the hero can start its fade-in.
+function ReadySignal({ onReady }: { onReady?: () => void }) {
+  const framesRef = useRef(0);
+  const firedRef = useRef(false);
+  useFrame(() => {
+    framesRef.current += 1;
+    if (framesRef.current >= 3 && !firedRef.current) {
+      firedRef.current = true;
+      onReady?.();
+    }
+  });
+  return null;
+}
+
 function Placed({
   name,
   focusId,
@@ -333,13 +353,15 @@ function SceneContents({
   focus,
   onFocus,
   labelArtUrl,
-  coverArtUrls
+  coverArtUrls,
+  onReady
 }: DeskSceneProps) {
   const controlsRef = useRef<OrbitControlsImpl>(null!);
   const rig = useCameraRig();
 
   return (
     <>
+      <ReadySignal onReady={onReady} />
       <SoftShadows size={18} samples={16} focus={0.42} />
       <SceneEnvironment />
       <LightingRig />
