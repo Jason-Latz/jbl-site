@@ -22,7 +22,9 @@ export const PLACEMENT: Record<string, Placement> = {
   // Lamp yaw is load-bearing: the Forså's spotlight target sits at local
   // [0.5, 0, 0.12], and -0.6 rotates that beam onto the turntable.
   lamp: { position: [-0.82, 0, -0.3], rotationY: -0.6 },
-  macbook: { position: [0.26, 0, -0.1], rotationY: -0.92 },
+  // Yaw ~pi-0.25: the keyboard/screen face the camera so the opened lid
+  // presents the display; closed, the sticker lid faces straight up.
+  macbook: { position: [0.26, 0, -0.1], rotationY: 2.89 },
   bookshelf: { position: [0.71, 0, -0.29], rotationY: -0.05 },
   chessboard: { position: [0.6, 0, 0.21], rotationY: 0.32 },
   notepad: { position: [0.02, 0, 0.25], rotationY: -0.08 },
@@ -48,7 +50,7 @@ export const FOCUS_VIEWS: Record<
   { position: [number, number, number]; target: [number, number, number] }
 > = {
   records: { position: [-0.5, 0.62, 0.72], target: [-0.52, 0.04, 0.02] },
-  work: { position: [0.2, 0.5, 0.55], target: [0.27, 0.14, -0.1] },
+  work: { position: [0.16, 0.32, 0.46], target: [0.28, 0.13, -0.08] },
   reading: { position: [0.66, 0.5, 0.45], target: [0.71, 0.24, -0.29] },
   notes: { position: [0.04, 0.55, 0.52], target: [0.02, 0.01, 0.25] }
 };

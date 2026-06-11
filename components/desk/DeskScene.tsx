@@ -354,7 +354,7 @@ function SceneContents({
         <DeskLamp />
       </Placed>
       <Placed name="macbook" focusId="work" onFocus={onFocus}>
-        <MacBook />
+        <MacBook open={focus === "work"} />
       </Placed>
       <Placed name="bookshelf" focusId="reading" onFocus={onFocus}>
         <Bookshelf />

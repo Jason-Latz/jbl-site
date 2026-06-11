@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useRef } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useMemo, useRef, useState } from "react";
+import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
-import { RoundedBox } from "@react-three/drei";
+import { Html, RoundedBox } from "@react-three/drei";
 import { RoundedBoxGeometry } from "three-stdlib";
 import { PALETTE, makeCanvasTexture } from "@/lib/three/materials";
 import { useDeskTheme } from "../DeskThemeContext";
@@ -746,11 +746,20 @@ function drawDisplay(ctx: CanvasRenderingContext2D, w: number, h: number): void 
 
 // ---------------------------------------------------------------------------
 
-// 14" space-gray MacBook, open ~110deg. Screen faces -z; the lid exterior
-// (Claude stickers) faces +z toward the resting camera.
-export default function MacBook() {
-  const { mixRef } = useDeskTheme();
+// 14" space-gray MacBook. Rests CLOSED with the sticker lid face-up to the
+// 45-degree camera (in dark mode it sits ajar, leaking a blade of screen
+// light); `open` swings the lid to ~110deg for the work focus. Screen faces
+// -z when open. Hovering/tapping the stickers shows the Made-with-Claude
+// signature.
+type MacBookProps = {
+  open: boolean;
+};
+
+export default function MacBook({ open }: MacBookProps) {
+  const { theme, mixRef } = useDeskTheme();
   const glowRef = useRef<THREE.PointLight>(null);
+  const lidRef = useRef<THREE.Group>(null);
+  const [creditShown, setCreditShown] = useState(false);
 
   const baseMetal = useMemo(() => {
     const rng = mulberry32(0xa11_0b01);
@@ -1110,21 +1119,50 @@ export default function MacBook() {
     }));
   }, []);
 
-  // rotation.x = 0 would be a 90deg pose; jitter keeps the pose human
+  // rotation.x = 0 would be a 90deg pose; jitter keeps the pose human.
+  // Closed rests a hair proud so the lid clears the key caps; the dark-mode
+  // ajar pose leaks screen light through the wedge.
   const lidPose = useMemo(() => {
     const rng = mulberry32(0x5eed_11d);
     return {
-      tilt: THREE.MathUtils.degToRad(110 + (rng() - 0.5) * 3) - Math.PI / 2,
+      open: THREE.MathUtils.degToRad(110 + (rng() - 0.5) * 3) - Math.PI / 2,
+      closed: -Math.PI / 2 + 0.035,
+      ajar: -Math.PI / 2 + 0.13,
       slop: (rng() - 0.5) * 0.008
     };
   }, []);
 
-  useFrame(() => {
+  useFrame((_, delta) => {
     const mix = mixRef.current;
-    screenMaterial.emissiveIntensity = THREE.MathUtils.lerp(1.5, 0.35, mix);
-    legendMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.5, 0.04, mix);
+    const lid = lidRef.current;
+    let openFraction = 1;
+    if (lid) {
+      const target = open
+        ? lidPose.open
+        : theme === "dark"
+          ? lidPose.ajar
+          : lidPose.closed;
+      lid.rotation.x = THREE.MathUtils.damp(lid.rotation.x, target, 3.2, delta);
+      const targetLift = open ? 0 : 0.004;
+      lid.position.y = THREE.MathUtils.damp(
+        lid.position.y,
+        HINGE_Y + targetLift,
+        3.2,
+        delta
+      );
+      openFraction = THREE.MathUtils.clamp(
+        ((lid.rotation.x - lidPose.closed) / (lidPose.open - lidPose.closed)) * 6,
+        0,
+        1
+      );
+    }
+    screenMaterial.emissiveIntensity =
+      THREE.MathUtils.lerp(1.5, 0.35, mix) * openFraction;
+    legendMaterial.emissiveIntensity =
+      THREE.MathUtils.lerp(0.5, 0.04, mix) * openFraction;
     if (glowRef.current) {
-      glowRef.current.intensity = THREE.MathUtils.lerp(0.16, 0, mix);
+      glowRef.current.intensity =
+        THREE.MathUtils.lerp(0.16, 0, mix) * openFraction;
     }
   });
 
@@ -1276,7 +1314,11 @@ export default function MacBook() {
         </mesh>
       ))}
 
-      <group position={[0, HINGE_Y, HINGE_Z]} rotation={[lidPose.tilt, lidPose.slop, 0]}>
+      <group
+        ref={lidRef}
+        position={[0, HINGE_Y, HINGE_Z]}
+        rotation={[lidPose.closed, lidPose.slop, 0]}
+      >
         <RoundedBox
           args={[LID_W, LID_H, LID_T]}
           radius={0.0018}
@@ -1295,17 +1337,58 @@ export default function MacBook() {
           material={sharedMats.antenna}
         />
 
-        {/* raised sticker decals on the lid back */}
-        {stickers.map(({ def, geometry, face }, i) => (
-          <mesh
-            key={`sticker${i}`}
-            geometry={geometry}
-            material={[face, sharedMats.stickerRim]}
-            position={[def.x, LID_CY + def.y, LID_T / 2 + 0.0001]}
-            rotation={[0, 0, def.tilt]}
-            scale={[def.size, def.size, 1]}
-          />
-        ))}
+        {/* raised sticker decals on the lid back — also the site's signature:
+            hovering or tapping them reveals the Made-with-Claude chip */}
+        <group
+          onPointerOver={(event: ThreeEvent<PointerEvent>) => {
+            event.stopPropagation();
+            document.body.style.cursor = "pointer";
+            setCreditShown(true);
+          }}
+          onPointerOut={() => {
+            document.body.style.cursor = "auto";
+            setCreditShown(false);
+          }}
+          onClick={(event: ThreeEvent<MouseEvent>) => {
+            event.stopPropagation();
+            setCreditShown((shown) => !shown);
+          }}
+        >
+          {stickers.map(({ def, geometry, face }, i) => (
+            <mesh
+              key={`sticker${i}`}
+              geometry={geometry}
+              material={[face, sharedMats.stickerRim]}
+              position={[def.x, LID_CY + def.y, LID_T / 2 + 0.0001]}
+              rotation={[0, 0, def.tilt]}
+              scale={[def.size, def.size, 1]}
+            />
+          ))}
+        </group>
+        {creditShown ? (
+          <Html
+            position={[
+              stickers[0]?.def.x ?? 0,
+              LID_CY + (stickers[0]?.def.y ?? 0),
+              LID_T / 2 + 0.02
+            ]}
+            center
+            distanceFactor={0.5}
+            zIndexRange={[6, 1]}
+          >
+            <a
+              className="desk-credit desk-credit-anchored"
+              href="https://claude.com/claude-code"
+              target="_blank"
+              rel="noreferrer"
+            >
+              <span className="desk-credit-line">Made with Claude</span>
+              <span className="desk-credit-sub">
+                the stickers are on Jason's real laptop too
+              </span>
+            </a>
+          </Html>
+        ) : null}
 
         {/* screen stack: black bezel, emissive panel, reflective cover glass */}
         <mesh
