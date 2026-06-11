@@ -761,42 +761,51 @@ export default function MacBook({ open }: MacBookProps) {
   const lidRef = useRef<THREE.Group>(null);
   const [creditShown, setCreditShown] = useState(false);
 
+  // Bead-blasted space-gray anodize. The laptop sits OUTSIDE the lamp pool,
+  // so the Lightformer env map is its key light: true space-gray tint (the
+  // old mid-gray map read navy once metalness tinted the dark room), satin
+  // roughness so the warm window former smears into a broad gradient instead
+  // of mirroring as a blob, env intensity high enough that the metal answers
+  // it, and a rough clearcoat skin for the anodize's untinted top sheen.
   const baseMetal = useMemo(() => {
     const rng = mulberry32(0xa11_0b01);
     const tex = makeCanvasTexture(
       1024,
       1024,
-      (ctx, w, h) => drawAluminum(ctx, w, h, rng, "#8d9095", "#9da0a6", "#7e8186"),
+      (ctx, w, h) => drawAluminum(ctx, w, h, rng, "#686b70", "#7a7d83", "#5a5d62"),
       { anisotropy: 8 }
     );
     const material = new THREE.MeshPhysicalMaterial({
       map: tex,
-      metalness: 0.88,
-      roughness: 0.42,
-      clearcoat: 0.25,
-      clearcoatRoughness: 0.35,
-      envMapIntensity: 1.15
+      metalness: 0.92,
+      roughness: 0.48,
+      clearcoat: 0.2,
+      clearcoatRoughness: 0.45,
+      envMapIntensity: 2.0
     });
     material.bumpMap = tex;
     material.bumpScale = 0.0004;
     return material;
   }, []);
 
+  // Lid skin — the star of the rest pose. A hair lighter and tighter than
+  // the body so its top face carries the warm window gradient visibly from
+  // across the room.
   const lidMetal = useMemo(() => {
     const rng = mulberry32(0xa11_0b02);
     const tex = makeCanvasTexture(
       1024,
       1024,
-      (ctx, w, h) => drawAluminum(ctx, w, h, rng, "#93969b", "#a3a6ac", "#84878d"),
+      (ctx, w, h) => drawAluminum(ctx, w, h, rng, "#6e7177", "#80838a", "#5f6266"),
       { anisotropy: 8 }
     );
     const material = new THREE.MeshPhysicalMaterial({
       map: tex,
-      metalness: 0.88,
-      roughness: 0.4,
-      clearcoat: 0.25,
-      clearcoatRoughness: 0.32,
-      envMapIntensity: 1.15
+      metalness: 0.92,
+      roughness: 0.45,
+      clearcoat: 0.22,
+      clearcoatRoughness: 0.4,
+      envMapIntensity: 2.2
     });
     material.bumpMap = tex;
     material.bumpScale = 0.0004;
@@ -805,29 +814,35 @@ export default function MacBook({ open }: MacBookProps) {
 
   const sharedMats = useMemo(
     () => ({
+      // Keyboard cavity: darker + rougher than the deck so the ajar wedge and
+      // the open pose read as real depth for N8AO, not a painted plate.
       well: new THREE.MeshStandardMaterial({
-        color: "#141519",
-        roughness: 0.55,
-        metalness: 0.35
+        color: "#0e0f13",
+        roughness: 0.68,
+        metalness: 0.22
       }),
       rubber: new THREE.MeshStandardMaterial({
         color: "#1b1c1f",
         roughness: 0.92,
         metalness: 0
       }),
+      // Port cavity stays near-black, but metal enough that its recess walls
+      // throw a spark when the env rakes the side face.
       port: new THREE.MeshStandardMaterial({
-        color: "#0c0d0f",
-        roughness: 0.4,
-        metalness: 0.6
+        color: "#0b0c0e",
+        roughness: 0.32,
+        metalness: 0.75,
+        envMapIntensity: 1.3
       }),
       hinge: new THREE.MeshStandardMaterial({
-        color: "#3c3d42",
-        metalness: 0.85,
-        roughness: 0.34
+        color: "#46474d",
+        metalness: 0.9,
+        roughness: 0.3,
+        envMapIntensity: 1.5
       }),
       antenna: new THREE.MeshStandardMaterial({
-        color: "#232428",
-        roughness: 0.55,
+        color: "#2c2e33",
+        roughness: 0.58,
         metalness: 0.05
       }),
       vent: new THREE.MeshStandardMaterial({
@@ -836,7 +851,7 @@ export default function MacBook({ open }: MacBookProps) {
         metalness: 0.3
       }),
       scoopTop: new THREE.MeshStandardMaterial({
-        color: "#1f2024",
+        color: "#17181c",
         roughness: 0.5,
         metalness: 0.4
       }),
@@ -845,12 +860,21 @@ export default function MacBook({ open }: MacBookProps) {
         roughness: 0.32,
         metalness: 0.1,
         clearcoat: 0.5,
-        clearcoatRoughness: 0.2
+        clearcoatRoughness: 0.2,
+        envMapIntensity: 1.25
       }),
       stickerRim: new THREE.MeshStandardMaterial({
         color: "#c9c2b0",
         roughness: 0.8,
         metalness: 0
+      }),
+      // Machined chamfer cuts: polished bare aluminum, brighter and tighter
+      // than the blasted faces — the hairline that catches every light.
+      chamfer: new THREE.MeshPhysicalMaterial({
+        color: "#a4a7ad",
+        metalness: 1,
+        roughness: 0.2,
+        envMapIntensity: 2.1
       })
     }),
     []
@@ -859,8 +883,8 @@ export default function MacBook({ open }: MacBookProps) {
   const scoopFrontMaterial = useMemo(() => {
     const tex = makeCanvasTexture(64, 64, (ctx, w, h) => {
       const g = ctx.createLinearGradient(0, 0, 0, h);
-      g.addColorStop(0, "#1d1e22");
-      g.addColorStop(1, "#3a3c41");
+      g.addColorStop(0, "#15161a");
+      g.addColorStop(1, "#34363b");
       ctx.fillStyle = g;
       ctx.fillRect(0, 0, w, h);
     });
@@ -973,9 +997,11 @@ export default function MacBook({ open }: MacBookProps) {
     });
   }, []);
 
+  // Trackpad glass: retoned to sit in the same space-gray family as the new
+  // deck, glossier than the metal around it so it reads as a glass inlay.
   const trackpadMaterial = useMemo(() => {
     const tex = makeCanvasTexture(512, 346, (ctx, w, h) => {
-      ctx.fillStyle = "#898b90";
+      ctx.fillStyle = "#73767c";
       ctx.fillRect(0, 0, w, h);
       const g = ctx.createLinearGradient(0, 0, w * 0.3, h);
       g.addColorStop(0, "rgba(255,255,255,0.08)");
@@ -990,7 +1016,7 @@ export default function MacBook({ open }: MacBookProps) {
       metalness: 0.5,
       clearcoat: 0.55,
       clearcoatRoughness: 0.15,
-      envMapIntensity: 1.2
+      envMapIntensity: 1.45
     });
   }, []);
 
@@ -1068,12 +1094,15 @@ export default function MacBook({ open }: MacBookProps) {
       const texture = makeCanvasTexture(512, 512, (ctx, w) =>
         drawSunburstSticker(ctx, w, def.rot, def.rays, def.shape, def.paper, rng)
       );
+      // Die-cut vinyl: satin laminate film over matte print — the clearcoat
+      // carries the sheen so the ink itself stays paper-flat.
       const face = new THREE.MeshPhysicalMaterial({
         map: texture,
-        roughness: 0.5,
+        roughness: 0.48,
         metalness: 0,
-        clearcoat: 0.45,
-        clearcoatRoughness: 0.35
+        clearcoat: 0.55,
+        clearcoatRoughness: 0.28,
+        envMapIntensity: 1.15
       });
       return { def, geometry, face };
     });
@@ -1100,6 +1129,37 @@ export default function MacBook({ open }: MacBookProps) {
     () => new RoundedBoxGeometry(0.0006, 0.0028, 0.0095, 2, 0.00028),
     []
   );
+
+  // Polished countersink halo behind each Thunderbolt slot: a slightly larger
+  // bright plate the dark cavity sits proud of, so the recess reads machined.
+  const portRimGeometry = useMemo(
+    () => new RoundedBoxGeometry(0.0004, 0.0046, 0.0117, 2, 0.00018),
+    []
+  );
+
+  // Lid chamfer: the polished cut around the top face, a 1.3mm hairline frame
+  // sitting just inside the round-over so it rides the flat region.
+  const lidChamferGeometry = useMemo(() => {
+    const outer = roundedRectShape(0.3022, 0.2112, 0.0026);
+    const inner = roundedRectShape(0.2996, 0.2086, 0.002);
+    outer.holes.push(new THREE.Path(inner.getPoints(48).reverse()));
+    return new THREE.ShapeGeometry(outer, 24);
+  }, []);
+
+  // Base chamfer: a polished band hugging the lower side wall, the bright
+  // line a real unibody shows where the bottom-edge cut meets the light.
+  const baseChamferGeometry = useMemo(() => {
+    const outer = roundedRectShape(BASE_W + 0.0001, BASE_D + 0.0001, 0.0036);
+    const inner = roundedRectShape(BASE_W - 0.004, BASE_D - 0.004, 0.003);
+    outer.holes.push(new THREE.Path(inner.getPoints(48).reverse()));
+    const geometry = new THREE.ExtrudeGeometry(outer, {
+      depth: 0.0009,
+      bevelEnabled: false,
+      curveSegments: 12
+    });
+    geometry.rotateX(-Math.PI / 2);
+    return geometry;
+  }, []);
 
   const scoopGeometry = useMemo(
     () => new THREE.CircleGeometry(1, 32, Math.PI, Math.PI),
@@ -1203,6 +1263,13 @@ export default function MacBook({ open }: MacBookProps) {
         material={baseMetal}
       />
 
+      {/* polished bottom-edge chamfer band around the unibody side wall */}
+      <mesh
+        geometry={baseChamferGeometry}
+        material={sharedMats.chamfer}
+        position={[0, FOOT_H + 0.0037, 0]}
+      />
+
       {/* thumb scoop illusion: a dark sector caps the front edge round-over,
           meeting a half-ellipse on the face and a crescent on the deck */}
       <mesh
@@ -1283,18 +1350,26 @@ export default function MacBook({ open }: MacBookProps) {
         material={trackpadMaterial}
       />
 
-      {/* side ports: 2 on the user's left (+x), 1 on the right */}
+      {/* side ports: 2 on the user's left (+x), 1 on the right — each dark
+          slot sits proud of a polished countersink halo that glints when the
+          env rakes the side wall */}
       {[
         [BASE_W / 2 - 0.0001, 0.012],
         [BASE_W / 2 - 0.0001, 0.034],
         [-(BASE_W / 2 - 0.0001), 0.022]
       ].map(([x, z], i) => (
-        <mesh
-          key={`port${i}`}
-          geometry={portGeometry}
-          material={sharedMats.port}
-          position={[x, 0.0125, z]}
-        />
+        <group key={`port${i}`}>
+          <mesh
+            geometry={portRimGeometry}
+            material={sharedMats.chamfer}
+            position={[Math.sign(x) * (BASE_W / 2 - 0.00006), 0.0125, z]}
+          />
+          <mesh
+            geometry={portGeometry}
+            material={sharedMats.port}
+            position={[x, 0.0125, z]}
+          />
+        </group>
       ))}
 
       {/* rear thermal slot under the hinge */}
@@ -1339,6 +1414,14 @@ export default function MacBook({ open }: MacBookProps) {
           position={[0, LID_CY, 0]}
           castShadow
           material={lidMetal}
+        />
+
+        {/* polished chamfer hairline framing the lid top — at rest this is
+            the bright machined outline that traces the closed silhouette */}
+        <mesh
+          geometry={lidChamferGeometry}
+          material={sharedMats.chamfer}
+          position={[0, LID_CY, LID_T / 2 + 0.00006]}
         />
 
         {/* antenna window wrapping the lid's bottom edge */}
