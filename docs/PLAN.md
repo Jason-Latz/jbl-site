@@ -167,6 +167,14 @@ up to the level of the record player."
 - [ ] Mobile tuning pass (touch orbit, portrait framing, perf tiers)
 - [ ] Inner pages typography refresh to match the desk's palette
 - [ ] Easter eggs (dust motes in lamp cone, mug steam, seasonal touches)
+- [ ] /music page (Jason 2026-06-11): record CRATE click → /music with his
+      curated favorite records (he edits the list); record PLAYER click →
+      recently playing. Split the two click targets when the page exists.
+- [ ] Window view upgrade: layered parallax outside the glass (skyline /
+      courtyard planes at 2-3 depths). Cheap — the baked light doesn't care;
+      Jason asked "is that too much?" — it isn't.
+- [ ] /photography split from /travel, then camera + photo stack get their
+      own focus views and panels (prints become his real trip photos)
 
 ## Stage 5 — the kiln: baked global illumination (IN PROGRESS 2026-06-11)
 
