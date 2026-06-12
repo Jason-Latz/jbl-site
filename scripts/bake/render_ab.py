@@ -203,9 +203,11 @@ def main():
                 "WindowSun", "SUN", t2b(2.5, 2.0, 0.1), 0.0,
                 (1.0, 0.96, 0.9), angle=math.radians(3.0),
             )
-            sun.data.energy = 5.0
+            sun.data.energy = 7.0
             sun.rotation_euler = sun_dir.to_track_quat("-Z", "Y").to_euler()
-            set_world((0.5, 0.45, 0.4), 0.07)
+            # Light theme means BRIGHT warm desk — generous sky fill so the
+            # room reads as morning, not dusk; the sun patch stays the accent.
+            set_world((0.55, 0.5, 0.44), 0.18)
         else:
             if day:
                 day.hide_render = True
