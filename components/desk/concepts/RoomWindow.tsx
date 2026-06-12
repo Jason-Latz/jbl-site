@@ -69,8 +69,12 @@ const SILL_TOP_Y = WIN_Y_MIN; // top surface flush with the opening bottom
 // Backdrop outside the window: one emissive 3m plane ~0.5m beyond the wall's
 // OUTER face, facing +z back in through the opening. It is the only backdrop —
 // always night — and is sized to fully cover the opening from interior angles.
-const BACKDROP_SIZE = 3.0;
-const BACKDROP_Z_NIGHT = BACK_WALL_OUTER_Z - 0.5; // -1.445, clear of the wall
+// The backdrop is sized and placed so the WINDOW OPENING frames most of the
+// painting — a 3 m plane half a meter back showed only a ~28% central slice,
+// hiding the moon and skyline behind the wall. Close and not much wider than
+// the opening, the whole view reads through the glass.
+const BACKDROP_SIZE = 1.55;
+const BACKDROP_Z_NIGHT = BACK_WALL_OUTER_Z - 0.16; // just behind the wall
 const BACKDROP_CY = (WIN_Y_MIN + WIN_Y_MAX) / 2; // window vertical center (0.675)
 
 // Aged-oak trios borrowed from Room.tsx's palette: [base, dark grain, light].
@@ -963,7 +967,8 @@ export default function RoomWindow() {
       emissiveMap: nightTexture,
       emissiveIntensity: 1,
       roughness: 1,
-      metalness: 0
+      metalness: 0,
+      side: THREE.DoubleSide
     });
 
     return {
