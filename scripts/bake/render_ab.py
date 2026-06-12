@@ -181,46 +181,37 @@ def main():
             look_at(ember, (0, 0, 0))
             set_world((0.3, 0.18, 0.1), 0.02)
     else:  # window room
+        # Jason's lighting law: it is ALWAYS NIGHT outside the window.
+        # Light theme = the lamp is on (plus soft warm room practicals);
+        # dark theme = the night window does the talking, with the screen
+        # glow. The window is centered in the BACK wall; outside is -z.
         night = bpy.data.objects.get("windowBackdropNight")
-        day = bpy.data.objects.get("windowBackdropDay")
-        # The backdrops sit OUTSIDE the window, between the rig's sun/moon
-        # and the opening — they must glow without casting shadows or they
-        # eclipse the very lights they motivate.
-        for backdrop in (night, day):
-            if backdrop is not None:
-                backdrop.visible_shadow = False
-        # The window lives in the RIGHT wall (x ~ +1.5, centered near z 0.1);
-        # outside is +x. Its light rakes leftward across the desk, crossing
-        # the lamp's warm pool — Jason's cross-light composition.
+        if night is not None:
+            # The backdrop sits between the moon and the opening — it must
+            # glow without casting shadows or it eclipses its own moon.
+            night.visible_shadow = False
+            night.hide_render = False
+            make_emissive(night, 3.0 if args.theme == "light" else 5.0)
         if args.theme == "light":
-            if night:
-                night.hide_render = True
-            if day:
-                day.hide_render = False
-                make_emissive(day, 12.0)
-            sun_dir = t2b(-0.75, -0.5, -0.3)
-            sun = add_light(
-                "WindowSun", "SUN", t2b(2.5, 2.0, 0.1), 0.0,
-                (1.0, 0.96, 0.9), angle=math.radians(3.0),
+            key = add_light(
+                "RoomKey", "AREA", t2b(0.9, 1.8, 1.1), 40.0,
+                (1.0, 0.93, 0.85), size=1.5,
             )
-            sun.data.energy = 7.0
-            sun.rotation_euler = sun_dir.to_track_quat("-Z", "Y").to_euler()
-            # Light theme means BRIGHT warm desk — generous sky fill so the
-            # room reads as morning, not dusk; the sun patch stays the accent.
-            set_world((0.55, 0.5, 0.44), 0.18)
+            look_at(key, (0, 0, 0))
+            fill = add_light(
+                "RoomFill", "AREA", t2b(-0.9, 1.6, 0.9), 16.0,
+                (1.0, 0.9, 0.8), size=1.6,
+            )
+            look_at(fill, (0, 0, 0))
+            set_world((0.4, 0.33, 0.26), 0.04)
         else:
-            if day:
-                day.hide_render = True
-            if night:
-                night.hide_render = False
-                make_emissive(night, 5.0)
             moon = add_light(
-                "Moon", "AREA", t2b(2.3, 1.6, 0.1), 14.0,
-                (0.7, 0.8, 1.0), size=1.0,
+                "Moon", "AREA", t2b(-0.3, 1.8, -1.9), 18.0,
+                (0.72, 0.8, 1.0), size=1.1,
             )
-            look_at(moon, (0, 0, 0.1))
+            look_at(moon, (0.1, 0, 0.2))
             ember = add_light(
-                "EmberFill", "AREA", t2b(0.0, 1.4, 0.3), 1.2,
+                "EmberFill", "AREA", t2b(0.0, 1.4, 0.4), 0.9,
                 (1.0, 0.55, 0.3), size=1.2,
             )
             look_at(ember, (0, 0, 0))
