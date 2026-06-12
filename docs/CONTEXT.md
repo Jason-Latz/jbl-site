@@ -54,11 +54,19 @@ Landed (one commit each):
   per room+theme, denoised render. 384 samples at 1536x960 ≈ 30s/frame
   on the M4 Pro. First-ever path-traced stills of the desk live in
   bake/renders/.
-- A/B round 1 rendered; art-direction findings: void-light already
-  beautiful; window was built into the RIGHT side wall = out of frame
-  (agent relocating it to the back wall x≈-0.5 as the session closes);
-  lamp pool needed +W vs key; dark renders lack the laptop-glow story
-  (lid exports closed at rest — fine for the room decision).
+- A/B took three rounds of art direction, all four finals in
+  bake/renders/: round 1 — void-light already beautiful, but the window
+  was built into the RIGHT side wall = out of the judging frame, lamp
+  pool too weak vs key, dark too murky. Round 2 — window relocated to
+  the back wall (x≈-0.5, real 9cm reveal; agent-surgical), void
+  rebalanced (lamp 18W/key 45W, ember 2.5W)… and daylight STILL didn't
+  enter. Round 3 found why: the emissive sky backdrops sit between
+  sun/moon and the opening and were shadow-casting — visible_shadow=
+  False and the day shot gained a true mullioned sun patch across the
+  desk. Also: camera advance lever clipped the shutter dial ~4mm
+  (adversarial re-review caught it numerically) — swing -0.3 → -0.8.
+  Known limitation, fine for the room decision: the MacBook exports
+  closed at rest, so dark renders lack the lid-glow story.
 
 Gotchas discovered:
 - zsh does NOT word-split unquoted vars (`set -- $combo` keeps it one
