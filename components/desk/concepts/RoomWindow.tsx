@@ -8,10 +8,11 @@ import { FLOOR_Y } from "../layout";
 
 // Concept block-out B: "the corner window".
 //
-// A real corner of a warm room at night — back wall behind the desk, a right
-// side wall meeting it at x = +1.5, and a double-hung sash window in that side
-// wall so light rakes across the desk from the right. Mounted ONLY in the
-// offline bake/export scene, never in the live site (yet).
+// A real corner of a warm room at night — back wall behind the desk with a
+// double-hung sash window punched through it (centered over the desk's left
+// half, near the lamp, square to the judging camera), and a windowless right
+// side wall meeting it at x = +1.5. Mounted ONLY in the offline bake/export
+// scene, never in the live site (yet).
 //
 // Export-safety: MeshStandard/MeshPhysical only, canvas textures only, no
 // glass — the window openings are empty so path-traced light passes through
@@ -38,13 +39,13 @@ const FLOOR_D = FLOOR_Z_MAX - FLOOR_Z_MIN; // 3.2
 const FLOOR_CX = (FLOOR_X_MIN + FLOOR_X_MAX) / 2; // -0.6
 const FLOOR_CZ = (FLOOR_Z_MIN + FLOOR_Z_MAX) / 2; // 0.7
 
-// Window opening in the side wall (all heights above the FLOOR, not the desk).
+// Window opening in the back wall (all heights above the FLOOR, not the desk).
 const WIN_W = 0.75;
 const WIN_H = 1.1;
 const WIN_SILL = 0.9; // sill height above the floor
-const WIN_Z_CENTER = 0.1; // centered just forward of the desk middle
-const WIN_Z_MIN = WIN_Z_CENTER - WIN_W / 2; // -0.275
-const WIN_Z_MAX = WIN_Z_CENTER + WIN_W / 2; // 0.475
+const WIN_X_CENTER = -0.5; // over the desk's left half, near the lamp
+const WIN_X_MIN = WIN_X_CENTER - WIN_W / 2; // -0.875
+const WIN_X_MAX = WIN_X_CENTER + WIN_W / 2; // -0.125
 const WIN_Y_MIN = FLOOR_Y + WIN_SILL; // 0.15 (world)
 const WIN_Y_MAX = WIN_Y_MIN + WIN_H; // 1.25 (world)
 
@@ -56,12 +57,14 @@ const STILE_W = 0.045; // sash stile width
 const MUNTIN_W = 0.018; // muntin bar width
 const MUNTIN_D = 0.02; // muntin bar depth (thinner than the sash frame)
 
-// Backdrops outside the window: two overlapping 2.2m planes ~0.5m beyond the
-// wall, facing back in through the opening. Night sits nearest the window;
-// day 2cm behind it so both can stay visible in-file without z-fighting.
-const BACKDROP_SIZE = 2.2;
-const BACKDROP_X_NIGHT = SIDE_WALL_X + 0.55;
-const BACKDROP_X_DAY = SIDE_WALL_X + 0.57;
+// Backdrops outside the window: two overlapping 3.2m planes ~0.5m beyond the
+// back wall's outer face, facing back in through the opening — sized so the
+// painted sky covers the opening even from shallow interior angles. Night
+// sits nearest the window; day 2cm behind it so both can stay visible
+// in-file without z-fighting.
+const BACKDROP_SIZE = 3.2;
+const BACKDROP_Z_NIGHT = BACK_WALL_Z - WALL_THICKNESS - 0.5; // -1.49
+const BACKDROP_Z_DAY = BACKDROP_Z_NIGHT - 0.02; // -1.51
 const BACKDROP_CY = (WIN_Y_MIN + WIN_Y_MAX) / 2; // window vertical center
 
 // Aged-oak trios borrowed from Room.tsx's palette: [base, dark grain, light].
@@ -529,20 +532,20 @@ function pushSash(
   parts: THREE.BufferGeometry[],
   yMin: number,
   yMax: number,
-  xCenter: number,
+  zCenter: number,
   bottomRail: number,
   topRail: number
 ): void {
-  const zMin = WIN_Z_MIN + JAMB; // clear opening between the jambs
-  const zMax = WIN_Z_MAX - JAMB;
-  const innerW = zMax - zMin - STILE_W * 2;
+  const xMin = WIN_X_MIN + JAMB; // clear opening between the jambs
+  const xMax = WIN_X_MAX - JAMB;
+  const innerW = xMax - xMin - STILE_W * 2;
   const yMid = (yMin + yMax) / 2;
 
   parts.push(
-    box(SASH_D, yMax - yMin, STILE_W, xCenter, yMid, zMin + STILE_W / 2),
-    box(SASH_D, yMax - yMin, STILE_W, xCenter, yMid, zMax - STILE_W / 2),
-    box(SASH_D, bottomRail, innerW, xCenter, yMin + bottomRail / 2, WIN_Z_CENTER),
-    box(SASH_D, topRail, innerW, xCenter, yMax - topRail / 2, WIN_Z_CENTER)
+    box(STILE_W, yMax - yMin, SASH_D, xMin + STILE_W / 2, yMid, zCenter),
+    box(STILE_W, yMax - yMin, SASH_D, xMax - STILE_W / 2, yMid, zCenter),
+    box(innerW, bottomRail, SASH_D, WIN_X_CENTER, yMin + bottomRail / 2, zCenter),
+    box(innerW, topRail, SASH_D, WIN_X_CENTER, yMax - topRail / 2, zCenter)
   );
 
   // Muntin cross splitting the glazing into 2x2 panes.
@@ -550,8 +553,8 @@ function pushSash(
   const gMax = yMax - topRail;
   const gMid = (gMin + gMax) / 2;
   parts.push(
-    box(MUNTIN_D, gMax - gMin, MUNTIN_W, xCenter, gMid, WIN_Z_CENTER),
-    box(MUNTIN_D, MUNTIN_W, innerW, xCenter, gMid, WIN_Z_CENTER)
+    box(MUNTIN_W, gMax - gMin, MUNTIN_D, WIN_X_CENTER, gMid, zCenter),
+    box(innerW, MUNTIN_W, MUNTIN_D, WIN_X_CENTER, gMid, zCenter)
   );
 }
 
@@ -562,9 +565,14 @@ export default function RoomWindow() {
     // --- Surfaces -------------------------------------------------------
     // Walls a touch lighter than Room.tsx's plaster; ceiling a touch darker.
     const wallWashes = ["#f3e4c6", "#dfd2b8", "#eed9b4", "#e6d8c2"];
+
+    // The back wall is extruded (real thickness for the window reveal), and
+    // ExtrudeGeometry UVs come out in shape units — meters — so the plaster
+    // canvas is repeat-scaled to span the wall exactly once.
+    const backRepeat: [number, number] = [1 / FLOOR_W, 1 / WALL_HEIGHT];
     const backWallMaterial = new THREE.MeshStandardMaterial({
-      map: plasterColorTexture(rng, "#eadcc2", wallWashes),
-      bumpMap: plasterBumpTexture(rng),
+      map: plasterColorTexture(rng, "#eadcc2", wallWashes, backRepeat),
+      bumpMap: plasterBumpTexture(rng, backRepeat),
       bumpScale: 0.0012,
       color: "#fdfaf4",
       roughness: 0.95,
@@ -572,13 +580,9 @@ export default function RoomWindow() {
       envMapIntensity: 0.6
     });
 
-    // The side wall is extruded (real thickness for the window reveal), and
-    // ExtrudeGeometry UVs come out in shape units — meters — so the plaster
-    // canvas is repeat-scaled to span the wall exactly once.
-    const sideRepeat: [number, number] = [1 / FLOOR_D, 1 / WALL_HEIGHT];
     const sideWallMaterial = new THREE.MeshStandardMaterial({
-      map: plasterColorTexture(rng, "#eadcc2", wallWashes, sideRepeat),
-      bumpMap: plasterBumpTexture(rng, sideRepeat),
+      map: plasterColorTexture(rng, "#eadcc2", wallWashes),
+      bumpMap: plasterBumpTexture(rng),
       bumpScale: 0.0012,
       color: "#fdfaf4",
       roughness: 0.95,
@@ -620,19 +624,21 @@ export default function RoomWindow() {
     });
     trimMaterial.envMapIntensity = 0.7;
 
-    // --- Side wall with the window punched through -----------------------
-    // Shape plane: localX runs DOWN-z from the wall's front edge (after the
-    // +90deg yaw, localX maps to world -z), localY is height above the floor.
+    // --- Back wall with the window punched through ------------------------
+    // Shape plane: localX runs world +x from the wall's left end, localY is
+    // height above the floor. Extruded along +z so the wall body spans
+    // z = BACK_WALL_Z - WALL_THICKNESS .. BACK_WALL_Z, keeping the interior
+    // face flush where the old flat plane stood.
     const wallShape = new THREE.Shape();
     wallShape.moveTo(0, 0);
-    wallShape.lineTo(FLOOR_D, 0);
-    wallShape.lineTo(FLOOR_D, WALL_HEIGHT);
+    wallShape.lineTo(FLOOR_W, 0);
+    wallShape.lineTo(FLOOR_W, WALL_HEIGHT);
     wallShape.lineTo(0, WALL_HEIGHT);
     wallShape.closePath();
 
     const opening = new THREE.Path();
-    const hx0 = FLOOR_Z_MAX - WIN_Z_MAX;
-    const hx1 = FLOOR_Z_MAX - WIN_Z_MIN;
+    const hx0 = WIN_X_MIN - FLOOR_X_MIN;
+    const hx1 = WIN_X_MAX - FLOOR_X_MIN;
     opening.moveTo(hx0, WIN_SILL);
     opening.lineTo(hx1, WIN_SILL);
     opening.lineTo(hx1, WIN_SILL + WIN_H);
@@ -640,51 +646,55 @@ export default function RoomWindow() {
     opening.closePath();
     wallShape.holes.push(opening);
 
-    const sideWallGeometry = new THREE.ExtrudeGeometry(wallShape, {
+    const backWallGeometry = new THREE.ExtrudeGeometry(wallShape, {
       depth: WALL_THICKNESS,
       bevelEnabled: false,
       steps: 1
     });
-    sideWallGeometry.rotateY(Math.PI / 2); // extrusion now points world +x
-    sideWallGeometry.translate(SIDE_WALL_X, FLOOR_Y, FLOOR_Z_MAX);
-    sideWallGeometry.name = "winWallSideGeometry";
+    backWallGeometry.translate(
+      FLOOR_X_MIN,
+      FLOOR_Y,
+      BACK_WALL_Z - WALL_THICKNESS
+    );
+    backWallGeometry.name = "winWallBackGeometry";
 
     // --- Window frame: jambs, sill, casing, two sashes — one merged mesh --
+    // The wall's interior face is at BACK_WALL_Z; its body runs toward -z.
     const frameParts: THREE.BufferGeometry[] = [];
-    const jambX = SIDE_WALL_X + WALL_THICKNESS / 2;
+    const jambZ = BACK_WALL_Z - WALL_THICKNESS / 2;
     const winYMid = (WIN_Y_MIN + WIN_Y_MAX) / 2;
 
     // Jamb lining (sides + head), slightly proud of the plaster.
     frameParts.push(
-      box(JAMB_DEPTH, WIN_H, JAMB, jambX, winYMid, WIN_Z_MIN + JAMB / 2),
-      box(JAMB_DEPTH, WIN_H, JAMB, jambX, winYMid, WIN_Z_MAX - JAMB / 2),
-      box(JAMB_DEPTH, JAMB, WIN_W - JAMB * 2, jambX, WIN_Y_MAX - JAMB / 2, WIN_Z_CENTER)
+      box(JAMB, WIN_H, JAMB_DEPTH, WIN_X_MIN + JAMB / 2, winYMid, jambZ),
+      box(JAMB, WIN_H, JAMB_DEPTH, WIN_X_MAX - JAMB / 2, winYMid, jambZ),
+      box(WIN_W - JAMB * 2, JAMB, JAMB_DEPTH, WIN_X_CENTER, WIN_Y_MAX - JAMB / 2, jambZ)
     );
 
     // Sill with horns, nosing ~7cm into the room, and the apron beneath it.
     frameParts.push(
-      box(0.16, 0.035, WIN_W + 0.11, SIDE_WALL_X + 0.01, WIN_Y_MIN - 0.0175, WIN_Z_CENTER),
-      box(0.018, 0.07, WIN_W + 0.03, SIDE_WALL_X - 0.009, WIN_Y_MIN - 0.07, WIN_Z_CENTER)
+      box(WIN_W + 0.11, 0.035, 0.16, WIN_X_CENTER, WIN_Y_MIN - 0.0175, BACK_WALL_Z - 0.01),
+      box(WIN_W + 0.03, 0.07, 0.018, WIN_X_CENTER, WIN_Y_MIN - 0.07, BACK_WALL_Z + 0.009)
     );
 
     // Interior casing on the room face: two legs standing on the sill horns,
     // one head board across the top.
-    const casingX = SIDE_WALL_X - 0.009;
+    const casingZ = BACK_WALL_Z + 0.009;
     frameParts.push(
-      box(0.018, WIN_H, 0.07, casingX, winYMid, WIN_Z_MIN - 0.035),
-      box(0.018, WIN_H, 0.07, casingX, winYMid, WIN_Z_MAX + 0.035),
-      box(0.018, 0.07, WIN_W + 0.18, casingX, WIN_Y_MAX + 0.035, WIN_Z_CENTER)
+      box(0.07, WIN_H, 0.018, WIN_X_MIN - 0.035, winYMid, casingZ),
+      box(0.07, WIN_H, 0.018, WIN_X_MAX + 0.035, winYMid, casingZ),
+      box(WIN_W + 0.18, 0.07, 0.018, WIN_X_CENTER, WIN_Y_MAX + 0.035, casingZ)
     );
 
     // Double-hung sashes: lower rides the inner track, upper the outer, and
     // their meeting rails overlap 2.5cm at mid-height. 2x2 panes each, empty.
     const meetY = winYMid;
-    pushSash(frameParts, WIN_Y_MIN, meetY + 0.0125, SIDE_WALL_X + 0.02, 0.055, 0.035);
+    pushSash(frameParts, WIN_Y_MIN, meetY + 0.0125, BACK_WALL_Z - 0.02, 0.055, 0.035);
     pushSash(
       frameParts,
       meetY - 0.0125,
       WIN_Y_MAX - JAMB,
-      SIDE_WALL_X + WALL_THICKNESS - 0.02,
+      BACK_WALL_Z - WALL_THICKNESS + 0.02,
       0.035,
       0.045
     );
@@ -751,7 +761,7 @@ export default function RoomWindow() {
       ceilingMaterial,
       floorMaterial,
       trimMaterial,
-      sideWallGeometry,
+      backWallGeometry,
       frameGeometry,
       baseboardGeometry,
       backdropNightMaterial,
@@ -772,25 +782,27 @@ export default function RoomWindow() {
         <planeGeometry args={[FLOOR_W, FLOOR_D]} />
       </mesh>
 
-      {/* Back wall, ~0.5m behind the desk's rear edge. */}
+      {/* Back wall, ~0.5m behind the desk's rear edge, with the window
+          punched through — real thickness so the opening has a reveal for
+          light to wrap around. */}
       <mesh
         name="winWallBack"
-        position={[FLOOR_CX, FLOOR_Y + WALL_HEIGHT / 2, BACK_WALL_Z]}
+        geometry={built.backWallGeometry}
         material={built.backWallMaterial}
-        receiveShadow
-      >
-        <planeGeometry args={[FLOOR_W, WALL_HEIGHT]} />
-      </mesh>
-
-      {/* Right side wall with the window punched through — real thickness so
-          the opening has a reveal for light to wrap around. */}
-      <mesh
-        name="winWallSide"
-        geometry={built.sideWallGeometry}
-        material={built.sideWallMaterial}
         castShadow
         receiveShadow
       />
+
+      {/* Right side wall — plain, windowless, closing the corner. */}
+      <mesh
+        name="winWallSide"
+        rotation={[0, -Math.PI / 2, 0]}
+        position={[SIDE_WALL_X, FLOOR_Y + WALL_HEIGHT / 2, FLOOR_CZ]}
+        material={built.sideWallMaterial}
+        receiveShadow
+      >
+        <planeGeometry args={[FLOOR_D, WALL_HEIGHT]} />
+      </mesh>
 
       {/* Ceiling plane so window light has something to bounce between. */}
       <mesh
@@ -824,16 +836,14 @@ export default function RoomWindow() {
           bake script flips visibility per theme; both stay on in-file. */}
       <mesh
         name="windowBackdropNight"
-        position={[BACKDROP_X_NIGHT, BACKDROP_CY, WIN_Z_CENTER]}
-        rotation={[0, -Math.PI / 2, 0]}
+        position={[WIN_X_CENTER, BACKDROP_CY, BACKDROP_Z_NIGHT]}
         material={built.backdropNightMaterial}
       >
         <planeGeometry args={[BACKDROP_SIZE, BACKDROP_SIZE]} />
       </mesh>
       <mesh
         name="windowBackdropDay"
-        position={[BACKDROP_X_DAY, BACKDROP_CY, WIN_Z_CENTER]}
-        rotation={[0, -Math.PI / 2, 0]}
+        position={[WIN_X_CENTER, BACKDROP_CY, BACKDROP_Z_DAY]}
         material={built.backdropDayMaterial}
       >
         <planeGeometry args={[BACKDROP_SIZE, BACKDROP_SIZE]} />
