@@ -37,7 +37,14 @@ def parse_args():
     parser.add_argument("--resx", type=int, default=1536)
     parser.add_argument("--resy", type=int, default=960)
     parser.add_argument("--exposure", type=float, default=None)
-    parser.add_argument("--lamp-watts", type=float, default=8.0)
+    parser.add_argument("--lamp-watts", type=float, default=14.0)
+    parser.add_argument(
+        "--cam",
+        choices=["rest", "start"],
+        default="start",
+        help="rest = tight hero framing, start = pulled-back intro framing "
+        "(better for judging the room)",
+    )
     parser.add_argument("--save-blend", action="store_true")
     return parser.parse_args(argv)
 
@@ -118,7 +125,11 @@ def main():
         bpy.data.objects.remove(obj, do_unlink=True)
 
     # ——— Camera from markers ———
-    cam_pos = marker("MARKER_camPos")
+    cam_marker = "MARKER_camStart" if args.cam == "start" else "MARKER_camPos"
+    try:
+        cam_pos = marker(cam_marker)
+    except RuntimeError:
+        cam_pos = marker("MARKER_camPos")  # older GLBs lack camStart
     cam_target = marker("MARKER_camTarget")
     cam_data = bpy.data.cameras.new("HeroCam")
     cam_data.sensor_fit = "VERTICAL"
@@ -149,13 +160,15 @@ def main():
 
     if args.room == "void":
         if args.theme == "light":
+            # Key + fill stay subordinate to the lamp: the room is bright in
+            # light mode, but the warm pool must still read as the subject.
             key = add_light(
-                "VoidKey", "AREA", t2b(1.5, 1.7, 1.3), 120.0,
+                "VoidKey", "AREA", t2b(1.5, 1.7, 1.3), 55.0,
                 (1.0, 0.94, 0.87), size=1.5,
             )
             look_at(key, (0, 0, 0))
             fill = add_light(
-                "VoidTopFill", "AREA", t2b(0.0, 2.2, 0.4), 35.0,
+                "VoidTopFill", "AREA", t2b(0.0, 2.2, 0.4), 22.0,
                 (1.0, 0.93, 0.86), size=2.0,
             )
             look_at(fill, (0, 0, 0))

@@ -10,3 +10,4 @@ out
 supabase/.temp
 tsconfig.tsbuildinfo
 /bake/
+__pycache__/
