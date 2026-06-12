@@ -54,9 +54,31 @@ Renders: bake/renders/window-light.png + window-dark.png (the v3
 hero pair). GOTCHA banked in CLAUDE.md: emissive-from-glTF backdrops
 need make_pure_emission, not make_emissive.
 
-Open / next: lower the LIVE rest camera so the window shows in-browser
-(currently only the bake hero cam frames it); RoomWindow should
-replace Room.tsx for the live site; then the real lightmap bake.
+LIVE INTEGRATION DONE: RoomWindow now renders in the live homepage
+(DeskScene imports ./concepts/RoomWindow as the room) and the rest
+camera is a middle tilt (layout CAMERA) that holds both the desk and
+the centered window; orbit maxPolarAngle opened to 1.32. The browser
+now shows the full v3 composition — window night view, wall racket,
+sill succulent, book row.
+
+TIME-SINK LESSON (cost ~an hour of thrash): after `rm -rf .next`, the
+first cold page load compiles every shader from scratch, so
+ReadySignal's compileAsync is slow and the load curtain (the warm
+radial gradient) stays up for 20-40s+ — the scene is rendering
+BEHIND it the whole time (canvas ancestor stuck at opacity 0). This
+looks exactly like a blank/broken scene with NO console error. Do NOT
+conclude a code change broke rendering: (1) check the wrapper opacity
+chain — a 0 means curtain-not-lifted, not a render failure; (2) force
+it visible to confirm (`el.style.opacity='1'`); (3) a warm reload
+lifts it on its own. I wrongly blamed the RoomWindow swap, reverted
+it, saw the same blank, and only then realized it was the curtain.
+RoomWindow-live was fine all along.
+
+Open / next: the live night view is the real-time approximation (the
+emissive backdrop glows through the glass) — the real payoff is still
+the lightmap bake (Stage 5 checklist). Also: tune the live tilt
+against the window framing in-person; consider lowering the curtain's
+cold-load timeout or showing a spinner past N seconds.
 
 ### 2026-06-11 (late evening) — Composition v2 from Jason's voice notes
 
