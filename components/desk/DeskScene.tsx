@@ -484,7 +484,7 @@ function SceneContents({
         minAzimuthAngle={-0.5}
         maxAzimuthAngle={0.5}
       />
-      <DeskEffects focus={focus} />
+      <DeskEffects />
     </>
   );
 }
