@@ -23,9 +23,11 @@ import RoomBase from "./Room";
 import BookshelfBase from "./objects/Bookshelf";
 import ChessboardBase from "./objects/Chessboard";
 import DeskLampBase from "./objects/DeskLamp";
+import FilmCameraBase from "./objects/FilmCamera";
 import LampBeamBase from "./objects/LampBeam";
 import MacBookBase from "./objects/MacBook";
 import NotepadBase from "./objects/Notepad";
+import PhotoStackBase from "./objects/PhotoStack";
 import RecordCrateBase from "./objects/RecordCrate";
 import TurntableBase from "./objects/Turntable";
 
@@ -39,6 +41,8 @@ const Room = memo(RoomBase);
 const Bookshelf = memo(BookshelfBase);
 const Chessboard = memo(ChessboardBase);
 const DeskLamp = memo(DeskLampBase);
+const FilmCamera = memo(FilmCameraBase);
+const PhotoStack = memo(PhotoStackBase);
 const LampBeam = memo(LampBeamBase);
 const MacBook = memo(MacBookBase);
 const Notepad = memo(NotepadBase);
@@ -462,6 +466,14 @@ function SceneContents({
       </Placed>
       <Placed name="crate">
         <RecordCrate coverArtUrls={coverArtUrls} />
+      </Placed>
+      {/* Travel/photography vignette — décor for now; focus views and a
+          panel arrive once /photography splits from /travel. */}
+      <Placed name="photos">
+        <PhotoStack />
+      </Placed>
+      <Placed name="filmCamera">
+        <FilmCamera />
       </Placed>
       <OrbitControls
         ref={controlsRef}

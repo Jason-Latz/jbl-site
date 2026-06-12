@@ -28,7 +28,12 @@ export const PLACEMENT: Record<string, Placement> = {
   bookshelf: { position: [0.71, 0, -0.29], rotationY: -0.05 },
   chessboard: { position: [0.6, 0, 0.21], rotationY: 0.32 },
   notepad: { position: [0.02, 0, 0.25], rotationY: -0.08 },
-  crate: { position: [-1.08, FLOOR_Y, 0.16], rotationY: 0.5 }
+  crate: { position: [-1.08, FLOOR_Y, 0.16], rotationY: 0.5 },
+  // The travel/photography vignette lives front-left, between the
+  // turntable's plinth and the notepad: prints fanned toward the camera,
+  // the rangefinder resting beside them at a counter angle.
+  photos: { position: [-0.31, 0, 0.3], rotationY: 0.2 },
+  filmCamera: { position: [-0.16, 0, 0.34], rotationY: -0.55 }
 };
 
 // Rest pose sits ~45 degrees above the desk per Jason's art direction —
