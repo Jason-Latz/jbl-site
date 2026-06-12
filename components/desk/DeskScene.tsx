@@ -19,7 +19,7 @@ import { useSiteTheme } from "./useSiteTheme";
 import { CAMERA, FOCUS_VIEWS, PLACEMENT, type FocusId } from "./layout";
 import DeskBase from "./Desk";
 import DeskEffects from "./Effects";
-import RoomBase from "./Room";
+import RoomBase from "./concepts/RoomWindow";
 import ChessboardBase from "./objects/Chessboard";
 import DeskBookRowBase from "./objects/DeskBookRow";
 import TennisRacketBase from "./objects/TennisRacket";
@@ -491,7 +491,9 @@ function SceneContents({
         minDistance={1.0}
         maxDistance={rig.maxDistance}
         minPolarAngle={0.55}
-        maxPolarAngle={1.05}
+        // opened from 1.05 for the v3 middle-tilt rest pose, which sits
+        // lower (polar ~1.17) to keep the window in frame
+        maxPolarAngle={1.32}
         minAzimuthAngle={-0.5}
         maxAzimuthAngle={0.5}
       />
