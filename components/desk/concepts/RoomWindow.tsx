@@ -6,18 +6,19 @@ import { mergeBufferGeometries } from "three-stdlib";
 import { lacquerMaterial, makeCanvasTexture } from "@/lib/three/materials";
 import { FLOOR_Y } from "../layout";
 
-// Concept block-out B: "the corner window".
+// Concept block-out B: "the back-wall window" (composition v3).
 //
-// A real corner of a warm room at night — back wall behind the desk, a right
-// side wall meeting it at x = +1.5, and a double-hung sash window in that side
-// wall so light rakes across the desk from the right. Mounted ONLY in the
-// offline bake/export scene, never in the live site (yet).
+// A real corner of a warm room at night — back wall behind the desk holds a
+// double-hung sash window CENTERED at x=0, with a plain plaster right side
+// wall meeting it at x = +1.5. Light from the night city outside rakes
+// forward over the desk through the opening. Mounted ONLY in the offline
+// bake/export scene, never in the live site (yet).
 //
 // Export-safety: MeshStandard/MeshPhysical only, canvas textures only, no
 // glass — the window openings are empty so path-traced light passes through
-// unimpeded. The two backdrop planes outside the window are emissive canvases
-// (windowBackdropNight / windowBackdropDay); the bake script toggles their
-// visibility per theme.
+// unimpeded. It is ALWAYS NIGHT here: a single emissive backdrop canvas
+// (windowBackdropNight) hangs outside the opening; the bake script keys on
+// that exact name and drives its emission per theme.
 
 // ---------------------------------------------------------------------------
 // Room envelope. Desk top is y=0, floor at FLOOR_Y; desk rear edge sits at
@@ -26,6 +27,8 @@ const BACK_WALL_Z = -0.9;
 const SIDE_WALL_X = 1.5;
 const WALL_HEIGHT = 2.5;
 const WALL_THICKNESS = 0.09;
+const BACK_WALL_OUTER_Z = BACK_WALL_Z - WALL_THICKNESS / 2; // -0.945
+const BACK_WALL_INNER_Z = BACK_WALL_Z + WALL_THICKNESS / 2; // -0.855
 
 // Floor: one textured plane (Room.tsx's per-plank lay is too heavy to
 // duplicate here) — 4.2m wide x 3.2m deep, flush into the corner.
@@ -38,14 +41,15 @@ const FLOOR_D = FLOOR_Z_MAX - FLOOR_Z_MIN; // 3.2
 const FLOOR_CX = (FLOOR_X_MIN + FLOOR_X_MAX) / 2; // -0.6
 const FLOOR_CZ = (FLOOR_Z_MIN + FLOOR_Z_MAX) / 2; // 0.7
 
-// Window opening in the side wall (all heights above the FLOOR, not the desk).
-const WIN_W = 0.75;
-const WIN_H = 1.1;
-const WIN_SILL = 0.9; // sill height above the floor
-const WIN_Z_CENTER = 0.1; // centered just forward of the desk middle
-const WIN_Z_MIN = WIN_Z_CENTER - WIN_W / 2; // -0.275
-const WIN_Z_MAX = WIN_Z_CENTER + WIN_W / 2; // 0.475
-const WIN_Y_MIN = FLOOR_Y + WIN_SILL; // 0.15 (world)
+// Window opening in the BACK wall, centered at x=0 (all heights above the
+// FLOOR, not the desk).
+const WIN_W = 0.85;
+const WIN_H = 1.15;
+const WIN_SILL = 0.85; // sill height above the floor
+const WIN_X_CENTER = 0; // centered on the back wall
+const WIN_X_MIN = WIN_X_CENTER - WIN_W / 2; // -0.425
+const WIN_X_MAX = WIN_X_CENTER + WIN_W / 2; // 0.425
+const WIN_Y_MIN = FLOOR_Y + WIN_SILL; // 0.10 (world)
 const WIN_Y_MAX = WIN_Y_MIN + WIN_H; // 1.25 (world)
 
 // Frame member sizing (meters).
@@ -56,13 +60,18 @@ const STILE_W = 0.045; // sash stile width
 const MUNTIN_W = 0.018; // muntin bar width
 const MUNTIN_D = 0.02; // muntin bar depth (thinner than the sash frame)
 
-// Backdrops outside the window: two overlapping 2.2m planes ~0.5m beyond the
-// wall, facing back in through the opening. Night sits nearest the window;
-// day 2cm behind it so both can stay visible in-file without z-fighting.
-const BACKDROP_SIZE = 2.2;
-const BACKDROP_X_NIGHT = SIDE_WALL_X + 0.55;
-const BACKDROP_X_DAY = SIDE_WALL_X + 0.57;
-const BACKDROP_CY = (WIN_Y_MIN + WIN_Y_MAX) / 2; // window vertical center
+// Interior sill shelf: a real board ~0.12m deep into the room (a plant sits
+// on it), capping at a known world y so the integrator can stand things on it.
+const SILL_DEPTH = 0.12; // front-to-back into the room
+const SILL_THICK = 0.035;
+const SILL_TOP_Y = WIN_Y_MIN; // top surface flush with the opening bottom
+
+// Backdrop outside the window: one emissive 3m plane ~0.5m beyond the wall's
+// OUTER face, facing +z back in through the opening. It is the only backdrop —
+// always night — and is sized to fully cover the opening from interior angles.
+const BACKDROP_SIZE = 3.0;
+const BACKDROP_Z_NIGHT = BACK_WALL_OUTER_Z - 0.5; // -1.445, clear of the wall
+const BACKDROP_CY = (WIN_Y_MIN + WIN_Y_MAX) / 2; // window vertical center (0.675)
 
 // Aged-oak trios borrowed from Room.tsx's palette: [base, dark grain, light].
 const OAK_TONES: [string, string, string][] = [
@@ -329,155 +338,273 @@ function floorBoardsTexture(rng: () => number): THREE.CanvasTexture {
 }
 
 // ---------------------------------------------------------------------------
-// Backdrops — what the window looks out on. Both painted, both emissive.
+// The night view — what the back-wall window looks out on. One painted,
+// emissive 2048px canvas: a nighttime city rooftop scene. It is ALWAYS night,
+// so there is only this one backdrop. All randomness is seeded (the caller
+// passes a fixed-seed rng) so every bake reproduces the same skyline.
 
-// Deep blue-black night: sparse warm lit windows of a far building, a few
-// rooftop silhouettes (bulkheads, antennas, one water tower), faint stars.
+// Deep blue-black sky, a large off-center moon up-left with a soft halo and
+// crater shading, scattered stars, a couple of moonlit cloud wisps, a band of
+// mid-distance buildings with sparse warm-lit windows, near rooftop
+// silhouettes (chimneys, a water tower) and a faint warm horizon glow.
 function nightBackdropTexture(rng: () => number): THREE.CanvasTexture {
   return makeCanvasTexture(
-    1024,
-    1024,
+    2048,
+    2048,
     (ctx, w, h) => {
+      // --- Sky: deep blue-black, darker at the top -----------------------
       const sky = ctx.createLinearGradient(0, 0, 0, h);
-      sky.addColorStop(0, "#04060e");
-      sky.addColorStop(0.55, "#0a1020");
-      sky.addColorStop(0.85, "#141226");
-      sky.addColorStop(1, "#1b1322");
+      sky.addColorStop(0, "#03050d");
+      sky.addColorStop(0.45, "#070b1a");
+      sky.addColorStop(0.72, "#0d1228");
+      sky.addColorStop(0.9, "#141a30");
+      sky.addColorStop(1, "#1a1c30");
       ctx.fillStyle = sky;
       ctx.fillRect(0, 0, w, h);
 
-      // A handful of faint stars in the upper sky.
-      for (let i = 0; i < 110; i++) {
-        const a = 0.12 + rng() * 0.45;
-        ctx.fillStyle = `rgba(214,225,255,${a})`;
-        const s = 0.8 + rng() * 1.2;
-        ctx.fillRect(rng() * w, rng() * h * 0.48, s, s);
-      }
+      // --- Faint warm distant-skyline glow near the horizon line ---------
+      const horizonY = h * 0.62;
+      const hglow = ctx.createLinearGradient(0, horizonY - h * 0.14, 0, horizonY + h * 0.05);
+      hglow.addColorStop(0, "rgba(120,96,70,0)");
+      hglow.addColorStop(0.7, "rgba(150,112,72,0.14)");
+      hglow.addColorStop(1, "rgba(176,128,80,0.22)");
+      ctx.fillStyle = hglow;
+      ctx.fillRect(0, horizonY - h * 0.14, w, h * 0.19);
 
-      // Distant block — a slightly lighter silhouette band, almost no lights.
-      ctx.fillStyle = "#0c101e";
-      let dx = -10;
-      while (dx < w) {
-        const bw = 60 + rng() * 130;
-        const top = h * (0.38 + rng() * 0.12);
-        ctx.fillRect(dx, top, bw, h - top);
-        if (rng() < 0.25) {
-          ctx.fillStyle = rgba("#c8a36b", 0.22);
-          ctx.fillRect(dx + 10 + rng() * (bw - 24), top + 14 + rng() * 60, 6, 8);
-          ctx.fillStyle = "#0c101e";
+      // --- Stars: a fine scatter across the upper sky --------------------
+      for (let i = 0; i < 240; i++) {
+        const sx = rng() * w;
+        const sy = rng() * horizonY * 0.92;
+        const a = 0.1 + rng() * 0.5;
+        const s = 0.8 + rng() * 1.8;
+        ctx.fillStyle = `rgba(${214 + Math.floor(rng() * 30)},${224 + Math.floor(rng() * 20)},255,${a})`;
+        ctx.fillRect(sx, sy, s, s);
+        // a few brighter stars get a faint cross-glint
+        if (rng() < 0.06) {
+          ctx.strokeStyle = `rgba(225,232,255,${a * 0.6})`;
+          ctx.lineWidth = 0.8;
+          ctx.beginPath();
+          ctx.moveTo(sx - 4, sy + 0.5);
+          ctx.lineTo(sx + 5, sy + 0.5);
+          ctx.moveTo(sx + 0.5, sy - 4);
+          ctx.lineTo(sx + 0.5, sy + 5);
+          ctx.stroke();
         }
-        dx += bw;
       }
 
-      // Main far building row, near-black, with rooftop furniture.
+      // --- The moon: large, upper third, off-center toward the LEFT -----
+      const moonX = w * 0.3;
+      const moonY = h * 0.22;
+      const moonR = w * 0.082;
+
+      // Soft outer halo.
+      const halo = ctx.createRadialGradient(moonX, moonY, moonR * 0.7, moonX, moonY, moonR * 3.4);
+      halo.addColorStop(0, "rgba(206,216,236,0.22)");
+      halo.addColorStop(0.4, "rgba(170,184,214,0.08)");
+      halo.addColorStop(1, "rgba(150,168,210,0)");
+      ctx.fillStyle = halo;
+      ctx.fillRect(moonX - moonR * 3.4, moonY - moonR * 3.4, moonR * 6.8, moonR * 6.8);
+
+      // Moon disc with a gentle terminator shade (lit from upper-left).
+      const disc = ctx.createRadialGradient(
+        moonX - moonR * 0.32,
+        moonY - moonR * 0.32,
+        moonR * 0.2,
+        moonX,
+        moonY,
+        moonR
+      );
+      disc.addColorStop(0, "#f3f0e6");
+      disc.addColorStop(0.7, "#dfe0da");
+      disc.addColorStop(1, "#bcc1c4");
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(moonX, moonY, moonR, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.fillStyle = disc;
+      ctx.fillRect(moonX - moonR, moonY - moonR, moonR * 2, moonR * 2);
+
+      // Subtle craters: soft grey discs with a faint rim highlight.
+      for (let i = 0; i < 16; i++) {
+        const ang = rng() * Math.PI * 2;
+        const rad = rng() * moonR * 0.82;
+        const cx = moonX + Math.cos(ang) * rad;
+        const cy = moonY + Math.sin(ang) * rad;
+        const cr = moonR * (0.04 + rng() * 0.12);
+        const cg = ctx.createRadialGradient(cx, cy, 0, cx, cy, cr);
+        cg.addColorStop(0, "rgba(150,152,150,0.28)");
+        cg.addColorStop(0.7, "rgba(168,170,168,0.12)");
+        cg.addColorStop(1, "rgba(180,182,180,0)");
+        ctx.fillStyle = cg;
+        ctx.beginPath();
+        ctx.arc(cx, cy, cr, 0, Math.PI * 2);
+        ctx.fill();
+        // thin lit rim on the upper-left edge
+        ctx.strokeStyle = "rgba(246,244,236,0.18)";
+        ctx.lineWidth = 1.1;
+        ctx.beginPath();
+        ctx.arc(cx, cy, cr * 0.92, Math.PI * 0.9, Math.PI * 1.6);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      // --- Moonlit cloud wisps: one or two thin, stretched bands ---------
+      for (let i = 0; i < 2; i++) {
+        const cy = moonY + moonR * (1.6 + i * 1.7) + rng() * 40;
+        const cx = w * (0.22 + i * 0.18) + rng() * 60;
+        const cw = w * (0.22 + rng() * 0.16);
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.scale(1, 0.22);
+        const wisp = ctx.createRadialGradient(0, 0, 0, 0, 0, cw);
+        wisp.addColorStop(0, "rgba(180,190,212,0.12)");
+        wisp.addColorStop(0.5, "rgba(150,162,190,0.06)");
+        wisp.addColorStop(1, "rgba(140,152,182,0)");
+        ctx.fillStyle = wisp;
+        ctx.fillRect(-cw, -cw, cw * 2, cw * 2);
+        ctx.restore();
+      }
+
+      // --- Mid-distance band of building silhouettes ---------------------
       type Building = { x: number; w: number; top: number };
       const buildings: Building[] = [];
-      let mx = -30 + rng() * 40;
+      let mx = -40 + rng() * 50;
       while (mx < w) {
-        const bw = 100 + rng() * 170;
-        buildings.push({ x: mx, w: bw, top: h * (0.46 + rng() * 0.16) });
-        mx += bw + (rng() < 0.35 ? 10 + rng() * 50 : 0);
+        const bw = 130 + rng() * 240;
+        const top = horizonY - (40 + rng() * 360);
+        buildings.push({ x: mx, w: bw, top });
+        mx += bw + (rng() < 0.4 ? 14 + rng() * 70 : 0);
       }
-      ctx.fillStyle = "#04060c";
+      ctx.fillStyle = "#060912";
       for (const b of buildings) {
-        ctx.fillRect(b.x, b.top, b.w, h - b.top);
-        if (rng() < 0.8) {
-          // Stair bulkhead on the roof.
+        ctx.fillRect(b.x, b.top, b.w, horizonY - b.top + 4);
+        // rooftop stair bulkhead
+        if (rng() < 0.75) {
           ctx.fillRect(
-            b.x + b.w * (0.15 + rng() * 0.5),
-            b.top - 14 - rng() * 10,
-            26 + rng() * 30,
-            30
+            b.x + b.w * (0.12 + rng() * 0.55),
+            b.top - 20 - rng() * 16,
+            34 + rng() * 44,
+            42
           );
         }
-        if (rng() < 0.45) {
-          ctx.fillRect(b.x + b.w * (0.2 + rng() * 0.6), b.top - 44 - rng() * 26, 2, 60);
+        // thin antenna
+        if (rng() < 0.5) {
+          ctx.fillRect(b.x + b.w * (0.2 + rng() * 0.6), b.top - 70 - rng() * 40, 3, 90);
         }
       }
 
-      // One water tower for the skyline's sake.
-      const wt = buildings[Math.floor(rng() * buildings.length)];
-      if (wt) {
-        const tx = wt.x + wt.w * 0.65;
-        ctx.fillStyle = "#04060c";
-        ctx.fillRect(tx - 4, wt.top - 26, 4, 26); // legs
-        ctx.fillRect(tx + 20, wt.top - 26, 4, 26);
-        ctx.fillRect(tx - 8, wt.top - 54, 36, 30); // tank
-        ctx.beginPath(); // conical cap
-        ctx.moveTo(tx - 10, wt.top - 54);
-        ctx.lineTo(tx + 10, wt.top - 72);
-        ctx.lineTo(tx + 30, wt.top - 54);
-        ctx.closePath();
-        ctx.fill();
-      }
-
-      // Sparse warm lit windows — most of the far building is asleep.
-      const warm = ["#ffce8a", "#ffb95f", "#f7dcae", "#e09a48"];
+      // --- Sparse, irregular warm-lit windows on the mid buildings -------
+      const warm = ["#ffce8a", "#ffb95f", "#f7dcae", "#e09a48", "#ffd9a0"];
+      const cool = ["#cfe2ff", "#dfe9f6"];
       for (const b of buildings) {
-        for (let wy = b.top + 14; wy < h - 26; wy += 22) {
-          for (let wx = b.x + 10; wx < b.x + b.w - 18; wx += 16) {
-            if (rng() >= 0.07) continue;
-            const color = warm[Math.floor(rng() * warm.length)];
-            ctx.globalAlpha = 0.5 + rng() * 0.5;
-            ctx.fillStyle = color;
-            ctx.fillRect(wx, wy, 7 + rng() * 3, 9 + rng() * 4);
-            if (rng() < 0.14) {
-              // The rare window with a glow bleed.
-              const glow = ctx.createRadialGradient(wx + 4, wy + 6, 0, wx + 4, wy + 6, 20);
-              glow.addColorStop(0, rgba(color, 0.18));
-              glow.addColorStop(1, rgba(color, 0));
+        const colStep = 26 + rng() * 8;
+        const rowStep = 34 + rng() * 10;
+        for (let wy = b.top + 22; wy < horizonY - 14; wy += rowStep) {
+          for (let wx = b.x + 14; wx < b.x + b.w - 22; wx += colStep) {
+            if (rng() >= 0.085) continue;
+            const isCool = rng() < 0.14;
+            const color = isCool
+              ? cool[Math.floor(rng() * cool.length)]
+              : warm[Math.floor(rng() * warm.length)];
+            const ww = 8 + rng() * 6;
+            const wh = 11 + rng() * 7;
+            ctx.globalAlpha = 0.45 + rng() * 0.5;
+            ctx.fillStyle = color as string;
+            ctx.fillRect(wx, wy, ww, wh);
+            if (!isCool && rng() < 0.16) {
+              const glow = ctx.createRadialGradient(
+                wx + ww / 2,
+                wy + wh / 2,
+                0,
+                wx + ww / 2,
+                wy + wh / 2,
+                30
+              );
+              glow.addColorStop(0, rgba(color as string, 0.2));
+              glow.addColorStop(1, rgba(color as string, 0));
               ctx.fillStyle = glow;
-              ctx.fillRect(wx - 18, wy - 16, 44, 44);
+              ctx.fillRect(wx - 26, wy - 22, 64, 64);
             }
           }
         }
       }
       ctx.globalAlpha = 1;
+
+      // --- Near rooftop silhouettes along the bottom ---------------------
+      // A solid near roofline rising into the lower third, near-black.
+      ctx.fillStyle = "#02040a";
+      const roofTop = h * (0.82 + rng() * 0.02);
+      ctx.beginPath();
+      ctx.moveTo(0, h);
+      ctx.lineTo(0, roofTop);
+      let rx = 0;
+      while (rx < w) {
+        const step = 120 + rng() * 200;
+        const dy = (rng() - 0.5) * 60;
+        ctx.lineTo(Math.min(rx + step, w), roofTop + dy);
+        rx += step;
+      }
+      ctx.lineTo(w, h);
+      ctx.closePath();
+      ctx.fill();
+
+      // Chimneys along the near roofline.
+      for (let i = 0; i < 5; i++) {
+        const cx = w * (0.08 + i * 0.2) + rng() * 60;
+        const cwd = 34 + rng() * 30;
+        const ch = 50 + rng() * 60;
+        ctx.fillStyle = "#02040a";
+        ctx.fillRect(cx, roofTop - ch, cwd, ch + 40);
+        // a faint warm chimney-top ember on one or two
+        if (rng() < 0.3) {
+          ctx.fillStyle = "rgba(200,120,70,0.35)";
+          ctx.fillRect(cx + 4, roofTop - ch - 4, cwd - 8, 5);
+        }
+      }
+
+      // One near water tower silhouette, slightly right of center.
+      const tx = w * 0.66;
+      const tBase = roofTop - 8;
+      ctx.fillStyle = "#02040a";
+      ctx.fillRect(tx - 6, tBase - 70, 8, 74); // legs
+      ctx.fillRect(tx + 64, tBase - 70, 8, 74);
+      ctx.fillRect(tx + 24, tBase - 70, 8, 74);
+      ctx.fillRect(tx - 14, tBase - 132, 92, 70); // tank
+      ctx.beginPath(); // conical cap
+      ctx.moveTo(tx - 20, tBase - 132);
+      ctx.lineTo(tx + 32, tBase - 176);
+      ctx.lineTo(tx + 84, tBase - 132);
+      ctx.closePath();
+      ctx.fill();
     },
     { anisotropy: 8 }
   );
 }
 
-// Soft overcast morning: pale warm gray-blue gradient with cloud banks and a
-// hidden-sun warmth low in the sky. No skyline — just weather.
-function dayBackdropTexture(rng: () => number): THREE.CanvasTexture {
+// Terracotta for the windowsill pot — throwing rings + fired blotches.
+// (Cribbed from FloorBookcase.tsx's terracottaTexture.)
+function terracottaTexture(rng: () => number): THREE.CanvasTexture {
   return makeCanvasTexture(
-    1024,
-    1024,
+    256,
+    256,
     (ctx, w, h) => {
-      const sky = ctx.createLinearGradient(0, 0, 0, h);
-      sky.addColorStop(0, "#a7b0bb");
-      sky.addColorStop(0.5, "#c2c6c4");
-      sky.addColorStop(1, "#ded6c8");
-      ctx.fillStyle = sky;
+      ctx.fillStyle = "#9c5236";
       ctx.fillRect(0, 0, w, h);
-
-      // Stretched overcast cloud banks, lighter and darker.
-      for (let i = 0; i < 16; i++) {
-        const cx = rng() * w;
-        const cy = rng() * h * 0.85;
-        const r = 90 + rng() * 240;
-        const lighter = rng() < 0.6;
-        ctx.save();
-        ctx.translate(cx, cy);
-        ctx.scale(1.8 + rng() * 1.4, 1);
-        const tone = lighter ? "#eceae4" : "#8e98a4";
-        const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, r);
-        grad.addColorStop(0, rgba(tone, lighter ? 0.05 + rng() * 0.06 : 0.04 + rng() * 0.04));
-        grad.addColorStop(1, rgba(tone, 0));
-        ctx.fillStyle = grad;
-        ctx.fillRect(-r, -r, r * 2, r * 2);
-        ctx.restore();
+      for (let y = 0; y < h; y += 4) {
+        ctx.globalAlpha = 0.05 + rng() * 0.06;
+        ctx.fillStyle = rng() > 0.5 ? "#7e3f28" : "#b06a48";
+        ctx.fillRect(0, y, w, 1.5);
       }
-
-      // The morning sun hiding behind the overcast, low and warm.
-      const glow = ctx.createRadialGradient(w * 0.35, h * 0.8, 0, w * 0.35, h * 0.8, w * 0.5);
-      glow.addColorStop(0, "rgba(238,222,196,0.16)");
-      glow.addColorStop(1, "rgba(238,222,196,0)");
-      ctx.fillStyle = glow;
-      ctx.fillRect(0, 0, w, h);
+      for (let i = 0; i < 40; i++) {
+        ctx.globalAlpha = 0.04 + rng() * 0.05;
+        ctx.fillStyle = rng() > 0.5 ? "#86452c" : "#ad6543";
+        ctx.beginPath();
+        ctx.ellipse(rng() * w, rng() * h, 8 + rng() * 22, 5 + rng() * 12, rng() * 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
     },
-    { anisotropy: 8 }
+    { repeat: [1, 1], anisotropy: 4 }
   );
 }
 
@@ -523,26 +650,28 @@ function trimRun(
   return geometry;
 }
 
-// Sash builder: two stiles, two rails, and a 2x2 muntin cross. NO glass —
-// the panes are empty air on purpose.
+// Sash builder for the BACK-wall window: the sash lies in the X-Y plane,
+// with its members thin along Z (depth into the wall). Two stiles, two rails,
+// and a 2x2 muntin cross. NO glass — the panes are empty air on purpose.
 function pushSash(
   parts: THREE.BufferGeometry[],
   yMin: number,
   yMax: number,
-  xCenter: number,
+  zCenter: number,
   bottomRail: number,
   topRail: number
 ): void {
-  const zMin = WIN_Z_MIN + JAMB; // clear opening between the jambs
-  const zMax = WIN_Z_MAX - JAMB;
-  const innerW = zMax - zMin - STILE_W * 2;
+  const xMin = WIN_X_MIN + JAMB; // clear opening between the jambs
+  const xMax = WIN_X_MAX - JAMB;
+  const innerW = xMax - xMin - STILE_W * 2;
+  const xMid = (xMin + xMax) / 2;
   const yMid = (yMin + yMax) / 2;
 
   parts.push(
-    box(SASH_D, yMax - yMin, STILE_W, xCenter, yMid, zMin + STILE_W / 2),
-    box(SASH_D, yMax - yMin, STILE_W, xCenter, yMid, zMax - STILE_W / 2),
-    box(SASH_D, bottomRail, innerW, xCenter, yMin + bottomRail / 2, WIN_Z_CENTER),
-    box(SASH_D, topRail, innerW, xCenter, yMax - topRail / 2, WIN_Z_CENTER)
+    box(STILE_W, yMax - yMin, SASH_D, xMin + STILE_W / 2, yMid, zCenter),
+    box(STILE_W, yMax - yMin, SASH_D, xMax - STILE_W / 2, yMid, zCenter),
+    box(innerW, bottomRail, SASH_D, xMid, yMin + bottomRail / 2, zCenter),
+    box(innerW, topRail, SASH_D, xMid, yMax - topRail / 2, zCenter)
   );
 
   // Muntin cross splitting the glazing into 2x2 panes.
@@ -550,8 +679,8 @@ function pushSash(
   const gMax = yMax - topRail;
   const gMid = (gMin + gMax) / 2;
   parts.push(
-    box(MUNTIN_D, gMax - gMin, MUNTIN_W, xCenter, gMid, WIN_Z_CENTER),
-    box(MUNTIN_D, MUNTIN_W, innerW, xCenter, gMid, WIN_Z_CENTER)
+    box(MUNTIN_W, gMax - gMin, MUNTIN_D, xMid, gMid, zCenter),
+    box(innerW, MUNTIN_W, MUNTIN_D, xMid, gMid, zCenter)
   );
 }
 
@@ -562,9 +691,14 @@ export default function RoomWindow() {
     // --- Surfaces -------------------------------------------------------
     // Walls a touch lighter than Room.tsx's plaster; ceiling a touch darker.
     const wallWashes = ["#f3e4c6", "#dfd2b8", "#eed9b4", "#e6d8c2"];
+
+    // The BACK wall is now extruded (real thickness for the window reveal),
+    // and ExtrudeGeometry UVs come out in shape units — meters — so the
+    // plaster canvas is repeat-scaled to span the wall exactly once.
+    const backRepeat: [number, number] = [1 / FLOOR_W, 1 / WALL_HEIGHT];
     const backWallMaterial = new THREE.MeshStandardMaterial({
-      map: plasterColorTexture(rng, "#eadcc2", wallWashes),
-      bumpMap: plasterBumpTexture(rng),
+      map: plasterColorTexture(rng, "#eadcc2", wallWashes, backRepeat),
+      bumpMap: plasterBumpTexture(rng, backRepeat),
       bumpScale: 0.0012,
       color: "#fdfaf4",
       roughness: 0.95,
@@ -572,13 +706,11 @@ export default function RoomWindow() {
       envMapIntensity: 0.6
     });
 
-    // The side wall is extruded (real thickness for the window reveal), and
-    // ExtrudeGeometry UVs come out in shape units — meters — so the plaster
-    // canvas is repeat-scaled to span the wall exactly once.
-    const sideRepeat: [number, number] = [1 / FLOOR_D, 1 / WALL_HEIGHT];
+    // The right side wall is now plain plaster (no window) — a flat plane, so
+    // its UVs already run 0..1 and need no repeat scaling.
     const sideWallMaterial = new THREE.MeshStandardMaterial({
-      map: plasterColorTexture(rng, "#eadcc2", wallWashes, sideRepeat),
-      bumpMap: plasterBumpTexture(rng, sideRepeat),
+      map: plasterColorTexture(rng, "#eadcc2", wallWashes),
+      bumpMap: plasterBumpTexture(rng),
       bumpScale: 0.0012,
       color: "#fdfaf4",
       roughness: 0.95,
@@ -620,71 +752,92 @@ export default function RoomWindow() {
     });
     trimMaterial.envMapIntensity = 0.7;
 
-    // --- Side wall with the window punched through -----------------------
-    // Shape plane: localX runs DOWN-z from the wall's front edge (after the
-    // +90deg yaw, localX maps to world -z), localY is height above the floor.
+    // Terracotta + foliage for the windowsill succulent (cribbed from
+    // FloorBookcase.tsx's bottom-shelf plant).
+    const potMaterial = new THREE.MeshStandardMaterial({
+      map: terracottaTexture(rng),
+      roughness: 0.88,
+      metalness: 0,
+      envMapIntensity: 0.4
+    });
+    const plantMaterial = new THREE.MeshStandardMaterial({
+      color: "#5f7c4b",
+      roughness: 0.62,
+      metalness: 0,
+      envMapIntensity: 0.6
+    });
+
+    // --- Back wall with the window punched through -----------------------
+    // Shape plane: localX = world x, localY = height above the floor;
+    // extruded along +z by WALL_THICKNESS, then slid so the wall straddles
+    // BACK_WALL_Z (outer face at BACK_WALL_OUTER_Z, inner at the room side).
     const wallShape = new THREE.Shape();
-    wallShape.moveTo(0, 0);
-    wallShape.lineTo(FLOOR_D, 0);
-    wallShape.lineTo(FLOOR_D, WALL_HEIGHT);
-    wallShape.lineTo(0, WALL_HEIGHT);
+    wallShape.moveTo(FLOOR_X_MIN, 0);
+    wallShape.lineTo(FLOOR_X_MAX, 0);
+    wallShape.lineTo(FLOOR_X_MAX, WALL_HEIGHT);
+    wallShape.lineTo(FLOOR_X_MIN, WALL_HEIGHT);
     wallShape.closePath();
 
     const opening = new THREE.Path();
-    const hx0 = FLOOR_Z_MAX - WIN_Z_MAX;
-    const hx1 = FLOOR_Z_MAX - WIN_Z_MIN;
-    opening.moveTo(hx0, WIN_SILL);
-    opening.lineTo(hx1, WIN_SILL);
-    opening.lineTo(hx1, WIN_SILL + WIN_H);
-    opening.lineTo(hx0, WIN_SILL + WIN_H);
+    opening.moveTo(WIN_X_MIN, WIN_SILL);
+    opening.lineTo(WIN_X_MAX, WIN_SILL);
+    opening.lineTo(WIN_X_MAX, WIN_SILL + WIN_H);
+    opening.lineTo(WIN_X_MIN, WIN_SILL + WIN_H);
     opening.closePath();
     wallShape.holes.push(opening);
 
-    const sideWallGeometry = new THREE.ExtrudeGeometry(wallShape, {
+    const backWallGeometry = new THREE.ExtrudeGeometry(wallShape, {
       depth: WALL_THICKNESS,
       bevelEnabled: false,
       steps: 1
     });
-    sideWallGeometry.rotateY(Math.PI / 2); // extrusion now points world +x
-    sideWallGeometry.translate(SIDE_WALL_X, FLOOR_Y, FLOOR_Z_MAX);
-    sideWallGeometry.name = "winWallSideGeometry";
+    // localY (shape) is height above the floor → lift to FLOOR_Y; extrusion
+    // runs world +z from the wall's outer face.
+    backWallGeometry.translate(0, FLOOR_Y, BACK_WALL_OUTER_Z);
+    backWallGeometry.name = "winWallBackGeometry";
 
-    // --- Window frame: jambs, sill, casing, two sashes — one merged mesh --
+    // --- Window frame: jambs, sill shelf, casing, two sashes — one mesh ---
+    // The window now lies in the X-Y plane of the back wall; depth runs along
+    // z. Center of the wall thickness is BACK_WALL_Z.
     const frameParts: THREE.BufferGeometry[] = [];
-    const jambX = SIDE_WALL_X + WALL_THICKNESS / 2;
+    const jambZ = BACK_WALL_Z; // jamb lining centered in the wall thickness
+    const winXMid = WIN_X_CENTER;
     const winYMid = (WIN_Y_MIN + WIN_Y_MAX) / 2;
 
-    // Jamb lining (sides + head), slightly proud of the plaster.
+    // Jamb lining (sides + head), slightly proud of the plaster on each face.
     frameParts.push(
-      box(JAMB_DEPTH, WIN_H, JAMB, jambX, winYMid, WIN_Z_MIN + JAMB / 2),
-      box(JAMB_DEPTH, WIN_H, JAMB, jambX, winYMid, WIN_Z_MAX - JAMB / 2),
-      box(JAMB_DEPTH, JAMB, WIN_W - JAMB * 2, jambX, WIN_Y_MAX - JAMB / 2, WIN_Z_CENTER)
+      box(JAMB, WIN_H, JAMB_DEPTH, WIN_X_MIN + JAMB / 2, winYMid, jambZ),
+      box(JAMB, WIN_H, JAMB_DEPTH, WIN_X_MAX - JAMB / 2, winYMid, jambZ),
+      box(WIN_W - JAMB * 2, JAMB, JAMB_DEPTH, winXMid, WIN_Y_MAX - JAMB / 2, jambZ)
     );
 
-    // Sill with horns, nosing ~7cm into the room, and the apron beneath it.
+    // Interior sill SHELF: a real board nosing SILL_DEPTH into the room, its
+    // top surface at SILL_TOP_Y (the plant stands on it), plus the apron
+    // beneath. The shelf front edge sits at z = BACK_WALL_INNER_Z + SILL_DEPTH.
+    const sillZ = BACK_WALL_INNER_Z + SILL_DEPTH / 2 - 0.01; // tuck 1cm into the reveal
     frameParts.push(
-      box(0.16, 0.035, WIN_W + 0.11, SIDE_WALL_X + 0.01, WIN_Y_MIN - 0.0175, WIN_Z_CENTER),
-      box(0.018, 0.07, WIN_W + 0.03, SIDE_WALL_X - 0.009, WIN_Y_MIN - 0.07, WIN_Z_CENTER)
+      box(WIN_W + 0.11, SILL_THICK, SILL_DEPTH, winXMid, SILL_TOP_Y - SILL_THICK / 2, sillZ),
+      box(WIN_W + 0.03, 0.07, 0.018, winXMid, WIN_Y_MIN - 0.07, BACK_WALL_INNER_Z + 0.009)
     );
 
-    // Interior casing on the room face: two legs standing on the sill horns,
-    // one head board across the top.
-    const casingX = SIDE_WALL_X - 0.009;
+    // Interior casing on the room face: two legs and a head board, standing
+    // just proud of the inner plaster.
+    const casingZ = BACK_WALL_INNER_Z + 0.009;
     frameParts.push(
-      box(0.018, WIN_H, 0.07, casingX, winYMid, WIN_Z_MIN - 0.035),
-      box(0.018, WIN_H, 0.07, casingX, winYMid, WIN_Z_MAX + 0.035),
-      box(0.018, 0.07, WIN_W + 0.18, casingX, WIN_Y_MAX + 0.035, WIN_Z_CENTER)
+      box(0.07, WIN_H, 0.018, WIN_X_MIN - 0.035, winYMid, casingZ),
+      box(0.07, WIN_H, 0.018, WIN_X_MAX + 0.035, winYMid, casingZ),
+      box(WIN_W + 0.18, 0.07, 0.018, winXMid, WIN_Y_MAX + 0.035, casingZ)
     );
 
-    // Double-hung sashes: lower rides the inner track, upper the outer, and
-    // their meeting rails overlap 2.5cm at mid-height. 2x2 panes each, empty.
+    // Double-hung sashes: lower rides the inner (room-side) track, upper the
+    // outer, meeting rails overlap 2.5cm at mid-height. 2x2 panes each, empty.
     const meetY = winYMid;
-    pushSash(frameParts, WIN_Y_MIN, meetY + 0.0125, SIDE_WALL_X + 0.02, 0.055, 0.035);
+    pushSash(frameParts, WIN_Y_MIN, meetY + 0.0125, BACK_WALL_INNER_Z - 0.02, 0.055, 0.035);
     pushSash(
       frameParts,
       meetY - 0.0125,
       WIN_Y_MAX - JAMB,
-      SIDE_WALL_X + WALL_THICKNESS - 0.02,
+      BACK_WALL_OUTER_Z + 0.02,
       0.035,
       0.045
     );
@@ -692,21 +845,99 @@ export default function RoomWindow() {
     const frameGeometry = merge(frameParts);
     frameGeometry.name = "winWindowFrameGeometry";
 
+    // --- Windowsill succulent: terracotta pot + a small rosette ----------
+    // Sits ON the sill shelf at its LEFT end (world x ~ -0.25). Pot profile
+    // and rosette cribbed from FloorBookcase.tsx (scaled to taste).
+    const SILL_POT_X = -0.25;
+    const SILL_POT_Z = sillZ; // centered on the shelf depth
+    const potProfile = [
+      new THREE.Vector2(0.004, 0),
+      new THREE.Vector2(0.024, 0),
+      new THREE.Vector2(0.026, 0.003),
+      new THREE.Vector2(0.0335, 0.06),
+      new THREE.Vector2(0.034, 0.061),
+      new THREE.Vector2(0.0375, 0.062),
+      new THREE.Vector2(0.038, 0.064),
+      new THREE.Vector2(0.038, 0.076),
+      new THREE.Vector2(0.0375, 0.078),
+      new THREE.Vector2(0.033, 0.078),
+      new THREE.Vector2(0.0315, 0.072),
+      new THREE.Vector2(0.0312, 0.066)
+    ];
+    const potGeometry = new THREE.LatheGeometry(potProfile, 28);
+    potGeometry.translate(SILL_POT_X, SILL_TOP_Y, SILL_POT_Z);
+    potGeometry.name = "sillPotGeometry";
+
+    // Rosette: a soil cap + three whorls of flattened ellipsoid blades and a
+    // center bud, all merged into one foliage mesh.
+    const plantParts: THREE.BufferGeometry[] = [];
+    const potRimY = SILL_TOP_Y + 0.066; // soil sits ~at the pot rim
+    const soil = new THREE.CylinderGeometry(0.0315, 0.0315, 0.006, 20);
+    soil.translate(SILL_POT_X, potRimY, SILL_POT_Z);
+    plantParts.push(soil);
+
+    const whorls = [
+      { n: 6, tilt: 0.62, len: 0.042, phase: 0 },
+      { n: 5, tilt: 0.4, len: 0.052, phase: 0.5 },
+      { n: 4, tilt: 0.2, len: 0.06, phase: 1.0 }
+    ];
+    for (const ring of whorls) {
+      for (let i = 0; i < ring.n; i++) {
+        const angle = ring.phase + (i / ring.n) * Math.PI * 2 + rng() * 0.2;
+        const leaf = new THREE.SphereGeometry(0.012, 8, 6);
+        leaf.scale(0.45, ring.len / 0.024, 0.16);
+        leaf.translate(0, ring.len / 2, 0);
+        const lm = new THREE.Matrix4()
+          .makeRotationY(angle)
+          .multiply(new THREE.Matrix4().makeRotationX(ring.tilt + rng() * 0.1));
+        lm.setPosition(SILL_POT_X, potRimY + 0.002, SILL_POT_Z);
+        leaf.applyMatrix4(lm);
+        plantParts.push(leaf);
+      }
+    }
+    const bud = new THREE.SphereGeometry(0.009, 8, 6);
+    bud.scale(1, 1.4, 1);
+    bud.translate(SILL_POT_X, potRimY + 0.01, SILL_POT_Z);
+    plantParts.push(bud);
+
+    const plantGeometry = merge(plantParts);
+    plantGeometry.name = "sillPlantGeometry";
+
+    // --- Side wall: plain plaster plane (windowless now) -----------------
+    // A flat plane against x = SIDE_WALL_X facing -x into the room.
+
     // --- Baseboards + quarter-round shoes along both walls, one mesh -----
-    // Back run hugs the back wall (yaw -90: depth -> +z, run -> -x), stopping
-    // 13mm shy of the corner so it butts the side run instead of z-fighting.
+    // Back run hugs the back wall (yaw -90: depth -> +z, run -> -x) but breaks
+    // around the window opening (the apron/casing handle that span), so it
+    // splits into a left leg and a right leg. Stops 13mm shy of the corner so
+    // it butts the side run instead of z-fighting.
+    const baseGap = 0.05; // clearance each side of the opening for the casing
+    const backLeftLen = WIN_X_MIN - baseGap - FLOOR_X_MIN; // -0.475 - (-2.7)
+    const backRightLen = FLOOR_X_MAX - 0.013 - (WIN_X_MAX + baseGap); // to the corner
     const baseboardGeometry = merge([
-      trimRun(baseboardShape(), FLOOR_W - 0.013, -Math.PI / 2, [
+      // back-wall left leg: from the left corner to the window's left jamb
+      trimRun(baseboardShape(), backLeftLen, -Math.PI / 2, [
+        WIN_X_MIN - baseGap,
+        FLOOR_Y,
+        BACK_WALL_INNER_Z
+      ]),
+      trimRun(shoeShape(), backLeftLen, -Math.PI / 2, [
+        WIN_X_MIN - baseGap,
+        FLOOR_Y,
+        BACK_WALL_INNER_Z + 0.013
+      ]),
+      // back-wall right leg: from the window's right jamb to the corner
+      trimRun(baseboardShape(), backRightLen, -Math.PI / 2, [
         FLOOR_X_MAX - 0.013,
         FLOOR_Y,
-        BACK_WALL_Z
+        BACK_WALL_INNER_Z
       ]),
-      trimRun(shoeShape(), FLOOR_W - 0.024, -Math.PI / 2, [
-        FLOOR_X_MAX - 0.024,
+      trimRun(shoeShape(), backRightLen, -Math.PI / 2, [
+        FLOOR_X_MAX - 0.013,
         FLOOR_Y,
-        BACK_WALL_Z + 0.013
+        BACK_WALL_INNER_Z + 0.013
       ]),
-      // Side run hugs the window wall (yaw 180: depth -> -x, run -> -z).
+      // side run hugs the windowless side wall (yaw 180: depth -> -x, run -> -z)
       trimRun(baseboardShape(), FLOOR_D, Math.PI, [
         SIDE_WALL_X,
         FLOOR_Y,
@@ -720,9 +951,10 @@ export default function RoomWindow() {
     ]);
     baseboardGeometry.name = "winBaseboardsGeometry";
 
-    // --- Backdrops: emissive canvases the bake toggles per theme ---------
-    // Color is black so room light never grazes them; the canvas rides the
-    // emissive slot and exports as a glTF emissiveTexture for Cycles.
+    // --- Backdrop: the single ALWAYS-NIGHT emissive canvas ---------------
+    // Color is black so room light never grazes it; the canvas rides the
+    // emissive slot and exports as a glTF emissiveTexture for Cycles. The
+    // bake script keys on the mesh name "windowBackdropNight".
     const nightTexture = nightBackdropTexture(rng);
     const backdropNightMaterial = new THREE.MeshStandardMaterial({
       map: nightTexture,
@@ -734,28 +966,20 @@ export default function RoomWindow() {
       metalness: 0
     });
 
-    const dayTexture = dayBackdropTexture(rng);
-    const backdropDayMaterial = new THREE.MeshStandardMaterial({
-      map: dayTexture,
-      color: "#000000",
-      emissive: "#ffffff",
-      emissiveMap: dayTexture,
-      emissiveIntensity: 1,
-      roughness: 1,
-      metalness: 0
-    });
-
     return {
       backWallMaterial,
       sideWallMaterial,
       ceilingMaterial,
       floorMaterial,
       trimMaterial,
-      sideWallGeometry,
+      potMaterial,
+      plantMaterial,
+      backWallGeometry,
       frameGeometry,
+      potGeometry,
+      plantGeometry,
       baseboardGeometry,
-      backdropNightMaterial,
-      backdropDayMaterial
+      backdropNightMaterial
     };
   }, []);
 
@@ -772,25 +996,27 @@ export default function RoomWindow() {
         <planeGeometry args={[FLOOR_W, FLOOR_D]} />
       </mesh>
 
-      {/* Back wall, ~0.5m behind the desk's rear edge. */}
+      {/* Back wall with the window punched through — real thickness so the
+          opening has a reveal for light to wrap around. ~0.5m behind the
+          desk's rear edge, window centered at x=0. */}
       <mesh
         name="winWallBack"
-        position={[FLOOR_CX, FLOOR_Y + WALL_HEIGHT / 2, BACK_WALL_Z]}
+        geometry={built.backWallGeometry}
         material={built.backWallMaterial}
-        receiveShadow
-      >
-        <planeGeometry args={[FLOOR_W, WALL_HEIGHT]} />
-      </mesh>
-
-      {/* Right side wall with the window punched through — real thickness so
-          the opening has a reveal for light to wrap around. */}
-      <mesh
-        name="winWallSide"
-        geometry={built.sideWallGeometry}
-        material={built.sideWallMaterial}
         castShadow
         receiveShadow
       />
+
+      {/* Right side wall — plain plaster now (windowless), facing -x. */}
+      <mesh
+        name="winWallSide"
+        position={[SIDE_WALL_X, FLOOR_Y + WALL_HEIGHT / 2, FLOOR_CZ]}
+        rotation={[0, -Math.PI / 2, 0]}
+        material={built.sideWallMaterial}
+        receiveShadow
+      >
+        <planeGeometry args={[FLOOR_D, WALL_HEIGHT]} />
+      </mesh>
 
       {/* Ceiling plane so window light has something to bounce between. */}
       <mesh
@@ -803,11 +1029,27 @@ export default function RoomWindow() {
         <planeGeometry args={[FLOOR_W, FLOOR_D]} />
       </mesh>
 
-      {/* Double-hung sash window: jambs, sill, casing, sashes, muntins. */}
+      {/* Double-hung sash window: jambs, sill shelf, casing, sashes, muntins. */}
       <mesh
         name="winWindowFrame"
         geometry={built.frameGeometry}
         material={built.trimMaterial}
+        castShadow
+        receiveShadow
+      />
+
+      {/* Windowsill succulent: terracotta pot + rosette, on the sill's left. */}
+      <mesh
+        name="sillPot"
+        geometry={built.potGeometry}
+        material={built.potMaterial}
+        castShadow
+        receiveShadow
+      />
+      <mesh
+        name="sillPlant"
+        geometry={built.plantGeometry}
+        material={built.plantMaterial}
         castShadow
         receiveShadow
       />
@@ -820,21 +1062,13 @@ export default function RoomWindow() {
         receiveShadow
       />
 
-      {/* What's outside: night nearest the window, day 2cm behind it. The
-          bake script flips visibility per theme; both stay on in-file. */}
+      {/* What's outside: it is ALWAYS night. One emissive city-rooftop canvas
+          ~0.5m beyond the wall's outer face, facing +z back through the
+          opening. The bake script keys on this exact mesh name. */}
       <mesh
         name="windowBackdropNight"
-        position={[BACKDROP_X_NIGHT, BACKDROP_CY, WIN_Z_CENTER]}
-        rotation={[0, -Math.PI / 2, 0]}
+        position={[WIN_X_CENTER, BACKDROP_CY, BACKDROP_Z_NIGHT]}
         material={built.backdropNightMaterial}
-      >
-        <planeGeometry args={[BACKDROP_SIZE, BACKDROP_SIZE]} />
-      </mesh>
-      <mesh
-        name="windowBackdropDay"
-        position={[BACKDROP_X_DAY, BACKDROP_CY, WIN_Z_CENTER]}
-        rotation={[0, -Math.PI / 2, 0]}
-        material={built.backdropDayMaterial}
       >
         <planeGeometry args={[BACKDROP_SIZE, BACKDROP_SIZE]} />
       </mesh>
