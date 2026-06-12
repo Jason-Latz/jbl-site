@@ -40,9 +40,10 @@ export const PLACEMENT: Record<string, Placement> = {
   filmCamera: { position: [-0.13, 0, -0.32], rotationY: -0.4 },
   // Ten books standing against the back gallery rail, right side.
   bookRow: { position: [0.57, 0, -0.36], rotationY: 0 },
-  // HEAD Radical Pro on the wall right of the window (z at the wall plane;
-  // the racket models itself flat in XY facing +z with its peg at z<=0).
-  racket: { position: [0.78, 0.55, -0.893], rotationY: 0 }
+  // HEAD Radical Pro on the wall right of the window. The back wall's inner
+  // face is at z=-0.855; the racket hangs just in front of it (z=-0.84) with
+  // its peg poking back into the plaster.
+  racket: { position: [0.82, 0.6, -0.84], rotationY: 0 }
 };
 
 // Rest pose sits ~45 degrees above the desk per Jason's art direction —
