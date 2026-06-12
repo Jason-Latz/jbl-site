@@ -34,7 +34,6 @@ const BEVEL = 0.0003;
 const TOP_PLATE_Y0 = 0.0565; // top plate base
 const TOP_Y = 0.0685; // top plate surface — dials and knobs sit on this
 const ZC = -0.0198; // body z-center; back of plates lands at -0.0375
-const FRONT_Z = ZC + PLATE_D / 2 + BEVEL; // front plate face
 const BACK_Z = ZC - PLATE_D / 2 - BEVEL; // rear plate face
 
 // Lens: axis slightly right of center and above body mid-height, like the
@@ -46,7 +45,11 @@ const LENS_Z = -0.004; // flange tail buried ~1.2mm into the body front
 const GLASS_R = 0.0125;
 const GLASS_SAG = 0.0012; // shallow convex dome on the front element
 
-const LEVER_SWING = -0.3; // advance lever rests kicked out over the back edge
+// Advance lever rests kicked out over the back edge. At -0.3 the thumb tip
+// clipped ~4mm into the shutter dial drum (hub-to-dial is only 30mm and the
+// lever reaches 32.6mm); -0.8 swings the tip's worst corner ~14mm from the
+// dial axis (drum r=7.8mm) — real ready-stance geometry.
+const LEVER_SWING = -0.8;
 
 // Rounded-rectangle plan of the body — near-semicircular ends, the classic
 // rangefinder silhouette. Drawn in XY, extruded along +Z, stood up later.
@@ -217,7 +220,46 @@ export default function FilmCamera() {
     }
     const glassDome = new THREE.LatheGeometry(profile, 64);
 
-    return { bottomPlate, body, topPlate, chromeDetails, vfGlass, glassDome };
+    // Trim ring: open outer wall + annular front face with a 12.7mm bore
+    // (a capped cylinder here would wall off the recess and hide the front
+    // element entirely). Built along +Y, stood up to +Z at the call site.
+    const trimRing = bakeParts([
+      {
+        geometry: new THREE.CylinderGeometry(0.0179, 0.0179, 0.0056, 48, 1, true),
+        position: [0, 0, 0]
+      },
+      {
+        geometry: new THREE.RingGeometry(0.0127, 0.0179, 48),
+        position: [0, 0.0028, 0],
+        rotation: [-Math.PI / 2, 0, 0]
+      }
+    ]);
+
+    // Recess liner: open tube lining the trim ring's bore front-to-back,
+    // sealed by a matte disc behind the glass rim so the 0.2mm rim/wall
+    // sliver never reads through to the barrel interior.
+    const lensRecess = bakeParts([
+      {
+        geometry: new THREE.CylinderGeometry(0.0127, 0.0127, 0.0054, 48, 1, true),
+        position: [0, 0, 0]
+      },
+      {
+        geometry: new THREE.CircleGeometry(0.0127, 48),
+        position: [0, -0.0025, 0],
+        rotation: [-Math.PI / 2, 0, 0]
+      }
+    ]);
+
+    return {
+      bottomPlate,
+      body,
+      topPlate,
+      chromeDetails,
+      vfGlass,
+      glassDome,
+      trimRing,
+      lensRecess
+    };
   }, []);
 
   const mats = useMemo(() => {
@@ -822,24 +864,22 @@ export default function FilmCamera() {
         </mesh>
         <mesh
           name="cameraTrimRing"
+          geometry={geo.trimRing}
           position={[0, 0, 0.0374]}
           rotation={[Math.PI / 2, 0, 0]}
           castShadow
           material={mats.blackMetal}
-        >
-          <cylinderGeometry args={[0.0179, 0.0179, 0.0056, 48]} />
-        </mesh>
+        />
         <mesh name="cameraNameRing" position={[0, 0, 0.0403]} material={mats.nameRing}>
           <ringGeometry args={[0.0126, 0.0172, 64]} />
         </mesh>
         <mesh
           name="cameraLensRecess"
-          position={[0, 0, 0.0378]}
+          geometry={geo.lensRecess}
+          position={[0, 0, 0.0375]}
           rotation={[Math.PI / 2, 0, 0]}
           material={mats.recess}
-        >
-          <cylinderGeometry args={[0.0127, 0.0127, 0.0044, 48, 1, true]} />
-        </mesh>
+        />
         <mesh
           name="cameraGlass"
           geometry={geo.glassDome}
