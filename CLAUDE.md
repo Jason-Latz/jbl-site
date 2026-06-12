@@ -90,6 +90,10 @@ read `docs/PLAN.md` (staged roadmap) and `docs/CONTEXT.md` (live state of the bu
   instead. (DoF itself was deleted in the Stage 5 de-jank — only matters if it returns.)
 - GLTFExporter serializes three.js lights as KHR punctual lights — the kiln's render
   script must delete them after import or the Cycles rig double-lights the scene.
+- An emissive backdrop authored as `emissive + emissiveMap` with a BLACK base color
+  exports its image to the glTF emissive slot but a black base-color factor. In Blender
+  the bake script must rebuild it with `make_pure_emission` (clean Emission shader from
+  the raw image) — the older `make_emissive` (base-color → emission) emits pure black.
 - zsh does NOT word-split unquoted variables (`set -- $combo` stays one word) —
   write explicit commands or use `${=var}` in loops.
 - `app/layout.tsx` imported `@mdxeditor/editor/style.css` without the dependency existing

@@ -6,6 +6,58 @@
 
 ## Session log
 
+### 2026-06-12 — Composition v3: centered night window, the law of night
+
+Jason's third pass (voice notes). The room is now built around a
+window CENTERED in the back wall that you look out of, and the
+lighting law: it is ALWAYS NIGHT outside. Light theme = lamp on +
+soft warm practicals; dark theme = the night window (moon + city) is
+the hero light, plus the screen glow. Every requested change shipped:
+
+- Speakers + floor bookcase RETIRED (clutter). Both component files
+  stay in the repo, unmounted, in case they return.
+- Books now stand in a ROW on the desk against a new back gallery
+  rail ("the little bump up at the back"): DeskBookRow.tsx, all ten
+  verified titles + a steel bookend; the rail is in Desk.tsx
+  (deskRail/deskRailPosts). Desk legs were already thickened in v2.
+- Window moved to the back wall, centered x=0, deeper sill; day
+  backdrop deleted; night backdrop repainted as a city-rooftop view
+  (moon upper-left, skyline with lit windows, water tower, stars).
+  A terracotta succulent sits on the sill's left end.
+- HEAD Radical Pro on the wall right of the window: TennisRacket.tsx,
+  colorway researched (2023 neon orange / navy, white strings).
+- Lamp moved BEHIND the turntable (rotY -1.28 keeps the beam on the
+  platter); computer dead-center; notepad left; chess right; travel
+  vignette to the back row; Clawd stickers ~30% bigger.
+- New HERO bake camera (lower, head-on) so the window/wall/racket
+  read — the top-down rest cam hid the whole back wall (Jason: "the
+  camera is still in front, not optimal"). The live rest camera still
+  looks down at the desk — an open question whether to lower it too.
+
+Bugs fought this session (all fixed):
+- The MULTI-AGENT WORKFLOW STALLED: 2 of 4 agents (racket, room
+  rework) hung with no output and no error. Lesson: don't poll
+  transcripts to decide if it's alive — cut it loose and finish the
+  stalled pieces directly. Built the racket inline; relaunched the
+  room rework as one fresh agent.
+- Night view rendered BLACK. Root cause was NOT centering (though the
+  3m backdrop did hide the moon — fixed by shrinking to 1.55m close
+  to the wall). Real cause: the backdrop ships its image in the glTF
+  EMISSIVE slot with a black base-color factor; the bake script's
+  make_emissive (base-color -> emission) emitted black. New
+  make_pure_emission() rebuilds a clean emission shader from the raw
+  image. THE moon/city now read through the glass.
+- Racket was buried IN the wall (z=-0.893 vs inner face -0.855) —
+  moved to z=-0.84.
+
+Renders: bake/renders/window-light.png + window-dark.png (the v3
+hero pair). GOTCHA banked in CLAUDE.md: emissive-from-glTF backdrops
+need make_pure_emission, not make_emissive.
+
+Open / next: lower the LIVE rest camera so the window shows in-browser
+(currently only the bake hero cam frames it); RoomWindow should
+replace Room.tsx for the live site; then the real lightmap bake.
+
 ### 2026-06-11 (late evening) — Composition v2 from Jason's voice notes
 
 Jason's verdict on the A/B: "This looks incredible. This is exactly
