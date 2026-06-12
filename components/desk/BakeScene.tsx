@@ -25,6 +25,8 @@ import Turntable from "./objects/Turntable";
 import DeskLamp from "./objects/DeskLamp";
 import MacBook from "./objects/MacBook";
 import Chessboard from "./objects/Chessboard";
+import DeskBookRow from "./objects/DeskBookRow";
+import TennisRacket from "./objects/TennisRacket";
 import Notepad from "./objects/Notepad";
 import RecordCrate from "./objects/RecordCrate";
 import FilmCamera from "./objects/FilmCamera";
@@ -188,7 +190,12 @@ export default function BakeScene({
           <At name="macbook">
             <MacBook open={false} />
           </At>
-          {/* bookRow + racket mount here once their files land (v3). */}
+          <At name="bookRow">
+            <DeskBookRow />
+          </At>
+          <At name="racket">
+            <TennisRacket />
+          </At>
           <At name="chessboard">
             <Chessboard />
           </At>

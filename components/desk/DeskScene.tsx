@@ -21,6 +21,8 @@ import DeskBase from "./Desk";
 import DeskEffects from "./Effects";
 import RoomBase from "./Room";
 import ChessboardBase from "./objects/Chessboard";
+import DeskBookRowBase from "./objects/DeskBookRow";
+import TennisRacketBase from "./objects/TennisRacket";
 import DeskLampBase from "./objects/DeskLamp";
 import FilmCameraBase from "./objects/FilmCamera";
 import LampBeamBase from "./objects/LampBeam";
@@ -38,6 +40,8 @@ import TurntableBase from "./objects/Turntable";
 const Desk = memo(DeskBase);
 const Room = memo(RoomBase);
 const Chessboard = memo(ChessboardBase);
+const DeskBookRow = memo(DeskBookRowBase);
+const TennisRacket = memo(TennisRacketBase);
 const DeskLamp = memo(DeskLampBase);
 const FilmCamera = memo(FilmCameraBase);
 const PhotoStack = memo(PhotoStackBase);
@@ -453,8 +457,12 @@ function SceneContents({
       <Placed name="macbook" focusId="work" onFocus={onFocus}>
         <MacBook open={focus === "work"} />
       </Placed>
-      {/* bookRow (reading focus) + racket mount here once their files land
-          (composition v3 integration). */}
+      <Placed name="bookRow" focusId="reading" onFocus={onFocus}>
+        <DeskBookRow />
+      </Placed>
+      <Placed name="racket">
+        <TennisRacket />
+      </Placed>
       <Placed name="chessboard" focusId="chess" onFocus={onFocus}>
         <Chessboard fen={chessFen} lastMove={chessLastMove} />
       </Placed>
