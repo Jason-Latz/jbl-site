@@ -204,7 +204,10 @@ A (perfected void) vs B (corner window), decided from Cycles stills.
       room+theme, Metal GPU, denoised
 - [x] Room concept block-outs: concepts/RoomVoid.tsx, concepts/RoomWindow.tsx
 - [x] A/B concept stills (rooms × themes) rendered for Jason's decision
-- [ ] Jason picks the room → winner replaces Room.tsx, loser archived
+- [x] Jason picks the room → THE CORNER WINDOW won (2026-06-11, his "1 vs 2"
+      bake-off + voice notes: window on the RIGHT wall, cross-light against
+      the lamp). RoomWindow replaces Room.tsx during the bake build-out;
+      RoomVoid stays archived in concepts/.
 - [ ] UV2 unwrap (xatlas) + atlas packing for the static set
 - [ ] Cycles lightmap bakes (lamp-on / lamp-off) + runtime two-state blend
 - [ ] Strip the live stack: PCSS, shadow maps, N8AO, reflector,

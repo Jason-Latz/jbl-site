@@ -6,6 +6,46 @@
 
 ## Session log
 
+### 2026-06-11 (late evening) — Composition v2 from Jason's voice notes
+
+Jason's verdict on the A/B: "This looks incredible. This is exactly
+what I want." Room decision = the WINDOW concept, with the window on
+the RIGHT wall (cross-light against the lamp) — the original artisan
+placement, restored from git (74cfbc9). His voice notes drove a full
+composition pass, all landed and live:
+
+- Minimalist center: MacBook squared to the desk (rotY = pi exactly)
+  and near-centered at [0.1, -0.14]; center column = computer + notepad.
+- Chessboard diagonal strengthened (rotY 0.45); WHITE faces the sitter
+  (squareToLocal puts rank 1 at local +z — the world plays white).
+- Hero camera shifted right (rest [0.28, 1.08, 1.02]); work focus view
+  tracks the new MacBook; reading focus retargeted to the floor case.
+- Pixel-Clawd stickers from his photo of his real laptop: skateboard
+  above the logo, bubble-blower viewer-left, idea-bulb viewer-right;
+  string-array sprite maps, rectilinear die-cut Shapes edge-walked from
+  dilated pixels; hover/Made-with-Claude wiring intact (hand-check the
+  chip — raycast can't be JS-tested).
+- Desk legs thickened to "commanding" (vase swell 12.7cm dia, blocks
+  9.4cm, aprons 11.5cm); stance/footprint unchanged.
+- FloorBookcase.tsx replaces the desktop Bookshelf (which stays in the
+  repo, unmounted): 1.25m walnut case behind the desk's left corner,
+  same ten verified titles, bookends, horizontal stack with On the
+  Edge cover-up, potted succulent. ~21 draws.
+- Speaker.tsx — walnut bookshelf speaker (grille-off woofer/tweeter,
+  LATZ AUDIO badge, rear port so one component mirrors as both
+  channels); pair placed at the desk's far corners, toed in
+  (speakerLeft/-Right in layout).
+- Composition-v2 Cycles stills rendered: bake/renders/window-light.png
+  (morning sun patch raking the desk + lamp pool) and window-dark.png
+  (ember room, lamp off). Light theme final grade is bake-time work.
+- Backlog banked in PLAN: /music page with crate-vs-player click split,
+  parallax window view (feasible, cheap), /photography route split.
+
+Known/watch: left speaker mostly occluded behind the turntable from
+rest cam (fine — it reads in focus views and renders); reading focus
+view needs a hand-framing check; window-light brightness is approval-
+grade, not final art.
+
 ### 2026-06-11 (evening) — Stage 5 opens: the kiln, de-jank, new objects, room A/B
 
 Post-launch reckoning. Jason: record player great, but "background,
