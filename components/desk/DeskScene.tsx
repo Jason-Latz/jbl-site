@@ -20,8 +20,8 @@ import { CAMERA, FOCUS_VIEWS, PLACEMENT, type FocusId } from "./layout";
 import DeskBase from "./Desk";
 import DeskEffects from "./Effects";
 import RoomBase from "./Room";
-import BookshelfBase from "./objects/Bookshelf";
 import ChessboardBase from "./objects/Chessboard";
+import FloorBookcaseBase from "./objects/FloorBookcase";
 import DeskLampBase from "./objects/DeskLamp";
 import FilmCameraBase from "./objects/FilmCamera";
 import LampBeamBase from "./objects/LampBeam";
@@ -29,6 +29,7 @@ import MacBookBase from "./objects/MacBook";
 import NotepadBase from "./objects/Notepad";
 import PhotoStackBase from "./objects/PhotoStack";
 import RecordCrateBase from "./objects/RecordCrate";
+import SpeakerBase from "./objects/Speaker";
 import TurntableBase from "./objects/Turntable";
 
 // Every DeskHero state change (needle phase, polls, focus) re-renders this
@@ -38,8 +39,9 @@ import TurntableBase from "./objects/Turntable";
 // so memo holds and a click re-renders only what actually changed.
 const Desk = memo(DeskBase);
 const Room = memo(RoomBase);
-const Bookshelf = memo(BookshelfBase);
 const Chessboard = memo(ChessboardBase);
+const FloorBookcase = memo(FloorBookcaseBase);
+const Speaker = memo(SpeakerBase);
 const DeskLamp = memo(DeskLampBase);
 const FilmCamera = memo(FilmCameraBase);
 const PhotoStack = memo(PhotoStackBase);
@@ -455,8 +457,14 @@ function SceneContents({
       <Placed name="macbook" focusId="work" onFocus={onFocus}>
         <MacBook open={focus === "work"} />
       </Placed>
-      <Placed name="bookshelf" focusId="reading" onFocus={onFocus}>
-        <Bookshelf />
+      <Placed name="floorBookcase" focusId="reading" onFocus={onFocus}>
+        <FloorBookcase />
+      </Placed>
+      <Placed name="speakerLeft">
+        <Speaker />
+      </Placed>
+      <Placed name="speakerRight">
+        <Speaker />
       </Placed>
       <Placed name="chessboard" focusId="chess" onFocus={onFocus}>
         <Chessboard fen={chessFen} lastMove={chessLastMove} />

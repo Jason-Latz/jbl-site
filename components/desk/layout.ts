@@ -25,7 +25,13 @@ export const PLACEMENT: Record<string, Placement> = {
   // Square to the desk edges and near-centered: Jason's minimalist center
   // column is just the computer and the notepad, facing the sitter dead-on.
   macbook: { position: [0.1, 0, -0.14], rotationY: Math.PI },
-  bookshelf: { position: [0.71, 0, -0.29], rotationY: -0.05 },
+  // The books moved OFF the desk (minimalist center): a floor case behind
+  // the desk's left corner. Back face clears the wall plane at z=-0.9.
+  floorBookcase: { position: [-1.35, FLOOR_Y, -0.72], rotationY: 0.06 },
+  // Stereo pair flanking the desk, toed in toward the sitter so the
+  // record player actually has a voice.
+  speakerLeft: { position: [-0.875, 0, 0.1], rotationY: 0.4 },
+  speakerRight: { position: [0.86, 0, -0.24], rotationY: -0.45 },
   // White's side faces the sitter (squareToLocal puts rank 1 at local +z);
   // the stronger diagonal points the battle away from whoever sits down.
   chessboard: { position: [0.6, 0, 0.21], rotationY: 0.45 },
@@ -61,7 +67,8 @@ export const FOCUS_VIEWS: Record<
   records: { position: [-0.5, 0.62, 0.72], target: [-0.52, 0.04, 0.02] },
   // Tracks the macbook placement (now centered, squared to the desk).
   work: { position: [0.0, 0.32, 0.42], target: [0.12, 0.13, -0.16] },
-  reading: { position: [0.66, 0.5, 0.45], target: [0.71, 0.24, -0.29] },
+  // The reading view leaves the desk for the floor bookcase behind-left.
+  reading: { position: [-0.78, 0.42, 0.3], target: [-1.35, 0.1, -0.72] },
   notes: { position: [0.04, 0.55, 0.52], target: [0.02, 0.01, 0.25] },
   // Elevated three-quarter view from the front-left so the whole board
   // reads plus the graveyard flanks (captured pieces park ±0.218m from

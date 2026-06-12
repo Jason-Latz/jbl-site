@@ -24,7 +24,8 @@ import Desk from "./Desk";
 import Turntable from "./objects/Turntable";
 import DeskLamp from "./objects/DeskLamp";
 import MacBook from "./objects/MacBook";
-import Bookshelf from "./objects/Bookshelf";
+import FloorBookcase from "./objects/FloorBookcase";
+import Speaker from "./objects/Speaker";
 import Chessboard from "./objects/Chessboard";
 import Notepad from "./objects/Notepad";
 import RecordCrate from "./objects/RecordCrate";
@@ -189,8 +190,14 @@ export default function BakeScene({
           <At name="macbook">
             <MacBook open={false} />
           </At>
-          <At name="bookshelf">
-            <Bookshelf />
+          <At name="floorBookcase">
+            <FloorBookcase />
+          </At>
+          <At name="speakerLeft">
+            <Speaker />
+          </At>
+          <At name="speakerRight">
+            <Speaker />
           </At>
           <At name="chessboard">
             <Chessboard />
