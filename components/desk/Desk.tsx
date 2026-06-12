@@ -21,9 +21,9 @@ const CAP_W = 0.09; // breadboard end caps
 const SEAM_GAP = 0.0012;
 
 const LEG_INSET = 0.105;
-const BLOCK = 0.062;
-const BLOCK_H = 0.115;
-const APRON_H = 0.1;
+const BLOCK = 0.094;
+const BLOCK_H = 0.13;
+const APRON_H = 0.115;
 const APRON_T = 0.022;
 
 // ── Lacquer reflection knobs ──────────────────────────────────────────────
@@ -93,35 +93,38 @@ function bandPath(ctx: CanvasRenderingContext2D, b: Band, w: number) {
 
 // Turned leg silhouette, bottom-up: ball foot, long taper, twin ring
 // beads, vase swell, collar meeting the square top block. Heights sum
-// to 0.595 and get rescaled to the actual leg length.
+// to 0.595 and get rescaled to the actual leg length. Radii are cut for
+// a commanding leg: the shaft runs ~1.7x a parlor-table taper (6-9 cm
+// through the barrel — more than one hand wraps) and the swell crests
+// at 0.0635, so the desk plants instead of perching.
 const LEG_PROFILE: [number, number][] = [
   [0.001, 0.0],
-  [0.017, 0.0],
-  [0.0205, 0.005],
-  [0.0275, 0.013],
-  [0.032, 0.027],
-  [0.029, 0.041],
-  [0.0205, 0.05],
-  [0.018, 0.057],
-  [0.0185, 0.09],
-  [0.02, 0.16],
-  [0.0215, 0.26],
-  [0.023, 0.36],
-  [0.0245, 0.44],
-  [0.0252, 0.462],
-  [0.026, 0.47],
-  [0.032, 0.4775],
-  [0.0262, 0.4855],
-  [0.0312, 0.4925],
-  [0.0258, 0.5],
-  [0.029, 0.5095],
-  [0.037, 0.527],
-  [0.0425, 0.5505],
-  [0.0408, 0.5685],
-  [0.033, 0.5825],
-  [0.029, 0.5865],
-  [0.0288, 0.5905],
-  [0.0288, 0.595]
+  [0.027, 0.0],
+  [0.0325, 0.005],
+  [0.0425, 0.013],
+  [0.048, 0.027],
+  [0.0445, 0.041],
+  [0.0335, 0.05],
+  [0.0305, 0.057],
+  [0.0315, 0.09],
+  [0.034, 0.16],
+  [0.0362, 0.26],
+  [0.0385, 0.36],
+  [0.0407, 0.44],
+  [0.0417, 0.462],
+  [0.0429, 0.47],
+  [0.048, 0.4775],
+  [0.0432, 0.4855],
+  [0.047, 0.4925],
+  [0.0426, 0.5],
+  [0.0465, 0.5095],
+  [0.058, 0.527],
+  [0.0635, 0.5505],
+  [0.0613, 0.5685],
+  [0.0515, 0.5825],
+  [0.0455, 0.5865],
+  [0.045, 0.5905],
+  [0.045, 0.595]
 ];
 
 export default function Desk() {
@@ -984,7 +987,7 @@ export default function Desk() {
             castShadow
             material={built.edge}
           >
-            <cylinderGeometry args={[0.0045, 0.0045, 2 * LX - 0.05, 18]} />
+            <cylinderGeometry args={[0.0045, 0.0045, 2 * LX - 0.09, 18]} />
           </mesh>
         </group>
       ))}
@@ -1005,7 +1008,7 @@ export default function Desk() {
             castShadow
             material={built.edge}
           >
-            <cylinderGeometry args={[0.0045, 0.0045, 2 * LZ - 0.05, 18]} />
+            <cylinderGeometry args={[0.0045, 0.0045, 2 * LZ - 0.09, 18]} />
           </mesh>
         </group>
       ))}
@@ -1019,7 +1022,7 @@ export default function Desk() {
       ] as const).map(([sx, sz], i) => (
         <mesh
           key={`brace${i}`}
-          position={[sx * (LX - 0.052), apronY, sz * (LZ - 0.052)]}
+          position={[sx * (LX - 0.068), apronY, sz * (LZ - 0.068)]}
           rotation={[0, sx * sz > 0 ? Math.PI / 4 : -Math.PI / 4, 0]}
           material={built.dark}
         >
