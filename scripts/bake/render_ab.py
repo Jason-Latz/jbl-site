@@ -189,17 +189,18 @@ def main():
         for backdrop in (night, day):
             if backdrop is not None:
                 backdrop.visible_shadow = False
-        # The window lives in the BACK wall (x ~ -0.5), outside is -z; its
-        # light rakes toward the camera across the desk.
+        # The window lives in the RIGHT wall (x ~ +1.5, centered near z 0.1);
+        # outside is +x. Its light rakes leftward across the desk, crossing
+        # the lamp's warm pool — Jason's cross-light composition.
         if args.theme == "light":
             if night:
                 night.hide_render = True
             if day:
                 day.hide_render = False
                 make_emissive(day, 12.0)
-            sun_dir = t2b(0.35, -0.55, 0.75)
+            sun_dir = t2b(-0.75, -0.5, -0.3)
             sun = add_light(
-                "WindowSun", "SUN", t2b(-0.5, 2.0, -1.5), 0.0,
+                "WindowSun", "SUN", t2b(2.5, 2.0, 0.1), 0.0,
                 (1.0, 0.96, 0.9), angle=math.radians(3.0),
             )
             sun.data.energy = 5.0
@@ -212,7 +213,7 @@ def main():
                 night.hide_render = False
                 make_emissive(night, 5.0)
             moon = add_light(
-                "Moon", "AREA", t2b(-0.5, 1.6, -1.8), 14.0,
+                "Moon", "AREA", t2b(2.3, 1.6, 0.1), 14.0,
                 (0.7, 0.8, 1.0), size=1.0,
             )
             look_at(moon, (0, 0, 0.1))
