@@ -50,11 +50,14 @@ export const PLACEMENT: Record<string, Placement> = {
 // the desk surface is the canvas, the wall barely shows. Shifted right
 // (composition v2) so the minimalist center column reads off-axis and the
 // right wall's window light rakes across frame.
+// Composition v3 "middle tilt": lower and pulled back from the old top-down
+// pose with the target lifted up the back wall, so the view holds BOTH the
+// desk surface (foreshortened) and the centered window above it.
 export const CAMERA = {
   fov: 40,
-  rest: [0.28, 1.08, 1.02] as [number, number, number],
-  start: [0.62, 1.66, 1.95] as [number, number, number],
-  target: [0.1, 0.05, -0.06] as [number, number, number]
+  rest: [0.22, 0.96, 1.35] as [number, number, number],
+  start: [0.5, 1.42, 2.1] as [number, number, number],
+  target: [0.08, 0.26, -0.28] as [number, number, number]
 };
 
 // Stage 2 focus views: clicking an object dollies the camera to a fixed,
