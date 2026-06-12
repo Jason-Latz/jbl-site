@@ -183,6 +183,12 @@ def main():
     else:  # window room
         night = bpy.data.objects.get("windowBackdropNight")
         day = bpy.data.objects.get("windowBackdropDay")
+        # The backdrops sit OUTSIDE the window, between the rig's sun/moon
+        # and the opening — they must glow without casting shadows or they
+        # eclipse the very lights they motivate.
+        for backdrop in (night, day):
+            if backdrop is not None:
+                backdrop.visible_shadow = False
         # The window lives in the BACK wall (x ~ -0.5), outside is -z; its
         # light rakes toward the camera across the desk.
         if args.theme == "light":
