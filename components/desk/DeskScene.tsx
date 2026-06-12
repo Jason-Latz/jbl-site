@@ -4,7 +4,6 @@ import { Suspense, memo, useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import {
   AccumulativeShadows,
-  AdaptiveDpr,
   Environment,
   Lightformer,
   OrbitControls,
@@ -275,19 +274,15 @@ function CameraDirector({
       toTarget: view ? new THREE.Vector3(...view.target) : rig.target.clone(),
       progress: 0,
       // 1.05 s focus flights (was 1.25): with the panel's backdrop blur
-      // gone and DPR regressing during motion, the shorter dolly reads
-      // snappy instead of rushed.
+      // gone, the shorter dolly reads snappy instead of rushed.
       duration: isFirst ? 2.3 : 1.05,
       unlockOnLand: !focus
     };
   }, [rig, focus, camera, controlsRef]);
 
-  useFrame((state, delta) => {
+  useFrame((_state, delta) => {
     const flight = flightRef.current;
     if (flight) {
-      // Tell the adaptive-DPR system we're in motion: resolution drops for
-      // the flight (blur hides it) and recovers at the framed rest pose.
-      state.performance.regress();
       flight.progress = Math.min(1, flight.progress + delta / flight.duration);
       const eased = 1 - Math.pow(1 - flight.progress, 3);
       camera.position.lerpVectors(flight.from, flight.to, eased);
@@ -430,7 +425,6 @@ function SceneContents({
     <>
       <ReadySignal onReady={onReady} />
       <FrozenShadows />
-      <AdaptiveDpr />
       {/* samples 10 (was 16): PCSS runs per-fragment scene-wide; below 10
           the penumbra dithers, above it the eye stops noticing. */}
       <SoftShadows size={18} samples={10} focus={0.42} />
@@ -495,10 +489,12 @@ export default function DeskScene(props: DeskSceneProps) {
   return (
     <Canvas
       shadows
-      dpr={[1, 1.75]}
-      // Floor for AdaptiveDpr: during camera flights (performance.regress)
-      // resolution sags to ~55% and recovers at rest — motion hides it.
-      performance={{ min: 0.55 }}
+      // Fixed DPR, no adaptive regression: the old AdaptiveDpr +
+      // performance.regress() pairing dropped resolution to ~55% during
+      // camera flights and popped back at rest — a visible snap Jason
+      // read as jank. A constant 1.5 cap costs ~27% fewer pixels than
+      // the old 1.75 ceiling and never changes mid-motion.
+      dpr={[1, 1.5]}
       camera={{
         fov: CAMERA.fov,
         near: 0.1,
