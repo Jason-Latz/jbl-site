@@ -40,10 +40,10 @@ def parse_args():
     parser.add_argument("--lamp-watts", type=float, default=18.0)
     parser.add_argument(
         "--cam",
-        choices=["rest", "start"],
-        default="start",
-        help="rest = tight hero framing, start = pulled-back intro framing "
-        "(better for judging the room)",
+        choices=["rest", "start", "hero"],
+        default="hero",
+        help="rest = tight top-down desk, start = pulled-back intro, "
+        "hero = lower head-on establishing view (sees the window + wall)",
     )
     parser.add_argument("--save-blend", action="store_true")
     return parser.parse_args(argv)
@@ -87,6 +87,33 @@ def set_world(color, strength):
     bpy.context.scene.world = world
 
 
+def make_pure_emission(obj, strength):
+    """Replace an object's material with a clean emission shader driven by
+    whatever image texture it already carries. The night backdrop ships its
+    view in the glTF emissive slot but with a BLACK base-color factor, which
+    make_emissive() (base-color -> emission) would faithfully emit as black.
+    Rebuilding from the raw image sidesteps that entirely."""
+    for slot in obj.material_slots:
+        material = slot.material
+        if material is None or not material.use_nodes:
+            continue
+        tree = material.node_tree
+        image = None
+        for node in tree.nodes:
+            if node.type == "TEX_IMAGE" and node.image is not None:
+                image = node.image
+                break
+        tree.nodes.clear()
+        out = tree.nodes.new("ShaderNodeOutputMaterial")
+        emission = tree.nodes.new("ShaderNodeEmission")
+        emission.inputs["Strength"].default_value = strength
+        tree.links.new(emission.outputs["Emission"], out.inputs["Surface"])
+        if image is not None:
+            tex = tree.nodes.new("ShaderNodeTexImage")
+            tex.image = image
+            tree.links.new(tex.outputs["Color"], emission.inputs["Color"])
+
+
 def make_emissive(obj, strength):
     """Rewire a backdrop's principled material so its base-color texture
     emits light (mesh light through the window)."""
@@ -125,12 +152,21 @@ def main():
         bpy.data.objects.remove(obj, do_unlink=True)
 
     # ——— Camera from markers ———
-    cam_marker = "MARKER_camStart" if args.cam == "start" else "MARKER_camPos"
+    cam_marker = {
+        "start": "MARKER_camStart",
+        "rest": "MARKER_camPos",
+        "hero": "MARKER_camHero",
+    }[args.cam]
     try:
         cam_pos = marker(cam_marker)
+        cam_target = (
+            marker("MARKER_camHeroTarget")
+            if args.cam == "hero"
+            else marker("MARKER_camTarget")
+        )
     except RuntimeError:
-        cam_pos = marker("MARKER_camPos")  # older GLBs lack camStart
-    cam_target = marker("MARKER_camTarget")
+        cam_pos = marker("MARKER_camPos")  # older GLBs lack the newer markers
+        cam_target = marker("MARKER_camTarget")
     cam_data = bpy.data.cameras.new("HeroCam")
     cam_data.sensor_fit = "VERTICAL"
     cam_data.angle_y = math.radians(40.0)  # CAMERA.fov in layout.ts
@@ -188,10 +224,12 @@ def main():
         night = bpy.data.objects.get("windowBackdropNight")
         if night is not None:
             # The backdrop sits between the moon and the opening — it must
-            # glow without casting shadows or it eclipses its own moon.
+            # glow without casting shadows or it eclipses its own moon. The
+            # painted view is the hero of dark mode, so it glows hard enough
+            # to read as a lit night sky through the glass.
             night.visible_shadow = False
             night.hide_render = False
-            make_emissive(night, 3.0 if args.theme == "light" else 5.0)
+            make_pure_emission(night, 4.0 if args.theme == "light" else 8.0)
         if args.theme == "light":
             key = add_light(
                 "RoomKey", "AREA", t2b(0.9, 1.8, 1.1), 40.0,

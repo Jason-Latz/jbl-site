@@ -67,6 +67,11 @@ function Markers() {
       <object3D name="MARKER_camPos" position={CAMERA.rest} />
       <object3D name="MARKER_camStart" position={CAMERA.start} />
       <object3D name="MARKER_camTarget" position={CAMERA.target} />
+      {/* A lower, more head-on establishing pose so the back wall, the
+          window, its night view, and the wall racket all read — the desk
+          surface foreshortens but the room becomes legible. */}
+      <object3D name="MARKER_camHero" position={[0.18, 0.82, 1.62]} />
+      <object3D name="MARKER_camHeroTarget" position={[0.05, 0.42, -0.55]} />
       <group
         position={PLACEMENT.lamp.position}
         rotation-y={PLACEMENT.lamp.rotationY}
