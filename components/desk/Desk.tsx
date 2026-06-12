@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, type ElementRef } from "react";
 import * as THREE from "three";
+import { mergeBufferGeometries } from "three-stdlib";
 import { MeshReflectorMaterial, RoundedBox } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { makeCanvasTexture } from "@/lib/three/materials";
@@ -55,6 +56,25 @@ export const REFLECTOR_MIX_STRENGTH_DARK = 1.35;
 export const REFLECTOR_DEPTH_SCALE = 1.1;
 export const REFLECTOR_MIN_DEPTH_THRESHOLD = 0.35;
 export const REFLECTOR_MAX_DEPTH_THRESHOLD = 1.3;
+
+// ── Back gallery rail ─────────────────────────────────────────────────────
+// The "little bump up at the back": a low solid-mahogany bullnose running
+// the back edge — the big-time-lawyer-desk lip the book row leans against.
+// Exported so back-row integrators (books, prints) can rest things on it.
+export const RAIL_H = 0.05; // rail top sits at RAIL_BASE_Y + RAIL_H
+export const RAIL_T = 0.025;
+export const RAIL_BACK_INSET = 0.012; // desk back edge -> rail back face
+export const RAIL_END_INSET = 0.06; // bare desk top left beyond each end
+// Base floats a hair above the reflector film (film at +0.4 mm, rail base
+// at +0.5 mm) so the lacquer plane never clips the rail's underside —
+// same convention every object resting on the slab follows.
+export const RAIL_BASE_Y = REFLECTOR_LIFT + 0.0001;
+const RAIL_LEN = W - 2 * RAIL_END_INSET;
+const RAIL_Z = -D / 2 + RAIL_BACK_INSET + RAIL_T / 2; // rail center z
+const POST_SIDE = 0.035; // end posts: squat square caps…
+const POST_H = 0.035;
+const POST_CHAMFER = 0.006; // …with a chamfered crown
+const POST_TOP_SIDE = 0.024; // square side above the chamfer
 
 function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
@@ -770,6 +790,64 @@ export default function Desk() {
       };
     });
 
+    // --- back gallery rail: shallow bullnose body + chamfered end posts ---
+    // Profile is a box capped by a half-round (full cylinder; the lower half
+    // hides inside the box) so the top reads as a hand-routed bullnose. The
+    // cylinder's UVs are swapped (u along the axis) before rotation so grain
+    // keeps running the rail's LENGTH across the curve, continuous with the
+    // flat faces below it.
+    const railR = RAIL_T / 2;
+    const railBodyH = RAIL_H - railR;
+    const railBody = new THREE.BoxGeometry(RAIL_LEN, railBodyH, RAIL_T);
+    railBody.translate(0, railBodyH / 2, 0);
+    const railCap = new THREE.CylinderGeometry(railR, railR, RAIL_LEN, 28);
+    const capUvs = railCap.attributes.uv as THREE.BufferAttribute;
+    for (let i = 0; i < capUvs.count; i++) {
+      const u = capUvs.getX(i);
+      capUvs.setXY(i, capUvs.getY(i), u);
+    }
+    railCap.rotateZ(Math.PI / 2);
+    railCap.translate(0, railBodyH, 0);
+    const railGeo = mergeBufferGeometries([railBody, railCap]);
+    if (!railGeo) throw new Error("Desk: gallery rail merge failed.");
+
+    // End posts: squat square plinths the rail dies into, each crowned by a
+    // 4-sided frustum chamfer (radius = the square's circumradius). Faceted
+    // normals on the chamfer — it's a cut, not a turning.
+    const postGeos: THREE.BufferGeometry[] = [];
+    for (const s of [-1, 1] as const) {
+      const plinthH = POST_H - POST_CHAMFER;
+      const plinth = new THREE.BoxGeometry(
+        POST_SIDE,
+        plinthH,
+        POST_SIDE
+      ).toNonIndexed();
+      plinth.translate(s * (RAIL_LEN / 2), plinthH / 2, 0);
+      const crown = new THREE.CylinderGeometry(
+        POST_TOP_SIDE / Math.SQRT2,
+        POST_SIDE / Math.SQRT2,
+        POST_CHAMFER,
+        4,
+        1
+      ).toNonIndexed();
+      crown.rotateY(Math.PI / 4); // vertices to the diagonals, faces axis-aligned
+      crown.computeVertexNormals(); // flat facets, not a smoothed cone
+      crown.translate(s * (RAIL_LEN / 2), plinthH + POST_CHAMFER / 2, 0);
+      postGeos.push(plinth, crown);
+    }
+    const postsGeo = mergeBufferGeometries(postGeos);
+    if (!postsGeo) throw new Error("Desk: rail post merge failed.");
+
+    // The rail wears the edge band's finish family, sampling its own strip
+    // of the shared mahogany canvases (offset 0.62 vs the band's 0.35) so it
+    // reads as one more board off the same tree, not a clone of the band.
+    const rail = physical(
+      orient(colorTex, 0, 1, 0.07, 0, 0.62),
+      orient(bumpTex, 0, 1, 0.07, 0, 0.62),
+      { clearcoat: 0.78, clearcoatRoughness: 0.16, color: "#ecddd3" }
+    );
+    rail.envMapIntensity = 1.25;
+
     return {
       top,
       cap,
@@ -781,6 +859,9 @@ export default function Desk() {
       endGrain,
       legGeo,
       legs,
+      rail,
+      railGeo,
+      postsGeo,
       reflectorColor,
       reflectorBump,
       reflectorRough
@@ -947,6 +1028,26 @@ export default function Desk() {
         position={[0, -T + REVEAL_H / 2, 0]}
         castShadow
         material={built.edge}
+      />
+
+      {/* back gallery rail: low bullnose bumper along the back edge with
+          chamfered end posts — base at +0.5 mm (0.1 mm above the reflector
+          film) so the lacquer plane never z-fights its underside */}
+      <mesh
+        name="deskRail"
+        geometry={built.railGeo}
+        material={built.rail}
+        position={[0, RAIL_BASE_Y, RAIL_Z]}
+        castShadow
+        receiveShadow
+      />
+      <mesh
+        name="deskRailPosts"
+        geometry={built.postsGeo}
+        material={built.rail}
+        position={[0, RAIL_BASE_Y, RAIL_Z]}
+        castShadow
+        receiveShadow
       />
 
       {/* turned legs under square top blocks */}
