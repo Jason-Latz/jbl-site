@@ -136,68 +136,17 @@ const drawPaperBase: Draw = (ctx, w, h, rand) => {
   ctx.globalAlpha = 1;
 };
 
-// Rules and holes seed their own jitter (and keep it resolution-relative) so
-// the printed albedo map and the deboss height field regenerate the EXACT
-// same lines — the print sits inside its pressed channel, never beside it.
-function drawRulesAndHoles(
+// Punch holes and binding shadow seed their own jitter (and keep it
+// resolution-relative) so the printed albedo map and the deboss height field
+// regenerate the EXACT same marks — every dent sits under its own print.
+// The paper is unlined: no ruling, no margin rule, just clean cream stock.
+function drawHolesAndBinding(
   ctx: CanvasRenderingContext2D,
   w: number,
   h: number,
-  opts: { lineAlpha: number; holeAlpha: number; bump?: boolean }
+  opts: { holeAlpha: number; bump?: boolean }
 ): void {
   const rand = seededRand(7);
-  const top = h * 0.132;
-  const step = (0.008 / PAD_D) * h;
-  for (let y = top; y < h - step * 0.4; y += step) {
-    const lw = Math.max(1, h * 0.001) + rand() * h * 0.0003;
-    const alphaJit = 0.8 + rand() * 0.2;
-    const x0 = w * 0.018;
-    const pts: [number, number][] = [[x0, y + (rand() - 0.5) * h * 0.00073]];
-    const segs = 8;
-    for (let s2 = 1; s2 <= segs; s2++) {
-      pts.push([
-        x0 + (w * 0.964 * s2) / segs,
-        y +
-          Math.sin(s2 * 1.3 + (y / h) * 97) * h * 0.0005 +
-          (rand() - 0.5) * h * 0.00059
-      ]);
-    }
-    const strokePoly = () => {
-      ctx.beginPath();
-      ctx.moveTo(pts[0][0], pts[0][1]);
-      for (let i = 1; i < pts.length; i++) {
-        ctx.lineTo(pts[i][0], pts[i][1]);
-      }
-      ctx.stroke();
-    };
-    if (opts.bump) {
-      // each rule is pressed into the tooth: a wide soft channel with a
-      // narrower, deeper floor where the printing roller bit hardest
-      ctx.strokeStyle = "#6f6f6f";
-      ctx.lineWidth = lw * 3.2;
-      ctx.globalAlpha = opts.lineAlpha * 0.45 * alphaJit;
-      strokePoly();
-      ctx.strokeStyle = "#585858";
-      ctx.lineWidth = lw * 1.3;
-      ctx.globalAlpha = opts.lineAlpha * 0.8 * alphaJit;
-      strokePoly();
-    } else {
-      ctx.strokeStyle = "#cfc0a3";
-      ctx.lineWidth = lw;
-      ctx.globalAlpha = opts.lineAlpha * alphaJit;
-      strokePoly();
-    }
-  }
-  // margin line (red ink presses a touch shallower than the rules)
-  ctx.strokeStyle = opts.bump ? "#666666" : "#cb8b7a";
-  ctx.lineWidth = Math.max(1.4, h * 0.0013) * (opts.bump ? 2.2 : 1);
-  ctx.globalAlpha = opts.lineAlpha * (opts.bump ? 0.4 : 0.95);
-  ctx.beginPath();
-  ctx.moveTo(w * 0.148, h * 0.1);
-  ctx.quadraticCurveTo(w * 0.1495, h * 0.55, w * 0.148, h * 0.995);
-  ctx.stroke();
-  ctx.globalAlpha = 1;
-
   // punch holes lined up with where the coil pierces the pages
   const holeY = (HOLE_INSET / PAD_D) * h;
   const holeR = (0.0016 / PAD_W) * w;
@@ -355,16 +304,16 @@ function drawScribbles(
 
 const drawTopSheet: Draw = (ctx, w, h, rand) => {
   drawPaperBase(ctx, w, h, rand);
-  drawRulesAndHoles(ctx, w, h, { lineAlpha: 0.85, holeAlpha: 1 });
+  drawHolesAndBinding(ctx, w, h, { holeAlpha: 1 });
   drawScribbles(ctx, w, h, "ink");
 };
 
-// Underside of the curled sheet: blank paper with rule show-through, plus a
-// baked occlusion crawl — brightest at the exposed lip, sinking into shadow
-// where the curl folds back over the page below.
+// Underside of the curled sheet: blank paper plus a baked occlusion crawl —
+// brightest at the exposed lip, sinking into shadow where the curl folds
+// back over the page below.
 const drawSheetBack: Draw = (ctx, w, h, rand) => {
   drawPaperBase(ctx, w, h, rand);
-  drawRulesAndHoles(ctx, w, h, { lineAlpha: 0.18, holeAlpha: 0.85 });
+  drawHolesAndBinding(ctx, w, h, { holeAlpha: 0.85 });
   const R = (0.085 / PAD_D) * h; // curl footprint; corner uv(1,0) = canvas (w,h)
   const g = ctx.createRadialGradient(w, h, R * 0.12, w, h, R);
   g.addColorStop(0, "rgba(60, 44, 24, 0)");
@@ -378,7 +327,7 @@ const drawSheetBack: Draw = (ctx, w, h, rand) => {
 // Second page, revealed under the lifted corner.
 const drawUnderSheet: Draw = (ctx, w, h, rand) => {
   drawPaperBase(ctx, w, h, rand);
-  drawRulesAndHoles(ctx, w, h, { lineAlpha: 0.62, holeAlpha: 0.9 });
+  drawHolesAndBinding(ctx, w, h, { holeAlpha: 0.9 });
 };
 
 // Leaf striations for the three open page-block sides.
@@ -436,7 +385,7 @@ const drawKraft: Draw = (ctx, w, h, rand) => {
 };
 
 // Height field for the writing surface: paper tooth and cockle with the
-// rules, punch holes and handwriting pressed INTO it, so the print reads as
+// punch holes and handwriting pressed INTO it, so the pen work reads as
 // debossed wherever light grazes the sheet. Drawn in sheet space (no tiling)
 // to stay registered with the albedo maps.
 function drawSheetBump(ctx: CanvasRenderingContext2D, w: number, h: number): void {
@@ -478,7 +427,7 @@ function drawSheetBump(ctx: CanvasRenderingContext2D, w: number, h: number): voi
     ctx.stroke();
   }
   ctx.globalAlpha = 1;
-  drawRulesAndHoles(ctx, w, h, { lineAlpha: 0.5, holeAlpha: 1, bump: true });
+  drawHolesAndBinding(ctx, w, h, { holeAlpha: 1, bump: true });
   drawScribbles(ctx, w, h, "bump");
 }
 
@@ -856,7 +805,7 @@ export default function Notepad() {
         </mesh>
       ))}
 
-      {/* bound page block: ruled second page on top, leaf striations on sides */}
+      {/* bound page block: second page on top, leaf striations on sides */}
       <mesh
         geometry={stackGeo}
         material={[stackTopMat, edgeMat]}
