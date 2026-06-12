@@ -1240,10 +1240,12 @@ export default function MacBook({ open }: MacBookProps) {
   const stickers = useMemo(() => {
     const rng = mulberry32(0x571c_4e2);
     const TEX = 512;
+    // Sizes up ~30% (Jason: "make the Claude stickers a little bit bigger");
+    // positions spread to keep clear of the logo and each other.
     const defs = [
-      { id: "clawd-skate", sprite: CLAWD_SKATE, size: 0.052, x: 0, y: -0.056, paper: "#f2efe6", tilt: -0.05 },
-      { id: "clawd-bubble", sprite: CLAWD_BUBBLE, size: 0.048, x: 0.056, y: 0.028, paper: "#f4f1e8", tilt: 0.06 },
-      { id: "clawd-idea", sprite: CLAWD_IDEA, size: 0.042, x: -0.054, y: 0.03, paper: "#f1eee3", tilt: -0.08 }
+      { id: "clawd-skate", sprite: CLAWD_SKATE, size: 0.068, x: 0, y: -0.066, paper: "#f2efe6", tilt: -0.05 },
+      { id: "clawd-bubble", sprite: CLAWD_BUBBLE, size: 0.062, x: 0.066, y: 0.034, paper: "#f4f1e8", tilt: 0.06 },
+      { id: "clawd-idea", sprite: CLAWD_IDEA, size: 0.055, x: -0.064, y: 0.036, paper: "#f1eee3", tilt: -0.08 }
     ];
     return defs.map((def) => {
       const sprite = rot180(def.sprite);
