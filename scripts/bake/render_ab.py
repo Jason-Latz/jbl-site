@@ -37,7 +37,7 @@ def parse_args():
     parser.add_argument("--resx", type=int, default=1536)
     parser.add_argument("--resy", type=int, default=960)
     parser.add_argument("--exposure", type=float, default=None)
-    parser.add_argument("--lamp-watts", type=float, default=14.0)
+    parser.add_argument("--lamp-watts", type=float, default=18.0)
     parser.add_argument(
         "--cam",
         choices=["rest", "start"],
@@ -163,53 +163,55 @@ def main():
             # Key + fill stay subordinate to the lamp: the room is bright in
             # light mode, but the warm pool must still read as the subject.
             key = add_light(
-                "VoidKey", "AREA", t2b(1.5, 1.7, 1.3), 55.0,
+                "VoidKey", "AREA", t2b(1.5, 1.7, 1.3), 45.0,
                 (1.0, 0.94, 0.87), size=1.5,
             )
             look_at(key, (0, 0, 0))
             fill = add_light(
-                "VoidTopFill", "AREA", t2b(0.0, 2.2, 0.4), 22.0,
+                "VoidTopFill", "AREA", t2b(0.0, 2.2, 0.4), 20.0,
                 (1.0, 0.93, 0.86), size=2.0,
             )
             look_at(fill, (0, 0, 0))
             set_world((0.35, 0.28, 0.2), 0.02)
         else:
             ember = add_light(
-                "EmberFill", "AREA", t2b(0.0, 1.4, 0.3), 1.5,
+                "EmberFill", "AREA", t2b(0.0, 1.4, 0.3), 2.5,
                 (1.0, 0.55, 0.3), size=1.2,
             )
             look_at(ember, (0, 0, 0))
-            set_world((0.3, 0.18, 0.1), 0.015)
+            set_world((0.3, 0.18, 0.1), 0.02)
     else:  # window room
         night = bpy.data.objects.get("windowBackdropNight")
         day = bpy.data.objects.get("windowBackdropDay")
+        # The window lives in the BACK wall (x ~ -0.5), outside is -z; its
+        # light rakes toward the camera across the desk.
         if args.theme == "light":
             if night:
                 night.hide_render = True
             if day:
                 day.hide_render = False
-                make_emissive(day, 5.0)
-            sun_dir = t2b(-0.8, -0.45, -0.25)
+                make_emissive(day, 12.0)
+            sun_dir = t2b(0.35, -0.55, 0.75)
             sun = add_light(
-                "WindowSun", "SUN", t2b(2.5, 2.0, 0.4), 0.0,
+                "WindowSun", "SUN", t2b(-0.5, 2.0, -1.5), 0.0,
                 (1.0, 0.96, 0.9), angle=math.radians(3.0),
             )
-            sun.data.energy = 2.5
+            sun.data.energy = 5.0
             sun.rotation_euler = sun_dir.to_track_quat("-Z", "Y").to_euler()
-            set_world((0.5, 0.45, 0.4), 0.05)
+            set_world((0.5, 0.45, 0.4), 0.07)
         else:
             if day:
                 day.hide_render = True
             if night:
                 night.hide_render = False
-                make_emissive(night, 3.0)
+                make_emissive(night, 5.0)
             moon = add_light(
-                "Moon", "AREA", t2b(2.3, 1.7, 0.1), 8.0,
-                (0.7, 0.8, 1.0), size=0.8,
+                "Moon", "AREA", t2b(-0.5, 1.6, -1.8), 14.0,
+                (0.7, 0.8, 1.0), size=1.0,
             )
-            look_at(moon, (0, 0, 0))
+            look_at(moon, (0, 0, 0.1))
             ember = add_light(
-                "EmberFill", "AREA", t2b(0.0, 1.4, 0.3), 1.0,
+                "EmberFill", "AREA", t2b(0.0, 1.4, 0.3), 1.2,
                 (1.0, 0.55, 0.3), size=1.2,
             )
             look_at(ember, (0, 0, 0))
