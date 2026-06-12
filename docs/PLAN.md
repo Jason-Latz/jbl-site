@@ -163,12 +163,51 @@ up to the level of the record player."
 - [ ] Spotify Web Playback SDK: full tracks when Jason is signed in (Premium)
 - [x] Postprocessing pass (landed early in Stage 1.5: Bloom + Vignette + SMAA)
 - [ ] Static poster render of the scene for the fallback hero + social OG image
+      (now a free byproduct of the Stage 5 kiln)
 - [ ] Mobile tuning pass (touch orbit, portrait framing, perf tiers)
 - [ ] Inner pages typography refresh to match the desk's palette
 - [ ] Easter eggs (dust motes in lamp cone, mug steam, seasonal touches)
 
+## Stage 5 — the kiln: baked global illumination (IN PROGRESS 2026-06-11)
+
+Direction pivot after launch. Jason's two standing qualms — fidelity below
+the record player everywhere else, and motion that never feels crisp —
+share one root: we compute lighting live. Real GI (contact darkening,
+color bleed, soft falloff on big flat surfaces) is exactly what the desk,
+books, notepad, laptop, and walls are starving for, and exactly what no
+real-time budget buys. New pipeline ("freeze-dry"): authoring stays
+procedural in code; lighting moves offline. Blender (5.1.2, brew cask) is
+driven headless as a render/bake farm — a kiln, never a modeling tool.
+
+Locked decisions: lamp-on + lamp-off as two baked states blended by the
+existing theme mixRef (the lamp click literally drives the crossfade);
+lighting-only bakes so canvas albedos stay live (texture art = no rebake,
+real trip photos swap into PhotoStack for free); static desk reflection
+(moving chess pieces won't reflect — approved); dynamic objects (chess,
+tonearm, lid) get probe light + blob shadows; room redesign rides along —
+A (perfected void) vs B (corner window), decided from Cycles stills.
+
+- [x] De-jank the live site meanwhile: drop DoF, drop the AdaptiveDpr
+      resolution pops (fixed dpr cap 1.5)
+- [x] Travel/photography vignette modeled + placed (FilmCamera, PhotoStack)
+- [x] Export stage: /bake page → GLB (reflector/beam/motes excluded,
+      MARKER_* empties for camera + lamp axis) → /api/bake/upload
+- [x] Cycles renderer: scripts/bake/render_ab.py — headless rig per
+      room+theme, Metal GPU, denoised
+- [x] Room concept block-outs: concepts/RoomVoid.tsx, concepts/RoomWindow.tsx
+- [x] A/B concept stills (rooms × themes) rendered for Jason's decision
+- [ ] Jason picks the room → winner replaces Room.tsx, loser archived
+- [ ] UV2 unwrap (xatlas) + atlas packing for the static set
+- [ ] Cycles lightmap bakes (lamp-on / lamp-off) + runtime two-state blend
+- [ ] Strip the live stack: PCSS, shadow maps, N8AO, reflector,
+      AccumulativeShadows (frozen-shadow plumbing goes with them)
+- [ ] Probe + blob-shadow recipe so dynamic objects sit in the baked world
+- [ ] Poster / OG / no-WebGL fallback renders from the kiln
+
 ## Performance budget
 
-- ≤ ~300k triangles, all textures canvas-generated or ≤1k, no runtime HDR/GLB downloads
-- 60 fps target on Apple Silicon / recent integrated GPUs; DPR ≤ 1.75
+- ≤ ~300k triangles; textures canvas-generated or ≤1k at runtime; no
+  third-party asset downloads — our own kiln artifacts (lightmap atlases,
+  eventually a self-exported GLB) are allowed once Stage 5 lands
+- 60 fps target on Apple Silicon / recent integrated GPUs; DPR ≤ 1.5 fixed
 - Lazy-load the scene chunk; homepage HTML must not block on three.js

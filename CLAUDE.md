@@ -13,6 +13,11 @@ read `docs/PLAN.md` (staged roadmap) and `docs/CONTEXT.md` (live state of the bu
 - `npm run build` — production build; run this before declaring any work session done
 - `npm run lint` — Next lint
 - `npm run spotify:token` — one-time Spotify refresh-token bootstrap
+- Bake pipeline (Stage 5, dev only): visit `/bake?room=<void|window>&theme=<light|dark>`
+  on the dev server to export `bake/desk-<room>-<theme>.glb`, then render via
+  `/Applications/Blender.app/Contents/MacOS/Blender -b --python scripts/bake/render_ab.py --
+  --glb <glb> --room <room> --theme <theme> --out bake/renders`
+  (Blender 5.1.2 via brew cask, pinned; headless only — it's a kiln, not a studio)
 
 ## Standing rules (Jason's stated preferences — keep this section current)
 
@@ -82,7 +87,11 @@ read `docs/PLAN.md` (staged roadmap) and `docs/CONTEXT.md` (live state of the bu
   a code bug. Stop dev, `rm -rf .next`, restart.
 - The DepthOfField `target` prop (postprocessing 6.36) silently kills ALL composer
   output. Damp a world-space focal point and write `cocMaterial.worldFocusDistance`
-  instead (see components/desk/Effects.tsx).
+  instead. (DoF itself was deleted in the Stage 5 de-jank — only matters if it returns.)
+- GLTFExporter serializes three.js lights as KHR punctual lights — the kiln's render
+  script must delete them after import or the Cycles rig double-lights the scene.
+- zsh does NOT word-split unquoted variables (`set -- $combo` stays one word) —
+  write explicit commands or use `${=var}` in loops.
 - `app/layout.tsx` imported `@mdxeditor/editor/style.css` without the dependency existing
   (pre-existing break at branch point; see docs/CONTEXT.md).
 - Spotify "today" stats are approximate (last-50-plays window).

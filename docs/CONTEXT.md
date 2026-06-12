@@ -6,6 +6,83 @@
 
 ## Session log
 
+### 2026-06-11 (evening) — Stage 5 opens: the kiln, de-jank, new objects, room A/B
+
+Post-launch reckoning. Jason: record player great, but "background,
+books, desk, notebook, and laptop still aren't high-fidelity" and
+performance is "very jittered... pauses and jumps. when loading, when
+moving" — and how does Bruno Simon do it? Research (both his repos read
+file-by-file): folio-2019 = matcaps + ZERO lights + painted orange blob
+shadows; my-room-in-3d = ONE mesh + four baked 4K JPEGs blended in a
+shader (uNightMix = literally our lamp toggle); zero shadow maps
+anywhere. Conclusion both qualms share one root: we compute lighting
+live. Greenlit pivot = the "freeze-dry" pipeline (PLAN.md Stage 5):
+procedural authoring stays, Blender Cycles becomes a headless kiln,
+runtime becomes playback. Jason: happy to let the M4 cook for days,
+"high fixed cost, low variable" — but he never touches Blender's GUI.
+
+Decisions locked this session: windowless-or-window decided by a
+Cycles A/B bake-off (A perfected void vs B corner window — "1 vs 2");
+camera+photos vignette over a globe (globe = generic unless pinned;
+maybe later on the shelf); unlined notepad paper; static desk
+reflection approved; broad palette stays (wood/cream good, room being
+redesigned anyway). FOUND: /photography is a hard redirect to /travel
+— the vignette is decor until the routes split.
+
+Landed (one commit each):
+- De-jank: DoF pass deleted (full-res bokeh chain, blurred the detail
+  we keep buying); AdaptiveDpr + performance.regress deleted (the 55%
+  resolution sag + snap-back WAS much of "jumps when moving"); fixed
+  dpr [1, 1.5].
+- FilmCamera.tsx (rangefinder, ~26 draws) + PhotoStack.tsx (7 fanned
+  prints, placeholder faces — real trip photos swap in as albedo, free)
+  modeled by verified artisan agents; placed front-left (layout.ts
+  photos/filmCamera) and mounted in DeskScene as decor.
+- Notepad ruling removed (paper now clean cream).
+- Room concepts (bake-off only): concepts/RoomVoid.tsx (chiaroscuro
+  stage, falloff painted into albedos) + concepts/RoomWindow.tsx
+  (corner room; windowBackdropNight/Day planes the renderer toggles).
+- Bake pipeline v1, WORKING END-TO-END: /bake?room=&theme= (dev-only)
+  mounts the real scene, settles 3.5s, GLTF-exports (reflector film
+  hidden structurally, beam/motes/AccumulativeShadows simply not
+  mounted, MARKER_* empties carry camPos/camStart/camTarget + lamp
+  head/target axis) → POST /api/bake/upload → /bake/*.glb (~50 MB,
+  gitignored) → scripts/bake/render_ab.py: Blender 5.1.2 headless
+  (brew cask; "blender" not on PATH — use
+  /Applications/Blender.app/Contents/MacOS/Blender), Cycles on Metal
+  GPU, deletes the KHR runtime lights that ride along, builds a rig
+  per room+theme, denoised render. 384 samples at 1536x960 ≈ 30s/frame
+  on the M4 Pro. First-ever path-traced stills of the desk live in
+  bake/renders/.
+- A/B round 1 rendered; art-direction findings: void-light already
+  beautiful; window was built into the RIGHT side wall = out of frame
+  (agent relocating it to the back wall x≈-0.5 as the session closes);
+  lamp pool needed +W vs key; dark renders lack the laptop-glow story
+  (lid exports closed at rest — fine for the room decision).
+
+Gotchas discovered:
+- zsh does NOT word-split unquoted vars (`set -- $combo` keeps it one
+  word) — write explicit commands or ${=var}.
+- A bare `bake/` in .gitignore also ignored app/api/bake and
+  scripts/bake — anchor root-level ignores: `/bake/`.
+- GLTFExporter serializes three.js punctual lights (KHR extension) —
+  the kiln must delete them or the runtime rig double-lights the bake.
+- Blender glTF import: read marker matrix_world only after
+  view_layer.update(); axis swap is t2b(x,y,z)=(x,-z,y) for hand-placed
+  rig elements.
+- Spotify live refresh is erroring in dev tonight ([useSpotifyLive]
+  failed) — pre-existing/external (token or rate limit), NOT the scene;
+  worked at launch. Investigate separately.
+
+Next:
+- Jason picks room A or B from bake/renders/ (void-light.png,
+  void-dark.png, window-light.png, window-dark.png).
+- Winner replaces Room.tsx; then UV2 unwrap (xatlas), true lightmap
+  bakes (lamp-on/lamp-off), runtime blend, strip the live stack
+  (PLAN.md Stage 5 checklist).
+- Hand-checks for Jason: vignette placement in person, de-jank feel
+  (resolution pops should be gone), unlined notepad.
+
 ### 2026-06-11 — LAUNCHED: the-desk merged to main
 
 Jason: "take them all, and combine them all, then merge to main. this is
