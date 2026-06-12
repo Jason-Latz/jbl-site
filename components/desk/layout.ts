@@ -22,11 +22,13 @@ export const PLACEMENT: Record<string, Placement> = {
   // Lamp yaw is load-bearing: the Forså's spotlight target sits at local
   // [0.5, 0, 0.12], and -0.6 rotates that beam onto the turntable.
   lamp: { position: [-0.82, 0, -0.3], rotationY: -0.6 },
-  // Yaw ~pi-0.25: the keyboard/screen face the camera so the opened lid
-  // presents the display; closed, the sticker lid faces straight up.
-  macbook: { position: [0.26, 0, -0.1], rotationY: 2.89 },
+  // Square to the desk edges and near-centered: Jason's minimalist center
+  // column is just the computer and the notepad, facing the sitter dead-on.
+  macbook: { position: [0.1, 0, -0.14], rotationY: Math.PI },
   bookshelf: { position: [0.71, 0, -0.29], rotationY: -0.05 },
-  chessboard: { position: [0.6, 0, 0.21], rotationY: 0.32 },
+  // White's side faces the sitter (squareToLocal puts rank 1 at local +z);
+  // the stronger diagonal points the battle away from whoever sits down.
+  chessboard: { position: [0.6, 0, 0.21], rotationY: 0.45 },
   notepad: { position: [0.02, 0, 0.25], rotationY: -0.08 },
   crate: { position: [-1.08, FLOOR_Y, 0.16], rotationY: 0.5 },
   // The travel/photography vignette lives front-left, between the
@@ -37,12 +39,14 @@ export const PLACEMENT: Record<string, Placement> = {
 };
 
 // Rest pose sits ~45 degrees above the desk per Jason's art direction —
-// the desk surface is the canvas, the wall barely shows.
+// the desk surface is the canvas, the wall barely shows. Shifted right
+// (composition v2) so the minimalist center column reads off-axis and the
+// right wall's window light rakes across frame.
 export const CAMERA = {
   fov: 40,
-  rest: [0.03, 1.1, 1.05] as [number, number, number],
-  start: [0.45, 1.7, 2.0] as [number, number, number],
-  target: [0, 0.05, -0.04] as [number, number, number]
+  rest: [0.28, 1.08, 1.02] as [number, number, number],
+  start: [0.62, 1.66, 1.95] as [number, number, number],
+  target: [0.1, 0.05, -0.06] as [number, number, number]
 };
 
 // Stage 2 focus views: clicking an object dollies the camera to a fixed,
@@ -55,7 +59,8 @@ export const FOCUS_VIEWS: Record<
   { position: [number, number, number]; target: [number, number, number] }
 > = {
   records: { position: [-0.5, 0.62, 0.72], target: [-0.52, 0.04, 0.02] },
-  work: { position: [0.16, 0.32, 0.46], target: [0.28, 0.13, -0.08] },
+  // Tracks the macbook placement (now centered, squared to the desk).
+  work: { position: [0.0, 0.32, 0.42], target: [0.12, 0.13, -0.16] },
   reading: { position: [0.66, 0.5, 0.45], target: [0.71, 0.24, -0.29] },
   notes: { position: [0.04, 0.55, 0.52], target: [0.02, 0.01, 0.25] },
   // Elevated three-quarter view from the front-left so the whole board
