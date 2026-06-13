@@ -60,6 +60,21 @@ const STILE_W = 0.045; // sash stile width
 const MUNTIN_W = 0.018; // muntin bar width
 const MUNTIN_D = 0.02; // muntin bar depth (thinner than the sash frame)
 
+// Raised-panel wainscoting (dark walnut). Stiles (vertical) and rails
+// (horizontal) stand proud of the base wall by FRAME_RELIEF; the panel field
+// sits between them, raised again by FIELD_RELIEF with a beveled edge — so the
+// frame reads as the deepest plane, the bevel as a ramp, the field as a low
+// plateau. Heights are above the FLOOR.
+const PANEL_FRAME_W = 0.07; // stile / rail face width
+const FRAME_RELIEF = 0.012; // stiles & rails proud of the base wall (12mm)
+const FIELD_RELIEF = 0.006; // raised panel field above the base wall (6mm)
+const FIELD_BEVEL = 0.018; // chamfered ramp width around each field
+const CHAIR_RAIL_Y = 0.92; // chair-rail center height above the floor
+const CHAIR_RAIL_H = 0.06; // chair-rail face height
+const CHAIR_RAIL_RELIEF = 0.022; // chair rail stands proud the most (a cap)
+const BASE_TOP_Y = 0.105; // baseboard top (matches baseboardShape height)
+const CORNICE_Y = WALL_HEIGHT - 0.07; // top of the upper panel run
+
 // Interior sill shelf: a real board ~0.12m deep into the room (a plant sits
 // on it), capping at a known world y so the integrator can stand things on it.
 const SILL_DEPTH = 0.12; // front-to-back into the room
@@ -85,6 +100,15 @@ const OAK_TONES: [string, string, string][] = [
   ["#615033", "#473a24", "#735f3b"],
   ["#6b573b", "#4f4128", "#7d6845"]
 ];
+
+// Dark-walnut wall paneling tones — deep, cool-brown and distinct from the
+// desk's redder oak so the wainscoting reads as its own surface (a lawyer's
+// study). [field base, dark grain, light figure].
+const WALNUT_FIELD = "#33200f"; // panel field — deepest
+const WALNUT_FRAME = "#3d2715"; // stiles/rails — a hair warmer/lighter
+const WALNUT_RAIL = "#2c1c0e"; // chair rail & baseboard — darkest
+const WALNUT_GRAIN_DARK = "#1f1409";
+const WALNUT_GRAIN_LIGHT = "#5a3c22";
 
 function mulberry32(seed: number) {
   let a = seed >>> 0;
@@ -219,6 +243,155 @@ function plasterBumpTexture(
         const t = rng() < 0.5 ? 30 : 230;
         ctx.fillStyle = `rgba(${t},${t},${t},${0.03 + rng() * 0.03})`;
         ctx.fillRect(rng() * w, rng() * h, 1 + rng() * 1.5, 1 + rng() * 1.5);
+      }
+    },
+    repeat ? { srgb: false, anisotropy: 8, repeat } : { srgb: false, anisotropy: 8 }
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Dark walnut wall paneling. A deep, near-black walnut with STRAIGHT VERTICAL
+// grain (the grain runs up the wall) plus the occasional broad cathedral
+// figure — distinct from the floor/desk oak. One canvas serves as the colour
+// map; a second, contrast-boosted pass serves as its bump. `vertical` swaps
+// the grain axis so the same generator can dress horizontal members (rails)
+// with grain running along their length.
+
+function walnutColorTexture(
+  rng: () => number,
+  base: string,
+  repeat?: [number, number],
+  vertical = true
+): THREE.CanvasTexture {
+  // Portrait canvas so vertical grain has resolution along the long axis.
+  const W = vertical ? 512 : 1024;
+  const H = vertical ? 1024 : 512;
+  return makeCanvasTexture(
+    W,
+    H,
+    (ctx, w, h) => {
+      ctx.fillStyle = base;
+      ctx.fillRect(0, 0, w, h);
+
+      // Broad tonal banding across the grain (sapwood/heartwood drift).
+      const bands = 9;
+      for (let i = 0; i < bands; i++) {
+        const pos = (i / bands) * (vertical ? w : h) + rng() * 18;
+        const span = 24 + rng() * 60;
+        const dark = rng() < 0.55;
+        const tone = dark ? WALNUT_GRAIN_DARK : WALNUT_GRAIN_LIGHT;
+        const a = 0.05 + rng() * 0.08;
+        let grad: CanvasGradient;
+        if (vertical) {
+          grad = ctx.createLinearGradient(pos - span, 0, pos + span, 0);
+        } else {
+          grad = ctx.createLinearGradient(0, pos - span, 0, pos + span);
+        }
+        grad.addColorStop(0, rgba(tone, 0));
+        grad.addColorStop(0.5, rgba(tone, a));
+        grad.addColorStop(1, rgba(tone, 0));
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, w, h);
+      }
+
+      // Fine straight grain lines running the length of the grain axis, each
+      // with a slight wander so it reads as wood rather than a comb.
+      const lineCount = vertical ? 220 : 200;
+      for (let i = 0; i < lineCount; i++) {
+        const across = rng() * (vertical ? w : h);
+        const amp = 0.6 + rng() * 2.4;
+        const freq = 0.004 + rng() * 0.012;
+        const phase = rng() * Math.PI * 2;
+        ctx.strokeStyle = rng() < 0.6 ? WALNUT_GRAIN_DARK : WALNUT_GRAIN_LIGHT;
+        ctx.globalAlpha = 0.05 + rng() * 0.1;
+        ctx.lineWidth = 0.5 + rng() * 1.4;
+        ctx.beginPath();
+        if (vertical) {
+          for (let y = 0; y <= h; y += 12) {
+            const x = across + Math.sin(y * freq + phase) * amp;
+            if (y === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+        } else {
+          for (let x = 0; x <= w; x += 12) {
+            const y = across + Math.sin(x * freq + phase) * amp;
+            if (x === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+        }
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+
+      // A couple of broad cathedral arches for figure.
+      const cath = 1 + Math.floor(rng() * 2);
+      for (let c = 0; c < cath; c++) {
+        const cx = rng() * w;
+        const cy = rng() * h;
+        const rings = 4 + Math.floor(rng() * 4);
+        const rx = vertical ? 12 + rng() * 16 : 60 + rng() * 70;
+        const ry = vertical ? 60 + rng() * 70 : 12 + rng() * 16;
+        for (let ring = 1; ring <= rings; ring++) {
+          ctx.strokeStyle = WALNUT_GRAIN_DARK;
+          ctx.globalAlpha = 0.04 + rng() * 0.04;
+          ctx.lineWidth = 0.8 + rng() * 1.2;
+          ctx.beginPath();
+          ctx.ellipse(cx, cy, ring * rx, ring * ry, 0, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
+      ctx.globalAlpha = 1;
+    },
+    repeat ? { anisotropy: 8, repeat } : { anisotropy: 8 }
+  );
+}
+
+function walnutBumpTexture(
+  rng: () => number,
+  repeat?: [number, number],
+  vertical = true
+): THREE.CanvasTexture {
+  const W = vertical ? 512 : 1024;
+  const H = vertical ? 1024 : 512;
+  return makeCanvasTexture(
+    W,
+    H,
+    (ctx, w, h) => {
+      ctx.fillStyle = "#808080";
+      ctx.fillRect(0, 0, w, h);
+
+      // Grain grooves as fine dark/light ridges along the grain axis.
+      const lineCount = vertical ? 260 : 240;
+      for (let i = 0; i < lineCount; i++) {
+        const across = rng() * (vertical ? w : h);
+        const amp = 0.6 + rng() * 2.2;
+        const freq = 0.004 + rng() * 0.012;
+        const phase = rng() * Math.PI * 2;
+        const lift = rng() < 0.5 ? 40 : 210;
+        ctx.strokeStyle = `rgba(${lift},${lift},${lift},${0.06 + rng() * 0.08})`;
+        ctx.lineWidth = 0.5 + rng() * 1.2;
+        ctx.beginPath();
+        if (vertical) {
+          for (let y = 0; y <= h; y += 12) {
+            const x = across + Math.sin(y * freq + phase) * amp;
+            if (y === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+        } else {
+          for (let x = 0; x <= w; x += 12) {
+            const y = across + Math.sin(x * freq + phase) * amp;
+            if (x === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+        }
+        ctx.stroke();
+      }
+
+      // Fine pore speckle.
+      for (let i = 0; i < 2600; i++) {
+        const t = rng() < 0.5 ? 50 : 205;
+        ctx.fillStyle = `rgba(${t},${t},${t},${0.03 + rng() * 0.04})`;
+        ctx.fillRect(rng() * w, rng() * h, 1 + rng(), 1 + rng() * 1.5);
       }
     },
     repeat ? { srgb: false, anisotropy: 8, repeat } : { srgb: false, anisotropy: 8 }
@@ -654,6 +827,105 @@ function trimRun(
   return geometry;
 }
 
+// ---------------------------------------------------------------------------
+// Raised-panel wainscoting builders. A wall is described by a `place` function
+// mapping panel-space (u = horizontal along the wall, v = height above floor,
+// depthProud = how far the piece stands off the base wall toward the room)
+// onto a world-space, axis-aligned box. This lets the same panel logic dress
+// either wall — the back wall (members along X, depth along Z) or the side
+// wall (members along Z, depth along X) — without duplicating geometry math.
+type WallPlace = (
+  uCenter: number,
+  vCenter: number,
+  uSize: number,
+  vSize: number,
+  depthProud: number
+) => THREE.BufferGeometry;
+
+// A single raised panel: a thin field plate proud of the wall, ringed by a
+// chamfered bevel that ramps down to the surrounding frame. Modeled as a small
+// stack of concentric plates (field plateau + four ramped bevel strips) so the
+// relief catches the raking window light. All pushed onto `field`.
+function pushRaisedPanel(
+  field: THREE.BufferGeometry[],
+  place: WallPlace,
+  uMin: number,
+  uMax: number,
+  vMin: number,
+  vMax: number
+): void {
+  const uc = (uMin + uMax) / 2;
+  const vc = (vMin + vMax) / 2;
+  const uw = uMax - uMin;
+  const vh = vMax - vMin;
+  if (uw <= FIELD_BEVEL * 2 || vh <= FIELD_BEVEL * 2) return;
+
+  // Inner flat field plateau (raised the full FIELD_RELIEF above the frame).
+  const fieldUW = uw - FIELD_BEVEL * 2;
+  const fieldVH = vh - FIELD_BEVEL * 2;
+  field.push(place(uc, vc, fieldUW, fieldVH, FRAME_RELIEF + FIELD_RELIEF));
+
+  // Four bevel strips ramping from the field plateau down to the frame plane.
+  // Approximated as thin plates at the mid-relief so the chamfer reads without
+  // a custom lathe — cheap, export-clean boxes.
+  const midProud = FRAME_RELIEF + FIELD_RELIEF / 2;
+  // left & right vertical bevels
+  field.push(
+    place(uMin + FIELD_BEVEL / 2, vc, FIELD_BEVEL, vh - FIELD_BEVEL * 2, midProud),
+    place(uMax - FIELD_BEVEL / 2, vc, FIELD_BEVEL, vh - FIELD_BEVEL * 2, midProud)
+  );
+  // top & bottom horizontal bevels (full width incl. corners)
+  field.push(
+    place(uc, vMin + FIELD_BEVEL / 2, uw, FIELD_BEVEL, midProud),
+    place(uc, vMax - FIELD_BEVEL / 2, uw, FIELD_BEVEL, midProud)
+  );
+}
+
+// A rectangular run of raised panels inside [uMin,uMax] x [vMin,vMax], framed
+// by stiles/rails of PANEL_FRAME_W. The continuous frame face plate goes onto
+// `frame` (its own darker material); the raised panel fields go onto `field`
+// (the lighter, satin walnut) so the two planes read as distinct woods under
+// raking light. Splits the run into `cols` x `rows` evenly spaced fields.
+function pushPanelRun(
+  frame: THREE.BufferGeometry[],
+  field: THREE.BufferGeometry[],
+  place: WallPlace,
+  uMin: number,
+  uMax: number,
+  vMin: number,
+  vMax: number,
+  cols: number,
+  rows: number
+): void {
+  const uc = (uMin + uMax) / 2;
+  const vc = (vMin + vMax) / 2;
+  const runUW = uMax - uMin;
+  const runVH = vMax - vMin;
+  if (runUW <= PANEL_FRAME_W * 2 || runVH <= PANEL_FRAME_W * 2) return;
+
+  // The frame is one continuous proud face plate spanning the whole run; the
+  // raised panels then sit on top of it inside their cells. (Cheaper and
+  // crisper than building each stile/rail separately, and reads identically.)
+  frame.push(place(uc, vc, runUW, runVH, FRAME_RELIEF));
+
+  // Cell sizing: subtract framing from the run, divide the remainder.
+  const innerU = runUW - PANEL_FRAME_W * (cols + 1);
+  const innerV = runVH - PANEL_FRAME_W * (rows + 1);
+  if (innerU <= 0 || innerV <= 0) return;
+  const cellU = innerU / cols;
+  const cellV = innerV / rows;
+
+  for (let c = 0; c < cols; c++) {
+    const cuMin = uMin + PANEL_FRAME_W * (c + 1) + cellU * c;
+    const cuMax = cuMin + cellU;
+    for (let r = 0; r < rows; r++) {
+      const cvMin = vMin + PANEL_FRAME_W * (r + 1) + cellV * r;
+      const cvMax = cvMin + cellV;
+      pushRaisedPanel(field, place, cuMin, cuMax, cvMin, cvMax);
+    }
+  }
+}
+
 // Sash builder for the BACK-wall window: the sash lies in the X-Y plane,
 // with its members thin along Z (depth into the wall). Two stiles, two rails,
 // and a 2x2 muntin cross. NO glass — the panes are empty air on purpose.
@@ -693,33 +965,34 @@ export default function RoomWindow() {
     const rng = mulberry32(0xc0_ffee);
 
     // --- Surfaces -------------------------------------------------------
-    // Walls a touch lighter than Room.tsx's plaster; ceiling a touch darker.
-    const wallWashes = ["#f3e4c6", "#dfd2b8", "#eed9b4", "#e6d8c2"];
+    // The walls are now DARK WALNUT PANELING (a lawyer's study), so the base
+    // wall surface wears the walnut canvas — straight vertical grain — rather
+    // than plaster. The ceiling stays plaster (a touch warmer off-white).
 
-    // The BACK wall is now extruded (real thickness for the window reveal),
-    // and ExtrudeGeometry UVs come out in shape units — meters — so the
-    // plaster canvas is repeat-scaled to span the wall exactly once.
+    // The BACK wall is extruded (real thickness for the window reveal), and
+    // ExtrudeGeometry UVs come out in shape units — meters — so the walnut
+    // canvas is repeat-scaled to span the wall exactly once. Grain runs up.
     const backRepeat: [number, number] = [1 / FLOOR_W, 1 / WALL_HEIGHT];
     const backWallMaterial = new THREE.MeshStandardMaterial({
-      map: plasterColorTexture(rng, "#eadcc2", wallWashes, backRepeat),
-      bumpMap: plasterBumpTexture(rng, backRepeat),
-      bumpScale: 0.0012,
-      color: "#fdfaf4",
-      roughness: 0.95,
+      map: walnutColorTexture(rng, WALNUT_FIELD, backRepeat, true),
+      bumpMap: walnutBumpTexture(rng, backRepeat, true),
+      bumpScale: 0.0016,
+      color: "#ffffff",
+      roughness: 0.62,
       metalness: 0,
-      envMapIntensity: 0.6
+      envMapIntensity: 0.45
     });
 
-    // The right side wall is now plain plaster (no window) — a flat plane, so
-    // its UVs already run 0..1 and need no repeat scaling.
+    // The right side wall is a flat plane (windowless), UVs already 0..1, so
+    // no repeat scaling — same dark walnut, vertical grain.
     const sideWallMaterial = new THREE.MeshStandardMaterial({
-      map: plasterColorTexture(rng, "#eadcc2", wallWashes),
-      bumpMap: plasterBumpTexture(rng),
-      bumpScale: 0.0012,
-      color: "#fdfaf4",
-      roughness: 0.95,
+      map: walnutColorTexture(rng, WALNUT_FIELD, undefined, true),
+      bumpMap: walnutBumpTexture(rng, undefined, true),
+      bumpScale: 0.0016,
+      color: "#ffffff",
+      roughness: 0.62,
       metalness: 0,
-      envMapIntensity: 0.6
+      envMapIntensity: 0.45
     });
 
     const ceilingMaterial = new THREE.MeshStandardMaterial({
@@ -747,14 +1020,58 @@ export default function RoomWindow() {
       envMapIntensity: 0.65
     });
 
-    // Painted trim: the same satin enamel as Room.tsx — baseboards and the
-    // window frame are the same warm painted wood.
+    // Painted trim: the same satin enamel as Room.tsx — the WINDOW casing
+    // stays warm painted wood so it pops against the dark paneling.
     const trimMaterial = lacquerMaterial("#e7dabd", {
       clearcoat: 0.35,
       clearcoatRoughness: 0.45,
       roughness: 0.5
     });
     trimMaterial.envMapIntensity = 0.7;
+
+    // Walnut paneling materials. The PANEL FIELDS carry the walnut canvas with
+    // a faint satin sheen (a lawyer's-study polish), tinted a hair lighter so
+    // the raised plateau reads bright against the recessed frame. The FRAME
+    // (the proud stile/rail grid behind the panels) is a flatter, darker
+    // walnut. Distinct tone + sheen keep the relief reading under raking light.
+    const panelRepeat: [number, number] = [0.45, 0.9];
+    const panelMaterial = new THREE.MeshPhysicalMaterial({
+      map: walnutColorTexture(rng, WALNUT_FIELD, panelRepeat, true),
+      bumpMap: walnutBumpTexture(rng, panelRepeat, true),
+      bumpScale: 0.0016,
+      color: "#f0f0f0",
+      roughness: 0.46,
+      metalness: 0,
+      clearcoat: 0.4,
+      clearcoatRoughness: 0.36
+    });
+    panelMaterial.envMapIntensity = 0.55;
+
+    const panelFrameMaterial = new THREE.MeshPhysicalMaterial({
+      map: walnutColorTexture(rng, WALNUT_FRAME, panelRepeat, true),
+      bumpMap: walnutBumpTexture(rng, panelRepeat, true),
+      bumpScale: 0.0016,
+      color: "#cfcfcf",
+      roughness: 0.58,
+      metalness: 0,
+      clearcoat: 0.28,
+      clearcoatRoughness: 0.46
+    });
+    panelFrameMaterial.envMapIntensity = 0.42;
+
+    // Chair rail + baseboard molding: flat dark walnut, a hair warmer than the
+    // field, glossier so the molding profile reads.
+    const moldingMaterial = new THREE.MeshPhysicalMaterial({
+      map: walnutColorTexture(rng, WALNUT_RAIL, [2, 0.5], false),
+      bumpMap: walnutBumpTexture(rng, [2, 0.5], false),
+      bumpScale: 0.0014,
+      color: "#ededed",
+      roughness: 0.42,
+      metalness: 0,
+      clearcoat: 0.5,
+      clearcoatRoughness: 0.32
+    });
+    moldingMaterial.envMapIntensity = 0.6;
 
     // Terracotta + foliage for the windowsill succulent (cribbed from
     // FloorBookcase.tsx's bottom-shelf plant).
@@ -907,8 +1224,111 @@ export default function RoomWindow() {
     const plantGeometry = merge(plantParts);
     plantGeometry.name = "sillPlantGeometry";
 
-    // --- Side wall: plain plaster plane (windowless now) -----------------
-    // A flat plane against x = SIDE_WALL_X facing -x into the room.
+    // --- Raised-panel wainscoting on both walls --------------------------
+    // The base walls already wear the walnut canvas; on top of them sit
+    // proud raised panels framed by stiles/rails, broken into a lower band
+    // (baseboard -> chair rail) and an upper band (chair rail -> cornice),
+    // arranged AROUND the window on the back wall.
+
+    // Vertical band limits (heights above the floor).
+    const LOWER_V_MIN = BASE_TOP_Y; // panels start atop the baseboard
+    const LOWER_V_MAX = CHAIR_RAIL_Y - CHAIR_RAIL_H / 2; // up to the chair rail
+    const UPPER_V_MIN = CHAIR_RAIL_Y + CHAIR_RAIL_H / 2; // above the chair rail
+    const UPPER_V_MAX = CORNICE_Y; // up to the cornice
+
+    // Back-wall placer: u -> world x, v -> height above floor, proud -> +z.
+    const placeBack: WallPlace = (uc, vc, uSize, vSize, proud) =>
+      box(
+        uSize,
+        vSize,
+        proud,
+        uc,
+        FLOOR_Y + vc,
+        BACK_WALL_INNER_Z + proud / 2
+      );
+
+    // Side-wall placer: u -> world z, v -> height above floor, proud -> -x.
+    const placeSide: WallPlace = (uc, vc, uSize, vSize, proud) =>
+      box(
+        proud,
+        vSize,
+        uSize,
+        SIDE_WALL_X - proud / 2,
+        FLOOR_Y + vc,
+        uc
+      );
+
+    // Frame plates (darker walnut) and raised fields (lighter satin) collect
+    // into separate lists → two materials, two meshes.
+    const panelFrameParts: THREE.BufferGeometry[] = [];
+    const fieldParts: THREE.BufferGeometry[] = [];
+
+    // Window clearances so the paneling never collides with the casing.
+    const WIN_MARGIN_X = 0.085;
+    const WIN_MARGIN_Y = 0.1;
+    const winLeftEdge = WIN_X_MIN - WIN_MARGIN_X; // -0.51
+    const winRightEdge = WIN_X_MAX + WIN_MARGIN_X; // 0.51
+    const winTopEdge = WIN_Y_MAX - FLOOR_Y + WIN_MARGIN_Y; // above-floor height
+    const winBotEdge = WIN_Y_MIN - FLOOR_Y - WIN_MARGIN_Y; // above-floor height
+
+    // LEFT section: full-height run from the left corner to the window.
+    pushPanelRun(panelFrameParts, fieldParts, placeBack, FLOOR_X_MIN + 0.02, winLeftEdge, LOWER_V_MIN, LOWER_V_MAX, 3, 1);
+    pushPanelRun(panelFrameParts, fieldParts, placeBack, FLOOR_X_MIN + 0.02, winLeftEdge, UPPER_V_MIN, UPPER_V_MAX, 3, 1);
+
+    // RIGHT section: full-height run from the window to the side corner.
+    pushPanelRun(panelFrameParts, fieldParts, placeBack, winRightEdge, FLOOR_X_MAX - 0.02, LOWER_V_MIN, LOWER_V_MAX, 1, 1);
+    pushPanelRun(panelFrameParts, fieldParts, placeBack, winRightEdge, FLOOR_X_MAX - 0.02, UPPER_V_MIN, UPPER_V_MAX, 1, 1);
+
+    // BELOW the window: a single panel from the baseboard up to the sill.
+    pushPanelRun(panelFrameParts, fieldParts, placeBack, winLeftEdge, winRightEdge, LOWER_V_MIN, winBotEdge, 1, 1);
+
+    // ABOVE the window: a short run from the window head to the cornice.
+    pushPanelRun(panelFrameParts, fieldParts, placeBack, winLeftEdge, winRightEdge, winTopEdge, UPPER_V_MAX, 1, 1);
+
+    // SIDE wall: a regular run of tall panels, both bands, full depth.
+    pushPanelRun(panelFrameParts, fieldParts, placeSide, FLOOR_Z_MIN + 0.02, FLOOR_Z_MAX - 0.02, LOWER_V_MIN, LOWER_V_MAX, 4, 1);
+    pushPanelRun(panelFrameParts, fieldParts, placeSide, FLOOR_Z_MIN + 0.02, FLOOR_Z_MAX - 0.02, UPPER_V_MIN, UPPER_V_MAX, 4, 1);
+
+    const panelFrameGeometry = merge(panelFrameParts);
+    panelFrameGeometry.name = "winPanelFrameGeometry";
+    const panelFieldGeometry = merge(fieldParts);
+    panelFieldGeometry.name = "winPanelFieldGeometry";
+
+    // --- Chair rail: a proud horizontal molding band ~0.92m up, both walls --
+    // Runs the back wall (broken around the window casing) and the side wall.
+    const railParts: THREE.BufferGeometry[] = [];
+    const railProud = FRAME_RELIEF + CHAIR_RAIL_RELIEF;
+    // back-wall left leg (corner to window)
+    railParts.push(
+      box(
+        winLeftEdge - (FLOOR_X_MIN + 0.02),
+        CHAIR_RAIL_H,
+        railProud,
+        (FLOOR_X_MIN + 0.02 + winLeftEdge) / 2,
+        FLOOR_Y + CHAIR_RAIL_Y,
+        BACK_WALL_INNER_Z + railProud / 2
+      ),
+      // back-wall right leg (window to corner)
+      box(
+        FLOOR_X_MAX - 0.02 - winRightEdge,
+        CHAIR_RAIL_H,
+        railProud,
+        (winRightEdge + FLOOR_X_MAX - 0.02) / 2,
+        FLOOR_Y + CHAIR_RAIL_Y,
+        BACK_WALL_INNER_Z + railProud / 2
+      ),
+      // side-wall run
+      box(
+        railProud,
+        CHAIR_RAIL_H,
+        FLOOR_D - 0.04,
+        SIDE_WALL_X - railProud / 2,
+        FLOOR_Y + CHAIR_RAIL_Y,
+        FLOOR_CZ
+      )
+    );
+    const chairRailGeometry = merge(railParts);
+    chairRailGeometry.name = "winChairRailGeometry";
 
     // --- Baseboards + quarter-round shoes along both walls, one mesh -----
     // Back run hugs the back wall (yaw -90: depth -> +z, run -> -x) but breaks
@@ -977,10 +1397,16 @@ export default function RoomWindow() {
       ceilingMaterial,
       floorMaterial,
       trimMaterial,
+      panelMaterial,
+      panelFrameMaterial,
+      moldingMaterial,
       potMaterial,
       plantMaterial,
       backWallGeometry,
       frameGeometry,
+      panelFrameGeometry,
+      panelFieldGeometry,
+      chairRailGeometry,
       potGeometry,
       plantGeometry,
       baseboardGeometry,
@@ -1012,7 +1438,7 @@ export default function RoomWindow() {
         receiveShadow
       />
 
-      {/* Right side wall — plain plaster now (windowless), facing -x. */}
+      {/* Right side wall — dark walnut base surface (windowless), facing -x. */}
       <mesh
         name="winWallSide"
         position={[SIDE_WALL_X, FLOOR_Y + WALL_HEIGHT / 2, FLOOR_CZ]}
@@ -1022,6 +1448,33 @@ export default function RoomWindow() {
       >
         <planeGeometry args={[FLOOR_D, WALL_HEIGHT]} />
       </mesh>
+
+      {/* Raised-panel wainscoting on both walls, arranged around the window.
+          Two meshes: the proud stile/rail FRAME grid (darker walnut) and the
+          beveled raised panel FIELDS (lighter satin walnut). */}
+      <mesh
+        name="winPanelFrame"
+        geometry={built.panelFrameGeometry}
+        material={built.panelFrameMaterial}
+        castShadow
+        receiveShadow
+      />
+      <mesh
+        name="winPanelFields"
+        geometry={built.panelFieldGeometry}
+        material={built.panelMaterial}
+        castShadow
+        receiveShadow
+      />
+
+      {/* Chair rail molding ~0.92m up, running both walls. */}
+      <mesh
+        name="winChairRail"
+        geometry={built.chairRailGeometry}
+        material={built.moldingMaterial}
+        castShadow
+        receiveShadow
+      />
 
       {/* Ceiling plane so window light has something to bounce between. */}
       <mesh
@@ -1059,10 +1512,11 @@ export default function RoomWindow() {
         receiveShadow
       />
 
+      {/* Baseboard + quarter-round shoe — dark walnut to match the paneling. */}
       <mesh
         name="winBaseboards"
         geometry={built.baseboardGeometry}
-        material={built.trimMaterial}
+        material={built.moldingMaterial}
         castShadow
         receiveShadow
       />
