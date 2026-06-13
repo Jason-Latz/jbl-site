@@ -53,7 +53,13 @@ const PORTRAIT_TARGET = new THREE.Vector3(-0.14, 0.02, -0.02);
 
 // ——— two-state lightmap blend, driven by the real theme mix ———
 const uMix = { value: 1 };
-const uOffBoost = { value: 2.2 };
+// Keeps the baked moonlight visible without washing it flat; the cool moon
+// directional below supplies the "from the window" direction + speculars.
+const uOffBoost = { value: 2.0 };
+
+// Lamp local axis (matches BakeScene's LAMP_HEAD/TARGET_LOCAL).
+const LAMP_HEAD_LOCAL: [number, number, number] = [0.3446, 0.4195, 0.0088];
+const LAMP_TARGET_LOCAL: [number, number, number] = [0.5, 0, 0.12];
 
 const texLoader = new THREE.TextureLoader();
 const lmCache = new Map<string, THREE.Texture>();
@@ -181,18 +187,92 @@ function ThemeDrivers() {
   return null;
 }
 
+// The lamp's specular key: the baked lightmap only holds soft diffuse, so the
+// glossy vinyl / lacquer lost their glint. A cheap SHADOWLESS spot from the
+// lamp head re-lights those highlights (the "shine on the record player").
+// Off in dark. Placed inside the lamp group so it inherits the lamp pose.
+function LampSpotKey() {
+  const { mixRef } = useDeskTheme();
+  const ref = useRef<THREE.SpotLight>(null);
+  const target = useMemo(() => {
+    const o = new THREE.Object3D();
+    o.position.set(...LAMP_TARGET_LOCAL);
+    return o;
+  }, []);
+  useFrame(() => {
+    if (ref.current) ref.current.intensity = 3.6 * Math.max(0, lampGlowRef.current);
+  });
+  return (
+    <group position={PLACEMENT.lamp.position} rotation-y={PLACEMENT.lamp.rotationY}>
+      <primitive object={target} />
+      <spotLight
+        ref={ref}
+        position={LAMP_HEAD_LOCAL}
+        target={target}
+        color="#ffd9a8"
+        angle={0.62}
+        penumbra={0.9}
+        decay={2}
+        distance={3.5}
+        intensity={0}
+      />
+    </group>
+  );
+}
+
+// Cool moonlight streaming IN from the window — the dark theme's key light.
+// The baked OFF lightmap holds the soft window-pattern; this adds the cool
+// directional fill + speculars so it reads as moonlight, not flat ambient.
+// On in dark, off in light. Shadowless. Matches the bake's Moon position.
+function Moonlight() {
+  const ref = useRef<THREE.DirectionalLight>(null);
+  const target = useMemo(() => {
+    const o = new THREE.Object3D();
+    o.position.set(0.1, 0, 0.2);
+    return o;
+  }, []);
+  useFrame(() => {
+    if (ref.current) ref.current.intensity = 2.4 * Math.max(0, 1 - uMix.value);
+  });
+  return (
+    <>
+      <primitive object={target} />
+      <directionalLight
+        ref={ref}
+        position={[-0.3, 1.9, -1.9]}
+        target={target}
+        color="#9db6ec"
+        intensity={0}
+      />
+    </>
+  );
+}
+
+// Cool omnidirectional fill for the dark theme — replaces the warm env's job
+// in dark so the moonlit room is visible AND cool (not the old warm wash).
+// The directional moon above is the key; this is the soft blue ambient.
+function MoonAmbient() {
+  const ref = useRef<THREE.HemisphereLight>(null);
+  useFrame(() => {
+    if (ref.current) ref.current.intensity = 0.85 * Math.max(0, 1 - uMix.value);
+  });
+  return <hemisphereLight ref={ref} args={["#8298cc", "#0a0b12", 0]} />;
+}
+
 function SceneEnvironment() {
   const { gl, scene } = useThree();
   const { mixRef } = useDeskTheme();
   const background = useMemo(() => new THREE.Color(), []);
-  const darkBg = useMemo(() => new THREE.Color("#0e0a07"), []);
+  // Cool, near-black night vs. warm walnut. The warm env fill is cut hard in
+  // dark so it doesn't wash the moonlight into ambient.
+  const darkBg = useMemo(() => new THREE.Color("#080a10"), []);
   const lightBg = useMemo(() => new THREE.Color("#1a130c"), []);
 
   useFrame(() => {
     const mix = mixRef.current;
-    scene.environmentIntensity = THREE.MathUtils.lerp(0.12, 0.45, mix);
+    scene.environmentIntensity = THREE.MathUtils.lerp(0.07, 0.45, mix);
     scene.background = background.copy(darkBg).lerp(lightBg, mix);
-    gl.toneMappingExposure = THREE.MathUtils.lerp(1.0, 1.25, mix);
+    gl.toneMappingExposure = THREE.MathUtils.lerp(1.08, 1.25, mix);
   });
 
   return (
@@ -307,6 +387,9 @@ function SceneContents({ focus, onFocus, onReady }: DeskSceneProps) {
       <SceneEnvironment />
       <CameraDirector controlsRef={controlsRef} rig={rig} focus={focus} />
       <BakedStatics onFocus={onFocus} onReady={onReady} />
+      <LampSpotKey />
+      <Moonlight />
+      <MoonAmbient />
       <group position={PLACEMENT.lamp.position} rotation-y={PLACEMENT.lamp.rotationY}>
         <LampBeam />
       </group>
@@ -332,6 +415,17 @@ function SceneContents({ focus, onFocus, onReady }: DeskSceneProps) {
 
 export default function BakedDeskScene(props: DeskSceneProps) {
   const { theme, toggleTheme } = useSiteTheme();
+
+  // Cold-load insurance: the hero canvas mounts while the load curtain still
+  // holds its container at 0 height, so R3F's ResizeObserver can latch the
+  // default 300x150 and never re-measure (scene never mounts → black). Nudge a
+  // couple of resize events after mount so it picks up the real size.
+  useEffect(() => {
+    const fire = () => window.dispatchEvent(new Event("resize"));
+    const timers = [120, 500, 1200].map((ms) => setTimeout(fire, ms));
+    return () => timers.forEach(clearTimeout);
+  }, []);
+
   return (
     <Canvas
       dpr={[1, 1.5]}
