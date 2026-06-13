@@ -137,6 +137,10 @@ const TOP_ARTISTS_LIMIT = 5;
 const SPOTIFY_HISTORY_RETENTION_DAYS = 120;
 const SPOTIFY_RECENTLY_PLAYED_PAGE_LIMIT = 50;
 const SPOTIFY_BOOTSTRAP_LOOKBACK_DAYS = TOP_ARTISTS_WINDOW_DAYS + 1;
+const RECENT_TRACKS_LIMIT = 10;
+// A 48h window of durable history covers "today" in any timezone while staying
+// a tiny, index-backed query — no live Spotify page needed on the read path.
+const RECENT_STORED_LOOKBACK_MS = 2 * 24 * 60 * 60 * 1000;
 
 let cachedAccessToken: { value: string; expiresAt: number } | null = null;
 let cachedSupabaseServiceClient: SupabaseClient | null | undefined;
@@ -719,25 +723,125 @@ function toTopArtists(candidates: SpotifyTopArtistCandidate[]) {
   });
 }
 
-async function resolveTopArtistsThisWeek(recentlyPlayed: SpotifyRecentlyPlayedItem[]) {
-  const syncResult = await syncSpotifyRecentHistory(recentlyPlayed);
-  if (syncResult.didSyncToSupabase) {
-    const topArtistsFromSupabase = await fetchWeeklyTopArtistCandidatesFromSupabase(
-      TOP_ARTISTS_LIMIT
-    );
+type SpotifyRecentStoredRow = {
+  played_at: string;
+  track_name: string | null;
+  album_name: string | null;
+  album_image_url: string | null;
+  track_url: string | null;
+  duration_ms: number | null;
+  artists: StoredSpotifyArtist[] | null;
+};
 
-    if (topArtistsFromSupabase.length > 0) {
-      return toTopArtists(topArtistsFromSupabase);
+async function fetchRecentStoredTracks(
+  sinceMs: number
+): Promise<SpotifyRecentStoredRow[]> {
+  const supabase = getSupabaseServiceClient();
+  if (!supabase) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("spotify_recent_tracks")
+    .select(
+      "played_at, track_name, album_name, album_image_url, track_url, duration_ms, artists"
+    )
+    .gte("played_at", new Date(sinceMs).toISOString())
+    .order("played_at", { ascending: false });
+
+  if (error) {
+    console.error("[Spotify] Failed to load recent stored tracks.", {
+      error: error.message
+    });
+    return [];
+  }
+
+  return (data ?? []) as SpotifyRecentStoredRow[];
+}
+
+function mapStoredArtistNames(artists: StoredSpotifyArtist[] | null): string[] {
+  return (artists ?? [])
+    .map((artist) => artist.name)
+    .filter((name): name is string => typeof name === "string" && name.length > 0);
+}
+
+function mapStoredRecentTracks(
+  rows: SpotifyRecentStoredRow[],
+  limit: number
+): SpotifyRecentTrack[] {
+  const tracks: SpotifyRecentTrack[] = [];
+
+  for (const row of rows) {
+    if (tracks.length >= limit) {
+      break;
+    }
+
+    if (!row.track_name) {
+      continue;
+    }
+
+    tracks.push({
+      trackName: row.track_name,
+      artists: mapStoredArtistNames(row.artists),
+      albumName: row.album_name ?? null,
+      trackUrl: row.track_url ?? null,
+      albumImageUrl: row.album_image_url ?? null
+    });
+  }
+
+  return tracks;
+}
+
+// Mirrors buildTodayStats, but over durable history rows (which carry duration)
+// instead of a live recently-played page — same timezone-keyed "today" filter,
+// one authoritative source shared with the weekly top-artists rollup.
+function buildTodayStatsFromStored(
+  rows: SpotifyRecentStoredRow[],
+  timeZone: string
+): SpotifyTodayStats {
+  const todayKey = getDateKey(new Date(), timeZone);
+  let playCount = 0;
+  let minutesListened = 0;
+  let mostRecentPlayedAt: string | null = null;
+  const artistSet = new Set<string>();
+
+  for (const row of rows) {
+    if (!row.played_at) {
+      continue;
+    }
+
+    const playedAtDate = new Date(row.played_at);
+    if (Number.isNaN(playedAtDate.getTime())) {
+      continue;
+    }
+
+    if (getDateKey(playedAtDate, timeZone) !== todayKey) {
+      continue;
+    }
+
+    playCount += 1;
+    // Rows arrive newest-first, so the first match is the most recent play.
+    if (!mostRecentPlayedAt) {
+      mostRecentPlayedAt = row.played_at;
+    }
+
+    if (typeof row.duration_ms === "number") {
+      minutesListened += row.duration_ms / 60_000;
+    }
+
+    for (const name of mapStoredArtistNames(row.artists)) {
+      artistSet.add(name);
     }
   }
 
-  const fallbackCandidates = buildTopArtistCandidatesFromRecentTracks(
-    recentlyPlayed,
-    TOP_ARTISTS_WINDOW_DAYS,
-    TOP_ARTISTS_LIMIT
-  );
-
-  return toTopArtists(fallbackCandidates);
+  return {
+    playCount,
+    uniqueArtists: artistSet.size,
+    minutesListened: Number(minutesListened.toFixed(1)),
+    mostRecentPlayedAt,
+    timezone: timeZone,
+    isApproximate: true
+  };
 }
 
 async function fetchCurrentlyPlaying() {
@@ -981,60 +1085,142 @@ function buildTodayStats(
   };
 }
 
-async function resolveRecentPlaylist(
-  currentPlayback: SpotifyCurrentlyPlayingResponse | null,
-  recentlyPlayed: SpotifyRecentlyPlayedItem[]
+async function resolveCurrentPlaylist(
+  currentPlayback: SpotifyCurrentlyPlayingResponse | null
 ) {
   const currentPlaylistId = getPlaylistIdFromUri(currentPlayback?.context?.uri);
-  if (currentPlaylistId) {
-    const playlist = await fetchPlaylistById(currentPlaylistId, "current-playback");
-    if (playlist) {
-      return playlist;
-    }
+  if (!currentPlaylistId) {
+    return null;
   }
 
-  const recentPlaylistItem = recentlyPlayed.find(
-    (item) => item.context?.type === "playlist"
-  );
-  const recentPlaylistId = getPlaylistIdFromUri(recentPlaylistItem?.context?.uri);
-
-  if (recentPlaylistId) {
-    const playlist = await fetchPlaylistById(
-      recentPlaylistId,
-      "recent-playback-context"
-    );
-    if (playlist) {
-      return playlist;
-    }
-  }
-
-  return null;
+  return fetchPlaylistById(currentPlaylistId, "current-playback");
 }
 
-export async function fetchSpotifyLivePayload(): Promise<SpotifyLivePayload> {
+const HISTORY_SYNC_MIN_INTERVAL_MS = 3 * 60 * 1000;
+let lastHistorySyncAtMs = 0;
+
+// On-visit catch-up. The daily cron is the backstop, but an actual visitor
+// should also pull in fresh plays. We throttle so a burst of polls triggers at
+// most one sync per window, and we swallow failures (e.g. a 429) so a bad sync
+// never breaks the read — the aggregates below just serve existing history.
+async function maybeSyncHistory(): Promise<void> {
+  const now = Date.now();
+  if (now - lastHistorySyncAtMs < HISTORY_SYNC_MIN_INTERVAL_MS) {
+    return;
+  }
+
+  lastHistorySyncAtMs = now;
+  try {
+    await syncSpotifyRecentHistory();
+  } catch (error) {
+    console.error(
+      "[Spotify] On-visit history sync failed; serving stored history.",
+      { error: error instanceof Error ? error.message : "unknown error" }
+    );
+  }
+}
+
+async function safeFetchCurrentlyPlaying(): Promise<SpotifyCurrentlyPlayingResponse | null> {
+  try {
+    return await fetchCurrentlyPlaying();
+  } catch (error) {
+    // Now-playing is the only live Spotify call on the read path. If it fails
+    // (a 429, a transient blip), we still serve the durable aggregates below
+    // rather than collapsing the entire widget into an error.
+    console.error(
+      "[Spotify] currently-playing lookup failed; serving stored aggregates only.",
+      { error: error instanceof Error ? error.message : "unknown error" }
+    );
+    return null;
+  }
+}
+
+async function buildSpotifyLivePayload(): Promise<SpotifyLivePayload> {
   const timeZone = process.env.SPOTIFY_TIMEZONE?.trim() || "America/Chicago";
+  const supabase = getSupabaseServiceClient();
 
-  const [currentPlayback, recentlyPlayed] = await Promise.all([
-    fetchCurrentlyPlaying(),
-    fetchRecentlyPlayed()
-  ]);
-
-  const recentPlaylist = await resolveRecentPlaylist(currentPlayback, recentlyPlayed);
+  const currentPlayback = await safeFetchCurrentlyPlaying();
   const nowPlaying = mapNowPlaying(currentPlayback?.item);
-  const recentTracks = mapRecentTracks(recentlyPlayed, 10);
-  const topArtistsThisWeek = await resolveTopArtistsThisWeek(recentlyPlayed);
-
   if (nowPlaying && typeof currentPlayback?.progress_ms === "number") {
     nowPlaying.progressMs = currentPlayback.progress_ms;
+  }
+
+  const recentPlaylist = await resolveCurrentPlaylist(currentPlayback);
+
+  let today: SpotifyTodayStats;
+  let recentTracks: SpotifyRecentTrack[];
+  let topArtistsThisWeek: SpotifyTopArtist[];
+
+  if (supabase) {
+    // Durable path: keep the history fresh (throttled, non-blocking-on-failure),
+    // then read "today", recent tracks, and weekly top artists from one deduped
+    // source instead of recomputing them from a live Spotify page on every poll.
+    await maybeSyncHistory();
+
+    const storedRows = await fetchRecentStoredTracks(
+      Date.now() - RECENT_STORED_LOOKBACK_MS
+    );
+    today = buildTodayStatsFromStored(storedRows, timeZone);
+    recentTracks = mapStoredRecentTracks(storedRows, RECENT_TRACKS_LIMIT);
+    topArtistsThisWeek = toTopArtists(
+      await fetchWeeklyTopArtistCandidatesFromSupabase(TOP_ARTISTS_LIMIT)
+    );
+  } else {
+    // Degraded path (no history store configured): best-effort from a single
+    // live recently-played page, as before.
+    const recentlyPlayed = await fetchRecentlyPlayed();
+    today = buildTodayStats(recentlyPlayed, timeZone);
+    recentTracks = mapRecentTracks(recentlyPlayed, RECENT_TRACKS_LIMIT);
+    topArtistsThisWeek = toTopArtists(
+      buildTopArtistCandidatesFromRecentTracks(
+        recentlyPlayed,
+        TOP_ARTISTS_WINDOW_DAYS,
+        TOP_ARTISTS_LIMIT
+      )
+    );
   }
 
   return {
     fetchedAt: new Date().toISOString(),
     isPlaying: currentPlayback?.is_playing === true,
     nowPlaying,
-    today: buildTodayStats(recentlyPlayed, timeZone),
+    today,
     recentPlaylist,
     recentTracks,
     topArtistsThisWeek
   };
+}
+
+const LIVE_PAYLOAD_CACHE_TTL_MS = 10_000;
+let cachedLivePayload: { value: SpotifyLivePayload; expiresAt: number } | null = null;
+let livePayloadInFlight: Promise<SpotifyLivePayload> | null = null;
+
+// Server-side micro-cache: collapse a burst of visitor polls (and multiple open
+// tabs) into a single upstream assembly. Now-playing only changes every few
+// minutes, so a ~10s payload cache is invisibly fresh while keeping us well
+// under Spotify's rate window. In-flight de-duplication means simultaneous
+// cold hits share one build instead of stampeding the API.
+export async function fetchSpotifyLivePayload(): Promise<SpotifyLivePayload> {
+  const now = Date.now();
+  if (cachedLivePayload && cachedLivePayload.expiresAt > now) {
+    return cachedLivePayload.value;
+  }
+
+  if (livePayloadInFlight) {
+    return livePayloadInFlight;
+  }
+
+  livePayloadInFlight = buildSpotifyLivePayload()
+    .then((payload) => {
+      cachedLivePayload = {
+        value: payload,
+        expiresAt: Date.now() + LIVE_PAYLOAD_CACHE_TTL_MS
+      };
+      return payload;
+    })
+    .finally(() => {
+      livePayloadInFlight = null;
+    });
+
+  return livePayloadInFlight;
 }
