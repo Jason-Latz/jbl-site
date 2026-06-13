@@ -6,6 +6,36 @@
 
 ## Session log
 
+### 2026-06-13 — Bake Night 1: the freeze-dry pipeline WORKS
+
+Built and proved the baked-GI pipeline end-to-end. The full scene now
+replays in the browser with ZERO scene lights — albedo × baked lightmap —
+and convincingly matches the approved Cycles still. Full write-up in
+**`docs/BAKE-NIGHT-1.md`** (read that first). Headlines:
+
+- **Pipeline (3 new pieces, all committed, all headless):**
+  - `scripts/bake/build_uv1.mjs` — flatten+weld the exported scene GLB, give
+    every primitive its own lightmap UV (uv1) via watlas (xatlas WASM),
+    area-sized atlas. Emits `desk-window-uv1.glb`, `rig.json`, `bake_manifest.json`.
+  - `scripts/bake/bake_lightmaps.py` — Cycles diffuse-irradiance bake (color
+    OFF) into one image per unit, reusing render_ab's approved rig, per lamp
+    state. 347 units, ~6 min at 512/64.
+  - `/baked` viewer — unlit MeshBasic, albedo × lightmap on uv1, with an
+    ON/OFF crossfade (uMix, like the real mixRef). 436/440 meshes lightmapped.
+- **Look:** `bake/shots/baked-on-*.png` vs `bake/renders/window-light.png` —
+  close. lightMapIntensity ≈ π cancels three's RECIPROCAL_PI for a truer match.
+- **Gotchas burned:** watlas re-splits verts (remap ALL attrs via xref —
+  COLOR_0 was the trap); drei useGLTF HANGS on the big embedded GLB (use bare
+  three-stdlib GLTFLoader); preview viewport collapsed to 1px + stale webpack
+  chunks needed a clean `.next` restart; MeshBasic lightmap × 1/π.
+- **Still open (tomorrow):** match the look exactly (rig warmth vs tonemap),
+  wire the bake into the REAL interactive DeskScene + strip the live
+  shadow/AO/reflector/IBL stack (Stage F), dynamic objects (Stage E), combine
+  the 347 lightmaps into a few atlases. The racket is the old reverted model
+  (rework shelved on branch `racket-rework-wip`).
+- Overnight: a higher-quality bake (1024px/256 samples, both states) was
+  cooking into `bake/lightmaps_hq/` as of this writing.
+
 ### 2026-06-12 — v4 finish: left wall + the bake runbook
 
 - Enclosed the room: looking all the way left showed void (room had
