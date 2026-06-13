@@ -49,6 +49,21 @@ for (const scene of root.listScenes())
 writeFileSync("bake/rig.json", JSON.stringify(rig, null, 2));
 console.log(`rig.json: ${Object.keys(rig).length} markers`);
 
+// --- 1b. tag each mesh with its TOP-LEVEL named ancestor (the "object":
+// turntable, macbook, roomWindowConcept, …) via glTF extras, which survive
+// flatten(). The runtime groups baked geometry back into clickable objects. ---
+function tagObjects(node, objectName) {
+  const name = objectName || node.getName() || "";
+  const mesh = node.getMesh();
+  if (mesh && name) {
+    const ex = mesh.getExtras() || {};
+    if (!ex.object) mesh.setExtras({ ...ex, object: name });
+  }
+  for (const c of node.listChildren()) tagObjects(c, name);
+}
+for (const scene of root.listScenes())
+  scene.listChildren().forEach((n) => tagObjects(n, ""));
+
 // --- 2. flatten transforms into geometry (world space) + weld ---
 await doc.transform(
   dedup(),
@@ -180,6 +195,7 @@ for (const mesh of meshes) {
 
     manifest.push({
       unit,
+      object: (mesh.getExtras() && mesh.getExtras().object) || "",
       w: out.atlasWidth,
       h: out.atlasHeight,
       res,
