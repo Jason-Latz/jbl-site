@@ -37,6 +37,19 @@ and convincingly matches the approved Cycles still. Full write-up in
   `bake/lightmaps_hq/` (~23 min each), copied to `public/_bake/lightmaps/`.
   The ON/OFF crossfade is wired and validated against both approved stills
   (`bake/shots/final-{on,off2}.png`). intensity≈π + uOffBoost tuning landed.
+- **THEN (after Jason's feedback) baked it INTO THE REAL HOMEPAGE.** Diagnosis:
+  the flat look was the unlit MeshBasic viewer, not the bake — switching to
+  MeshStandard + an Environment map (lightmap = diffuse, env = specular/chrome)
+  restored the chrome lamp, desk sheen, record-player shine. Built
+  `BakedDeskScene` (drop-in for DeskScene, behind `?baked=1` so the live scene
+  stays default), loads the uv1 GLB, crossfades by `mixRef`, dispatches
+  focus/theme CLICKS off each baked mesh's `object` tag (build_uv1 now stamps
+  it), keeps the beam/motes/bloom/grain/vignette, drops shadow maps + N8AO +
+  IBL warm-up. Removed the racket (scene + bake); flattened the MacBook closed
+  lid. Both themes render (`bake/shots/homepage-baked-{on,off}.png`); build
+  green. OPEN: clicks need hand-testing; first pass is STATIC (chess/tonearm/lid
+  don't animate — re-add live on top next); dark env a touch warm; screen-glow
+  in dark TBD.
 
 ### 2026-06-12 — v4 finish: left wall + the bake runbook
 
