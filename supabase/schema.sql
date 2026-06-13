@@ -38,9 +38,15 @@ create table if not exists public.spotify_recent_tracks (
   album_name text,
   album_image_url text,
   track_url text,
+  duration_ms integer,
   created_at timestamptz default now(),
   primary key (played_at, track_id)
 );
+
+-- Backfill column for databases created before duration tracking. Idempotent;
+-- powers "today: N min" without a live Spotify page on the read path.
+alter table public.spotify_recent_tracks
+  add column if not exists duration_ms integer;
 
 create index if not exists posts_published_at_idx on public.posts (published_at desc);
 create index if not exists photos_created_at_idx on public.photos (created_at desc);

@@ -154,6 +154,7 @@ type SpotifyStoredTrackRow = {
   album_name: string | null;
   album_image_url: string | null;
   track_url: string | null;
+  duration_ms: number | null;
   artists: StoredSpotifyArtist[];
 };
 
@@ -505,6 +506,8 @@ function mapTracksForStorage(recentlyPlayed: SpotifyRecentlyPlayedItem[]) {
       album_name: item.track.album?.name ?? null,
       album_image_url: getImageUrl(item.track.album?.images),
       track_url: item.track.external_urls?.spotify ?? null,
+      duration_ms:
+        typeof item.track.duration_ms === "number" ? item.track.duration_ms : null,
       artists: normalizeArtists(item.track.artists)
     });
   }
