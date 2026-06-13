@@ -22,10 +22,20 @@ const PANEL_META: Record<FocusId, { eyebrow: string; title: string }> = {
   chess: { eyebrow: "playing", title: "The world vs. Jason" }
 };
 
-const DeskScene = dynamic(() => import("./DeskScene"), {
-  ssr: false,
-  loading: () => <div className="desk-hero-loading" aria-hidden="true" />
-});
+// The baked scene is opt-in via ?baked=1 while it's being proven; the live
+// DeskScene stays the default so the homepage is never at risk. Flip this to
+// default-baked once it's signed off.
+const DeskScene = dynamic(
+  () =>
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).has("baked")
+      ? import("./BakedDeskScene")
+      : import("./DeskScene"),
+  {
+    ssr: false,
+    loading: () => <div className="desk-hero-loading" aria-hidden="true" />
+  }
+);
 
 type Capability = "pending" | "scene" | "fallback";
 
