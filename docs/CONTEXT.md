@@ -6,6 +6,28 @@
 
 ## Session log
 
+### 2026-06-12 — Composition v4: dark-walnut study, racket, lamp aim
+
+Quick polish round (Jason: "this should be the last thing"):
+- WALLS are now dark-walnut raised-panel wainscoting (RoomWindow):
+  walnut base texture + a grid of beveled raised panels with stiles/
+  rails, chair rail, baseboard. Turns the room into a lawyer's study
+  and gives the night-window light a warm surface to bounce off.
+- Racket: stencilled the iconic HEAD nested-chevron logo across the
+  string bed (the reference photo's give-away detail) + a PRO label
+  near the top of the hoop. Reads as a real HEAD Radical Pro now.
+- Lamp: STAYS in the back-left corner (Jason corrected me — do NOT
+  move it); only re-aimed. rotationY -1.28 -> -0.56 so the beam swings
+  off the platter toward the gap between turntable and computer.
+- Chess: rotated ~80 deg clockwise (rotationY 0.45 -> -0.95).
+- Re-baked both themes: bake/renders/window-{light,dark}.png show the
+  walnut study. Light theme is moodier now (dark walls absorb the key)
+  but that fits "always night, lamp on." Both build green.
+
+Reminder: the dev cold-load curtain stall (slow first compile after
+rm -rf .next) bit AGAIN — the v3 entry has the diagnostic; the
+production build is the source of truth, not the dev cold load.
+
 ### 2026-06-12 — Composition v3: centered night window, the law of night
 
 Jason's third pass (voice notes). The room is now built around a
