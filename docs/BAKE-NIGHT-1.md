@@ -5,9 +5,12 @@
 replaying live in the browser convincingly matches the approved Cycles still.**
 
 Open `/baked` on the dev server to see it (lamp ON/OFF buttons, `b` toggles,
-intensity slider). The proof images are in `bake/shots/` (gitignored):
-`baked-on-warm.png` (live baked replay) next to `bake/renders/window-light.png`
-(the Cycles still you approved) — same moody warm night-desk, same composition.
+intensity slider). **Both lamp states are baked (1024px / 256 samples) and the
+lamp toggle crossfades smoothly between them.** Proof images in `bake/shots/`
+(gitignored):
+- `final-on.png` (live baked ON) vs `bake/renders/window-light.png` (approved)
+- `final-off2.png` (live baked OFF) vs `bake/renders/window-dark.png` (approved)
+Both match the approved stills — warm lamp-lit desk vs. moonlit night desk.
 
 ---
 
@@ -56,21 +59,19 @@ do. Exactly the flexibility you asked for.
 
 ## What's rough / honest open items
 
-- **Brightness & warmth.** The live replay is a touch dimmer/cooler than the
-  Cycles still. Cause: the still gets Cycles' Filmic tonemap; the runtime uses
-  ACES + an exposure/intensity knob (currently exposure 1.55, lightMap intensity
-  2.5). It's close, but the lamp's warm *pool* doesn't pop as much as in the
-  still. Fixable by either nudging the bake rig warmer or matching the tonemap —
-  a tuning pass, not a structural problem.
+- **Brightness & warmth — mostly handled, refine on real hardware.** Two fixes
+  landed tonight: `lightMapIntensity` ≈ π cancels three's RECIPROCAL_PI on the
+  MeshBasic lightmap (truer match), and `uOffBoost` lifts the OFF lightmap so
+  the night desk stays visible like the dark still. Both match the stills well
+  now. The lamp's warm *pool* in ON could still pop a hair more — a rig-warmth
+  nudge, not structural. Exposure is ACES 1.55.
 - **This is a VIEWER, not the real site yet.** `/baked` proves the look on the
   full static scene, but it's a dead scene (no clicks, no chess, no audio).
   Wiring the bake into the real interactive `DeskScene` — geometry swap +
   lightmap per object, then deleting the live shadow/AO/reflector/IBL stack
   (Stage F) — is the next big lift. The viewer de-risks it; the architecture is
-  proven.
-- **Lamp crossfade.** The viewer hard-swaps ON/OFF lightmaps. The smooth
-  `mix(off, on, uMix)` crossfade driven by `DeskThemeContext.mixRef` (the real
-  feature) is a small shader add, not yet done.
+  proven. (The crossfade shader + uMix damping built tonight ports straight
+  over — it's already shaped like the real `mixRef`.)
 - **Dynamic objects.** Chess pieces / tonearm / vinyl are baked in place in the
   viewer (fine for a still scene). On the real site they move, so they need the
   probe + blob-shadow treatment (Stage E) — untouched tonight.
@@ -115,10 +116,23 @@ do. Exactly the flexibility you asked for.
 ---
 
 ## How to look at it
-- Dev server running on `:3120`. Visit **`/baked`**.
-- Buttons toggle lamp state (OFF needs the OFF bake — see status below).
-- `bake/shots/*.png` are full-res captures; `bake/renders/window-*.png` are the
-  approved Cycles targets to compare against.
+- Dev server on `:3120`. Visit **`/baked`**. Buttons (or `b`) toggle the lamp;
+  watch it crossfade. The intensity slider is live.
+- `bake/shots/final-{on,off2}.png` are the full-res captures; compare against
+  `bake/renders/window-{light,dark}.png` (the approved Cycles targets).
+- Lightmaps live in `bake/lightmaps_hq/` (1024/256, both states) and are copied
+  to `public/_bake/lightmaps/` for the viewer. The uv1 GLB is
+  `bake/desk-window-uv1.glb` (also copied to public). All gitignored.
 
-_Status of the overnight high-quality bake (1024px / 256 samples, both states)
-is updated at the bottom when it finishes._
+## Overnight bake status — DONE
+Both states baked at **1024px / 256 samples** (~23 min each on the M4), 347
+units, denoised. Sitting in `bake/lightmaps_hq/`. You said tomorrow is the
+full-day max-quality cook — to re-bake higher, it's one command per state:
+```
+Blender -b --python scripts/bake/bake_lightmaps.py -- \
+  --glb bake/desk-window-uv1.glb --rig bake/rig.json \
+  --manifest bake/bake_manifest.json --state on --out bake/lightmaps_hq \
+  --res-cap 2048 --samples 1024 --margin 16
+```
+(then `--state off`). Bump `--res-cap` / `--samples` for the full cook; the
+viewer picks them up after copying `*-{on,off}.png` into `public/_bake/lightmaps/`.

@@ -33,8 +33,10 @@ and convincingly matches the approved Cycles still. Full write-up in
   shadow/AO/reflector/IBL stack (Stage F), dynamic objects (Stage E), combine
   the 347 lightmaps into a few atlases. The racket is the old reverted model
   (rework shelved on branch `racket-rework-wip`).
-- Overnight: a higher-quality bake (1024px/256 samples, both states) was
-  cooking into `bake/lightmaps_hq/` as of this writing.
+- Overnight: baked BOTH lamp states at 1024px/256 samples into
+  `bake/lightmaps_hq/` (~23 min each), copied to `public/_bake/lightmaps/`.
+  The ON/OFF crossfade is wired and validated against both approved stills
+  (`bake/shots/final-{on,off2}.png`). intensity≈π + uOffBoost tuning landed.
 
 ### 2026-06-12 — v4 finish: left wall + the bake runbook
 
