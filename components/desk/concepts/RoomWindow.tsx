@@ -32,7 +32,10 @@ const BACK_WALL_INNER_Z = BACK_WALL_Z + WALL_THICKNESS / 2; // -0.855
 
 // Floor: one textured plane (Room.tsx's per-plank lay is too heavy to
 // duplicate here) — 4.2m wide x 3.2m deep, flush into the corner.
-const FLOOR_X_MIN = -2.7;
+// Brought in from -2.7 so the room is enclosed on BOTH sides — the left
+// wall sits on this edge (mirroring the right wall at FLOOR_X_MAX). Clears
+// the record crate at x=-1.08 with ~0.7m to spare.
+const FLOOR_X_MIN = -1.85;
 const FLOOR_X_MAX = SIDE_WALL_X;
 const FLOOR_Z_MIN = BACK_WALL_Z;
 const FLOOR_Z_MAX = 2.3;
@@ -1258,6 +1261,17 @@ export default function RoomWindow() {
         uc
       );
 
+    // Left-wall placer: u -> world z, v -> height above floor, proud -> +x.
+    const placeLeft: WallPlace = (uc, vc, uSize, vSize, proud) =>
+      box(
+        proud,
+        vSize,
+        uSize,
+        FLOOR_X_MIN + proud / 2,
+        FLOOR_Y + vc,
+        uc
+      );
+
     // Frame plates (darker walnut) and raised fields (lighter satin) collect
     // into separate lists → two materials, two meshes.
     const panelFrameParts: THREE.BufferGeometry[] = [];
@@ -1288,6 +1302,10 @@ export default function RoomWindow() {
     // SIDE wall: a regular run of tall panels, both bands, full depth.
     pushPanelRun(panelFrameParts, fieldParts, placeSide, FLOOR_Z_MIN + 0.02, FLOOR_Z_MAX - 0.02, LOWER_V_MIN, LOWER_V_MAX, 4, 1);
     pushPanelRun(panelFrameParts, fieldParts, placeSide, FLOOR_Z_MIN + 0.02, FLOOR_Z_MAX - 0.02, UPPER_V_MIN, UPPER_V_MAX, 4, 1);
+
+    // LEFT wall: a matching run of tall panels, both bands, full depth.
+    pushPanelRun(panelFrameParts, fieldParts, placeLeft, FLOOR_Z_MIN + 0.02, FLOOR_Z_MAX - 0.02, LOWER_V_MIN, LOWER_V_MAX, 4, 1);
+    pushPanelRun(panelFrameParts, fieldParts, placeLeft, FLOOR_Z_MIN + 0.02, FLOOR_Z_MAX - 0.02, UPPER_V_MIN, UPPER_V_MAX, 4, 1);
 
     const panelFrameGeometry = merge(panelFrameParts);
     panelFrameGeometry.name = "winPanelFrameGeometry";
@@ -1323,6 +1341,15 @@ export default function RoomWindow() {
         CHAIR_RAIL_H,
         FLOOR_D - 0.04,
         SIDE_WALL_X - railProud / 2,
+        FLOOR_Y + CHAIR_RAIL_Y,
+        FLOOR_CZ
+      ),
+      // left-wall run
+      box(
+        railProud,
+        CHAIR_RAIL_H,
+        FLOOR_D - 0.04,
+        FLOOR_X_MIN + railProud / 2,
         FLOOR_Y + CHAIR_RAIL_Y,
         FLOOR_CZ
       )
@@ -1371,6 +1398,17 @@ export default function RoomWindow() {
         SIDE_WALL_X - 0.013,
         FLOOR_Y,
         FLOOR_Z_MAX
+      ]),
+      // left run hugs the new left wall (yaw 0: depth -> +x, run -> +z)
+      trimRun(baseboardShape(), FLOOR_D, 0, [
+        FLOOR_X_MIN,
+        FLOOR_Y,
+        FLOOR_Z_MIN
+      ]),
+      trimRun(shoeShape(), FLOOR_D - 0.013, 0, [
+        FLOOR_X_MIN + 0.013,
+        FLOOR_Y,
+        FLOOR_Z_MIN
       ])
     ]);
     baseboardGeometry.name = "winBaseboardsGeometry";
@@ -1443,6 +1481,17 @@ export default function RoomWindow() {
         name="winWallSide"
         position={[SIDE_WALL_X, FLOOR_Y + WALL_HEIGHT / 2, FLOOR_CZ]}
         rotation={[0, -Math.PI / 2, 0]}
+        material={built.sideWallMaterial}
+        receiveShadow
+      >
+        <planeGeometry args={[FLOOR_D, WALL_HEIGHT]} />
+      </mesh>
+
+      {/* Left side wall — encloses the room on the left, facing +x. */}
+      <mesh
+        name="winWallLeft"
+        position={[FLOOR_X_MIN, FLOOR_Y + WALL_HEIGHT / 2, FLOOR_CZ]}
+        rotation={[0, Math.PI / 2, 0]}
         material={built.sideWallMaterial}
         receiveShadow
       >
