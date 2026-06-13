@@ -5,7 +5,9 @@ Personal website of Jason Latz — Next.js 14 (App Router) + Supabase + plain CS
 **Active project: "The Desk"** — rebuilding the homepage as a warm, hyper-detailed Three.js
 desk scene where every object is a doorway into part of the site. Before doing any work,
 read `docs/PLAN.md` (staged roadmap) and `docs/CONTEXT.md` (live state of the build).
-`CODEBASE_GUIDE.md` covers the pre-existing site (Supabase model, admin, Spotify pipeline).
+**`docs/BAKING.md` is the runbook for the lightmap bake (the current next milestone) —
+start there to run the bake.** `CODEBASE_GUIDE.md` covers the pre-existing site (Supabase
+model, admin, Spotify pipeline).
 
 ## Commands
 

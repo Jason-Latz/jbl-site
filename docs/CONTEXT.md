@@ -6,6 +6,20 @@
 
 ## Session log
 
+### 2026-06-12 — v4 finish: left wall + the bake runbook
+
+- Enclosed the room: looking all the way left showed void (room had
+  back + right walls only). Brought FLOOR_X_MIN in from -2.7 to -1.85
+  and added a matching dark-walnut LEFT wall (winWallLeft) — base
+  plane, raised-panel run (placeLeft), chair rail, baseboard, all
+  mirroring the right wall. Clears the record crate.
+- **Wrote `docs/BAKING.md`** — the complete lightmap-bake runbook so
+  the bake can be run cleanly after compaction. It's the canonical
+  source for Stage 5: static/dynamic split, the 6 stages, toolchain,
+  gotchas, look-parity, acceptance. NEXT ACTION after compact = run
+  the bake per that doc, spike-one-object first.
+- Composition is now FROZEN at v4. Re-baked stills hold.
+
 ### 2026-06-12 — Composition v4: dark-walnut study, racket, lamp aim
 
 Quick polish round (Jason: "this should be the last thing"):

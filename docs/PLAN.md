@@ -208,12 +208,16 @@ A (perfected void) vs B (corner window), decided from Cycles stills.
       bake-off + voice notes: window on the RIGHT wall, cross-light against
       the lamp). RoomWindow replaces Room.tsx during the bake build-out;
       RoomVoid stays archived in concepts/.
-- [ ] UV2 unwrap (xatlas) + atlas packing for the static set
-- [ ] Cycles lightmap bakes (lamp-on / lamp-off) + runtime two-state blend
-- [ ] Strip the live stack: PCSS, shadow maps, N8AO, reflector,
-      AccumulativeShadows (frozen-shadow plumbing goes with them)
-- [ ] Probe + blob-shadow recipe so dynamic objects sit in the baked world
-- [ ] Poster / OG / no-WebGL fallback renders from the kiln
+- [x] Live integration: RoomWindow is now the live room; middle-tilt camera.
+- [x] Composition frozen at v4 (dark walnut study, lamp aim, chess, racket,
+      enclosed left wall). Ready to bake.
+- [ ] **THE LIGHTMAP BAKE — full runbook in `docs/BAKING.md`.** That doc has
+      everything: the static/dynamic split, the 6 stages (UV2 unwrap →
+      export uv1 → Cycles diffuse bake on/off → runtime mixRef blend →
+      probe+blob dynamics → strip the live stack), toolchain (watlas/
+      xatlas-three), gotchas, look-parity against the stills, and acceptance
+      criteria. START THERE.
+- [ ] Poster / OG / no-WebGL fallback renders from the kiln (free byproduct)
 
 ## Performance budget
 
