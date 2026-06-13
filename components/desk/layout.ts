@@ -25,13 +25,14 @@ type Placement = {
 export const PLACEMENT: Record<string, Placement> = {
   turntable: { position: [-0.58, 0, 0.06], rotationY: 0.14 },
   // Lamp yaw is load-bearing: the Forså's spot target sits at local
-  // [0.5, 0, 0.12]; at -1.28 the beam reaches forward over the platter —
-  // the lamp now stands BEHIND the record player.
-  lamp: { position: [-0.6, 0, -0.34], rotationY: -1.28 },
+  // [0.5, 0, 0.12]. Centered between the turntable and the computer, at the
+  // back; rotationY -0.7 rakes the beam DIAGONALLY across the desk toward
+  // the front-right (chess/notepad), Jason's composition v4.
+  lamp: { position: [-0.3, 0, -0.22], rotationY: -0.7 },
   macbook: { position: [0.02, 0, -0.08], rotationY: Math.PI },
-  // White's side faces the sitter (squareToLocal puts rank 1 at local +z);
-  // the diagonal points the battle away from whoever sits down.
-  chessboard: { position: [0.55, 0, 0.2], rotationY: 0.45 },
+  // Rotated ~80° clockwise (viewed from above) from the v3 pose per Jason:
+  // 0.45 - 1.40 ≈ -0.95.
+  chessboard: { position: [0.55, 0, 0.2], rotationY: -0.95 },
   notepad: { position: [-0.18, 0, 0.22], rotationY: -0.06 },
   crate: { position: [-1.08, FLOOR_Y, 0.16], rotationY: 0.5 },
   // Travel vignette moves to the back row (front placement read as clutter):
