@@ -24,11 +24,11 @@ type Placement = {
 // speakers and floor bookcase retired (clutter).
 export const PLACEMENT: Record<string, Placement> = {
   turntable: { position: [-0.58, 0, 0.06], rotationY: 0.14 },
-  // Lamp yaw is load-bearing: the Forså's spot target sits at local
-  // [0.5, 0, 0.12]. Centered between the turntable and the computer, at the
-  // back; rotationY -0.7 rakes the beam DIAGONALLY across the desk toward
-  // the front-right (chess/notepad), Jason's composition v4.
-  lamp: { position: [-0.3, 0, -0.22], rotationY: -0.7 },
+  // Lamp STAYS in the back-left corner (behind the turntable). Only its aim
+  // changes: rotationY -0.56 swings the beam off the platter and across the
+  // desk toward the MIDDLE — the gap between the record player and the
+  // computer (Jason's composition v4). Was -1.28 (straight onto the platter).
+  lamp: { position: [-0.6, 0, -0.34], rotationY: -0.56 },
   macbook: { position: [0.02, 0, -0.08], rotationY: Math.PI },
   // Rotated ~80° clockwise (viewed from above) from the v3 pose per Jason:
   // 0.45 - 1.40 ≈ -0.95.
