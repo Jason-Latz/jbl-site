@@ -1,5 +1,38 @@
 # Bake — Night 1 report
 
+> ## ⤴ UPDATE (cont.) — it's in the REAL homepage now
+>
+> After your feedback ("live looks better, everything's flat, racket's still
+> there"), I diagnosed the flatness and pushed the bake **into the actual
+> homepage**. Open **`/?baked=1`** — that's the real DeskHero (HUD, nav, panels)
+> lit by baked GI, with the lamp beam + dust motes + bloom on top. See
+> `bake/shots/homepage-baked-on.png`.
+>
+> - **The flatness was my fault, not the bake's.** The viewer used *unlit*
+>   MeshBasic — no chrome, no specular, no shine. Switching to **MeshStandard +
+>   an Environment map** (lightmap does diffuse, env does specular/metal) brings
+>   the chrome lamp, the desk sheen and the record-player gloss right back. That
+>   was the whole gap.
+> - **Racket: gone** (live scene + bake). **MacBook:** closed lid flattened so
+>   the keyboard no longer peeks out. **Lamp interior:** fixed by the
+>   MeshStandard/env change (chrome reflects again).
+> - **`BakedDeskScene`** (behind `?baked=1`, so the live homepage is untouched
+>   until you sign off) loads the uv1 GLB, crossfades the two baked states by
+>   the real theme `mixRef`, dispatches focus/theme **clicks** off each baked
+>   mesh's object tag, and keeps the beauty (beam, motes, bloom, grain,
+>   vignette) while dropping the shadow maps / N8AO / IBL warm-up.
+> - **Open / needs your eyes:** clicks can't be tested headlessly (R3F raycast
+>   quirk) — please click the turntable/laptop/chess/notepad and the lamp.
+>   First pass is **static** (chess/tonearm/lid don't animate yet — they bake in
+>   rest pose; re-adding them live on top is the next step). Dark-theme OFF maps
+>   finished baking overnight too.
+> - Re-baked both states at 1024/256 with the racket gone + object tags.
+>
+> The original Night-1 write-up (the pipeline + the standalone `/baked` viewer)
+> follows.
+
+---
+
 **Date:** 2026-06-13 (overnight, autonomous)
 **Headline: the freeze-dry pipeline works end-to-end, and the baked scene
 replaying live in the browser convincingly matches the approved Cycles still.**

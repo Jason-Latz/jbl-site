@@ -339,6 +339,9 @@ export default function BakedDeskScene(props: DeskSceneProps) {
       gl={{
         antialias: false,
         powerPreference: "high-performance",
+        // cheap for a single hero canvas; lets us grab the baked frame for
+        // captures + a future no-WebGL poster / OG image
+        preserveDrawingBuffer: true,
         toneMapping: THREE.ACESFilmicToneMapping
       }}
     >
