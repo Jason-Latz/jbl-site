@@ -6,6 +6,59 @@
 
 ## Session log
 
+### 2026-06-13 — Spotify pipeline redesign: stop the rate-limit "maxing out"
+
+Jason: the widget kept freezing ("only two plays ever," "maxes out, only
+works sometimes"). Root cause: the live READ path and the history WRITE path
+were fused — every `/api/spotify/live` poll (every visitor, every 45s) ran the
+full `syncSpotifyRecentHistory` (paginate Spotify + upsert + retention delete)
+inside `fetchSpotifyLivePayload`, so a few open tabs blew through Spotify's
+~30s rolling rate window. On a 429 the whole payload threw → route 502 →
+widget stuck on its last cached value ("only works sometimes"). The daily-only
+Hobby cron is WHY the sync got jammed into the read path to begin with.
+
+Redesign (all in `lib/spotify.ts`); the `SpotifyLivePayload` shape is unchanged
+so every consumer (home ribbon, DeskHero HUD, RecordsPanel) is untouched:
+- `spotifyRequest` now honors 429 `Retry-After` with bounded backoff (≤8s, 2
+  tries); a longer cooldown fails soft instead of blocking the response.
+- The read path makes ONE live Spotify call (currently-playing, wrapped
+  fail-soft). "Today", recent-10, and weekly top-artists all read from
+  `spotify_recent_tracks` (one deduped source) instead of a live page. Old
+  live-page computation kept ONLY as the fallback when Supabase is absent.
+- History sync left the hot path: `maybeSyncHistory()` is throttled to once
+  per 3 min (in-memory) and swallows failures — a visit still pulls fresh
+  plays, but never on every poll and never breaking the read. Daily cron stays
+  the backstop.
+- Added an in-module micro-cache (~10s, with in-flight de-dupe) of the
+  assembled payload so concurrent polls collapse to one upstream build.
+- Service Supabase clients (lib + albums route) got the mandatory no-store
+  fetch wrapper they were missing — the watermark/top-artists reads were
+  silently going stale (the documented Next-14 data-cache gotcha).
+- `spotify_recent_tracks` now stores `duration_ms` (schema.sql, idempotent
+  alter) so "today: N min" comes from history, not a live page.
+
+Verified: clean production build; hit `/api/spotify/live` on the dev server —
+200, live now-playing (real progress/duration), today + recent + top-5 artists
+all populated from Supabase, playlist resolved, zero `[Spotify]` error logs.
+`duration_ms` already exists in the live DB (minutes computed), so the schema
+alter is a no-op there — no migration blocker.
+
+GOTCHAS discovered:
+- The micro-cache + sync-throttle are per-warm-instance module singletons:
+  they persist in Vercel's serverless runtime but NOT across Next dev
+  recompiles, so under `npm run dev` every poll rebuilds/re-syncs (looks like
+  the cache is broken — it isn't, in prod). Don't "fix" this in dev.
+- Idle "recent playlist" now shows only while actively playing from a playlist
+  (the read path no longer fetches a recently-played page, which was the old
+  idle source). Minor; the line just hides when idle.
+- Spotify's recently-played excludes the now-playing track and only logs a play
+  once it's ~finished, so DB-sourced "today"/recent lag real time by up to a
+  sync interval — the on-visit throttled sync closes that gap.
+
+NEXT (optional): a Vercel CDN `s-maxage` on the live route would collapse
+visitor bursts globally (shared, not per-instance) for an even smaller upstream
+call count; deferred to preserve the documented "always fresh" contract.
+
 ### 2026-06-11 — LAUNCHED: the-desk merged to main
 
 Jason: "take them all, and combine them all, then merge to main. this is

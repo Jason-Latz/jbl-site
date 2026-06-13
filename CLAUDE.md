@@ -85,4 +85,11 @@ read `docs/PLAN.md` (staged roadmap) and `docs/CONTEXT.md` (live state of the bu
   instead (see components/desk/Effects.tsx).
 - `app/layout.tsx` imported `@mdxeditor/editor/style.css` without the dependency existing
   (pre-existing break at branch point; see docs/CONTEXT.md).
-- Spotify "today" stats are approximate (last-50-plays window).
+- Spotify: the live route makes ONE upstream call (now-playing); "today" / recent /
+  top-artists are read from the `spotify_recent_tracks` store, and the history sync is
+  throttled OFF the read path (`maybeSyncHistory`, ≤1 per 3 min). Never reintroduce the
+  per-poll sync — that was the rate-limit "maxing out" (docs/CONTEXT.md 2026-06-13).
+  Stats stay approximate (windowed; recently-played lags real time).
+- The Spotify micro-cache + sync-throttle are per-warm-instance module singletons —
+  they work in Vercel's serverless runtime but reset across Next dev recompiles, so under
+  `npm run dev` every poll rebuilds/re-syncs. Looks broken in dev; correct in prod.

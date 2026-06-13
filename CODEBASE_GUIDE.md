@@ -137,15 +137,25 @@ The home page includes `components/SpotifyNowPlaying.tsx` and `components/Duolin
 7. A second nested "Top 5 artists this week" dropdown with listen counts
 8. Last successful fetch timestamp and resilient stale-data messaging on errors
 
-`app/api/spotify/live/route.ts` is server-side and uses `lib/spotify.ts` to:
+`app/api/spotify/live/route.ts` is server-side and uses `lib/spotify.ts` (read path
+only — the history WRITE path is the sync below, deliberately kept separate):
 
 1. Refresh an access token with `SPOTIFY_REFRESH_TOKEN`
-2. Read `/me/player/currently-playing` and `/me/player/recently-played`
-3. Compute "today" metrics in `SPOTIFY_TIMEZONE` (default `America/Chicago`)
-4. Resolve recent playlist metadata via active playback context (`/playlists/:id`) or most-recent recent-playback context
-5. Sync recent playback rows into `public.spotify_recent_tracks` (when `SUPABASE_SERVICE_ROLE_KEY` is configured)
-6. Query weekly top artists via `public.spotify_top_artists_last_days(...)`
-7. Return nested dropdown payloads for both `recentTracks` and `topArtistsThisWeek`
+2. Make ONE live upstream call — `/me/player/currently-playing` — wrapped fail-soft
+   (a 429 or blip yields `nowPlaying: null`, not a dead payload)
+3. Read "today" metrics (in `SPOTIFY_TIMEZONE`, default `America/Chicago`), the last 10
+   tracks, and weekly top artists from the `public.spotify_recent_tracks` store
+   (`public.spotify_top_artists_last_days(...)` for the artist rollup) — NOT from a live
+   `recently-played` page
+4. Resolve recent-playlist metadata from the active playback context (`/playlists/:id`)
+5. Opportunistically kick `maybeSyncHistory()` — throttled to ≤1 sync per 3 min and
+   failure-swallowing, so a visit refreshes the store without syncing per-poll
+6. Serve the assembled payload from a ~10s in-module micro-cache (in-flight de-duped)
+   so concurrent polls collapse to a single upstream build
+
+When `SUPABASE_SERVICE_ROLE_KEY` is absent the route degrades to the old best-effort
+path: one live `recently-played` page drives "today"/recent/top-artists. `spotifyRequest`
+honors Spotify 429 `Retry-After` with bounded backoff (≤8s, 2 tries).
 
 `app/api/spotify/sync/route.ts` is a cron-only endpoint protected by `CRON_SECRET`. On the current Vercel Hobby plan it runs once daily via `vercel.json` (`0 12 * * *`, which Vercel interprets in UTC) and:
 
@@ -154,7 +164,7 @@ The home page includes `components/SpotifyNowPlaying.tsx` and `components/Duolin
 3. Persists any newly discovered recent tracks into `public.spotify_recent_tracks`
 4. Keeps weekly artist history accumulating even when no browser has the home page open
 
-This scheduled sync is the Hobby-plan backstop for the "Top 5 artists this week" list. The home widget still triggers the same catch-up logic opportunistically through `/api/spotify/live`, so visiting the site can pull in newer plays before the next daily cron.
+This scheduled sync is the Hobby-plan backstop for the durable history. `/api/spotify/live` also kicks the same sync opportunistically, but throttled (`maybeSyncHistory`, ≤1 per 3 min) and off the response's critical path — so visiting the site still pulls in newer plays before the next daily cron, WITHOUT the old per-poll sync that was rate-limiting Spotify (see docs/CONTEXT.md 2026-06-13).
 
 `DuolingoStreak.tsx` polls `/api/duolingo/streak` every 60 seconds while the page is visible, then refreshes immediately when the tab becomes visible again. It renders:
 
@@ -162,7 +172,7 @@ This scheduled sync is the Hobby-plan backstop for the "Top 5 artists this week"
 2. Profile link, streak count, and status details in the expanded panel
 3. Last-known cached data and retry messaging when the API is temporarily unavailable
 
-Response caching is disabled (`Cache-Control: no-store`) on the Spotify route so the widget data is always fresh. Both client pollers guard against transient non-JSON route responses (for example, dev-time HTML error pages), pause background polling when the tab is hidden, and fall back to status-based retry messaging instead of JSON parse errors.
+Response caching is disabled (`Cache-Control: no-store`) on the Spotify route; freshness is instead bounded by a ~10s server-side micro-cache inside `lib/spotify.ts` (per warm instance). Both client pollers guard against transient non-JSON route responses (for example, dev-time HTML error pages), pause background polling when the tab is hidden, and fall back to status-based retry messaging instead of JSON parse errors.
 
 ### 4.4 Admin area
 
@@ -341,9 +351,10 @@ This is an app-level guard layered on top of RLS.
   - `recentPlaylist` (playlist from active playback context or latest recent-playback context; otherwise `null`)
   - `recentTracks` (up to 10 most recently played tracks with album art, track, and artist list)
   - `topArtistsThisWeek` (up to 5 artists ranked by play count in the last 7 days)
+- `today` / `recentTracks` / `topArtistsThisWeek` are read from `public.spotify_recent_tracks`; only `nowPlaying` is a live upstream call (fail-soft). Payload is served from a ~10s in-module micro-cache.
 - Route is forced dynamic (`dynamic = "force-dynamic"`, `revalidate = 0`) and responds with `Cache-Control: no-store`
-- On upstream Spotify failures it returns `502` with a diagnostic message
-- If `SUPABASE_SERVICE_ROLE_KEY` is unavailable, weekly top artists fall back to `/me/player/recently-played` window data (best-effort only)
+- now-playing failures degrade gracefully (`nowPlaying: null`); a `502` only occurs if assembly itself throws (e.g. token refresh fails)
+- If `SUPABASE_SERVICE_ROLE_KEY` is unavailable, the widget falls back to `/me/player/recently-played` window data (best-effort only)
 
 ### `GET /api/spotify/sync` (`app/api/spotify/sync/route.ts`)
 
