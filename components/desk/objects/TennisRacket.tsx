@@ -176,11 +176,34 @@ export default function TennisRacket() {
     const logoTex = makeCanvasTexture(256, 96, (ctx, w, h) => {
       ctx.clearRect(0, 0, w, h);
       ctx.fillStyle = "#f3f1ea";
-      ctx.font = "bold 64px Arial";
+      ctx.font = "bold 56px Arial";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.letterSpacing = "2px";
-      ctx.fillText("HEAD", w / 2, h / 2 + 2);
+      ctx.fillText("PRO", w / 2, h / 2 + 2);
+    });
+
+    // The HEAD logo stencilled on the string bed — the iconic stack of nested
+    // chevrons. This is the detail that says "HEAD" at a glance on the wall.
+    const headLogoTex = makeCanvasTexture(256, 256, (ctx, w, h) => {
+      ctx.clearRect(0, 0, w, h);
+      ctx.strokeStyle = "#101a30";
+      ctx.lineWidth = w * 0.06;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      const cx = w / 2;
+      const armX = w * 0.3;
+      const armY = h * 0.24;
+      const topY = h * 0.14;
+      const gap = h * 0.11;
+      for (let i = 0; i < 4; i++) {
+        const py = topY + i * gap;
+        ctx.beginPath();
+        ctx.moveTo(cx - armX, py + armY);
+        ctx.lineTo(cx, py);
+        ctx.lineTo(cx + armX, py + armY);
+        ctx.stroke();
+      }
     });
 
     return {
@@ -194,7 +217,8 @@ export default function TennisRacket() {
       dampGeo,
       gripTex,
       shaftTex,
-      logoTex
+      logoTex,
+      headLogoTex
     };
   }, []);
 
@@ -242,7 +266,13 @@ export default function TennisRacket() {
       roughness: 0.4,
       metalness: 0.2
     });
-    return { orange, navy, navyShaft, grip, butt, string, peg, damp, logo };
+    const headLogo = new THREE.MeshStandardMaterial({
+      map: built.headLogoTex,
+      transparent: true,
+      roughness: 0.5,
+      metalness: 0.0
+    });
+    return { orange, navy, navyShaft, grip, butt, string, peg, damp, logo, headLogo };
   }, [built]);
 
   return (
@@ -255,9 +285,17 @@ export default function TennisRacket() {
       <mesh geometry={built.buttGeo} material={mats.butt} castShadow />
       <mesh geometry={built.dampGeo} material={mats.damp} />
       <mesh name="racketPeg" geometry={built.pegGeo} material={mats.peg} castShadow />
-      {/* HEAD wordmark on the inner throat bridge of the hoop */}
-      <mesh position={[0, HOOP_CY - HOOP_RY + 0.022, TUBE_R + 0.0005]} material={mats.logo}>
-        <planeGeometry args={[0.05, 0.019]} />
+      {/* HEAD chevron logo stencilled across the string bed */}
+      <mesh
+        name="racketHeadLogo"
+        position={[HOOP_CX, HOOP_CY + 0.018, 0.0028]}
+        material={mats.headLogo}
+      >
+        <planeGeometry args={[0.12, 0.12]} />
+      </mesh>
+      {/* "PRO" label near the top of the hoop */}
+      <mesh position={[0, HOOP_CY + HOOP_RY - 0.016, TUBE_R + 0.0005]} material={mats.logo}>
+        <planeGeometry args={[0.034, 0.013]} />
       </mesh>
     </group>
   );
