@@ -26,7 +26,6 @@ import DeskLamp from "./objects/DeskLamp";
 import MacBook from "./objects/MacBook";
 import Chessboard from "./objects/Chessboard";
 import DeskBookRow from "./objects/DeskBookRow";
-import TennisRacket from "./objects/TennisRacket";
 import Notepad from "./objects/Notepad";
 import RecordCrate from "./objects/RecordCrate";
 import FilmCamera from "./objects/FilmCamera";
@@ -55,7 +54,11 @@ function At({
 }) {
   const placement = PLACEMENT[name];
   return (
-    <group position={placement.position} rotation-y={placement.rotationY}>
+    <group
+      name={name}
+      position={placement.position}
+      rotation-y={placement.rotationY}
+    >
       {children}
     </group>
   );
@@ -197,9 +200,6 @@ export default function BakeScene({
           </At>
           <At name="bookRow">
             <DeskBookRow />
-          </At>
-          <At name="racket">
-            <TennisRacket />
           </At>
           <At name="chessboard">
             <Chessboard />

@@ -1,30 +1,22 @@
 "use client";
 
-// Baked-scene VIEWER (dev only) — loads the world-space uv1 GLB and replaces
-// every material with an unlit MeshBasic showing live albedo x baked lightmap
-// on uv1. No scene lights, no shadows: the freeze-dried look at 60fps.
-//
-// Two-state crossfade (the real Stage-D feature): each material samples BOTH
-// the lamp-ON and lamp-OFF lightmaps and mixes them by a shared `uMix` uniform,
-// frame-damped toward the current lamp state — exactly how the live site's
-// DeskThemeContext.mixRef will drive it. The lamp toggle IS the crossfade.
-//
-// NOTE: bare GLTFLoader (drei's useGLTF hangs on this big embedded-texture GLB).
+// Baked-scene VIEWER (dev only). Loads the world-space uv1 GLB and KEEPS its
+// real MeshStandard materials (metalness/roughness intact) so chrome and gloss
+// still reflect — then adds the baked lightmap on uv1 for cheap diffuse GI and
+// an Environment for specular/reflections. This is the "baked + beauty" look:
+// unlike the earlier unlit-MeshBasic pass, the lamp chrome and the record
+// player shine again. ON/OFF lightmaps crossfade by a shared uMix.
 
 import { useEffect, useRef, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { OrbitControls } from "@react-three/drei";
+import { Environment, Lightformer, OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 import { GLTFLoader } from "three-stdlib";
 
 const HERO_POS: [number, number, number] = [0.18, 0.82, 1.62];
 const HERO_TGT: [number, number, number] = [0.05, 0.42, -0.55];
 
-// shared uniform: 1 = lamp on, 0 = lamp off. All baked materials read it.
 const uMix = { value: 1 };
-// The OFF (night) bake is genuinely dim; the approved dark still stays visible
-// because Cycles lifted it with +0.6 exposure. We mirror that by boosting ONLY
-// the OFF lightmap (leaves the emissive moon untouched, unlike a global lift).
 const uOffBoost = { value: 2.2 };
 
 const texLoader = new THREE.TextureLoader();
@@ -42,37 +34,17 @@ function lightmap(unit: string, state: "on" | "off"): THREE.Texture {
   return t;
 }
 
-function isEmissive(mat: any): boolean {
-  if (mat.emissiveMap) return true;
-  const e = mat.emissive;
-  return !!e && e.r + e.g + e.b > 0.02 && (mat.emissiveIntensity ?? 1) > 0;
-}
-
-// Inject a second lightmap (OFF) + uMix into MeshBasic's lightmap fetch so the
-// material crossfades. If the chunk text ever changes and the replace no-ops,
-// the material simply renders the ON lightmap — a safe failure mode.
-function makeBakedMaterial(
-  src: any,
-  unit: string,
-  intensity: number,
-  common: any
-): THREE.MeshBasicMaterial {
-  const lmOn = lightmap(unit, "on");
+// Attach the two-state lightmap blend to an EXISTING MeshStandard material
+// (keeps map/metalness/roughness/emissive). The lightmap drives diffuse GI;
+// the env map handles specular + metal reflections.
+function attachBakedLightmap(mat: THREE.MeshStandardMaterial, unit: string) {
+  mat.lightMap = lightmap(unit, "on");
+  mat.lightMapIntensity = Math.PI; // cancels three's RECIPROCAL_PI on the lightmap
   const lmOff = lightmap(unit, "off");
-  const mat = new THREE.MeshBasicMaterial({
-    map: src.map ?? null,
-    color: src.map ? new THREE.Color(0xffffff) : src.color ?? new THREE.Color(0xffffff),
-    lightMap: lmOn,
-    lightMapIntensity: intensity,
-    ...common
-  });
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.lightMapOff = { value: lmOff };
     shader.uniforms.uMix = uMix;
     shader.uniforms.uOffBoost = uOffBoost;
-    // Declare before void main() (always present) — targeting the uniform-decl
-    // line is fragile across three versions. Then blend the two lightmaps
-    // (OFF boosted so the night desk stays visible like the dark still).
     shader.fragmentShader = shader.fragmentShader
       .replace(
         /void main\(\)\s*\{/,
@@ -83,10 +55,8 @@ function makeBakedMaterial(
         "vec4 lightMapTexel = mix( texture2D( lightMapOff, vLightMapUv ) * uOffBoost, texture2D( lightMap, vLightMapUv ), uMix );"
       );
   };
-  return mat;
+  mat.needsUpdate = true;
 }
-
-type Lit = { mat: THREE.MeshBasicMaterial };
 
 function MixDriver({ state }: { state: "on" | "off" }) {
   useFrame((_, delta) => {
@@ -96,72 +66,68 @@ function MixDriver({ state }: { state: "on" | "off" }) {
   return null;
 }
 
-function Baked({ intensity }: { intensity: number }) {
+function Baked({ envIntensity }: { envIntensity: number }) {
   const [root, setRoot] = useState<THREE.Object3D | null>(null);
-  const litRef = useRef<Lit[]>([]);
 
   useEffect(() => {
     let cancelled = false;
     const loader = new GLTFLoader();
-    console.log("[baked] loading GLB…");
     loader.load(
       "/_bake/desk-window-uv1.glb",
       (gltf) => {
         if (cancelled) return;
-        console.log("[baked] GLB loaded, converting materials");
-        const lit: Lit[] = [];
+        let lit = 0;
         gltf.scene.traverse((o) => {
           const mesh = o as THREE.Mesh;
           if (!mesh.isMesh) return;
-          const src = (Array.isArray(mesh.material) ? mesh.material[0] : mesh.material) as any;
-          if (!src) return;
-          const unit = (src.name || "").replace(/_mat$/, "");
-          const common = {
-            transparent: src.transparent,
-            opacity: src.opacity ?? 1,
-            alphaTest: src.alphaTest ?? 0,
-            alphaMap: src.alphaMap ?? null,
-            side: src.side ?? THREE.FrontSide,
-            depthWrite: src.depthWrite ?? true
-          };
-          if (isEmissive(src)) {
-            mesh.material = new THREE.MeshBasicMaterial({
-              map: src.emissiveMap ?? src.map ?? null,
-              color: src.emissiveMap ? new THREE.Color(0xffffff) : src.emissive ?? new THREE.Color(0xffffff),
-              ...common
-            });
-            return;
+          const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+          for (const m of mats) {
+            const std = m as THREE.MeshStandardMaterial;
+            if (!std || !("isMeshStandardMaterial" in std)) continue;
+            const unit = (std.name || "").replace(/_mat$/, "");
+            // emissive-dominant materials (night window, screen) keep glowing
+            // and skip the lightmap; everything else gets baked diffuse.
+            const emissiveLit =
+              !!std.emissiveMap ||
+              (std.emissive && std.emissive.r + std.emissive.g + std.emissive.b > 0.25);
+            if (!emissiveLit && unit) {
+              attachBakedLightmap(std, unit);
+              lit++;
+            }
+            std.envMapIntensity = envIntensity;
           }
-          const mat = makeBakedMaterial(src, unit, intensity, common);
-          mesh.material = mat;
-          lit.push({ mat });
         });
-        litRef.current = lit;
-        if (typeof window !== "undefined") (window as any).__bk = { scene: gltf.scene, lit: lit.length };
+        if (typeof window !== "undefined") (window as any).__bk = { scene: gltf.scene, lit };
         setRoot(gltf.scene);
       },
       undefined,
-      (err) => console.error("[baked] GLB load error", err)
+      (err) => console.error("[baked] load error", err)
     );
     return () => {
       cancelled = true;
     };
   }, []);
 
-  useEffect(() => {
-    for (const { mat } of litRef.current) {
-      mat.lightMapIntensity = intensity;
-    }
-  }, [root, intensity]);
-
   return root ? <primitive object={root} /> : null;
+}
+
+function SceneEnv() {
+  // No-network env: warm key from the left, cool rim right, soft ceiling, front
+  // fill — same shape as the live scene's SceneEnvironment, for chrome/specular.
+  return (
+    <Environment resolution={256} frames={1}>
+      <Lightformer form="rect" intensity={3} position={[-2.2, 1.7, 1.4]} scale={[3, 2, 1]} target={[0, 0, 0]} color="#ffe7c4" />
+      <Lightformer form="rect" intensity={1.1} position={[2.6, 1.2, -0.6]} scale={[2, 1.5, 1]} target={[0, 0, 0]} color="#cfe0f4" />
+      <Lightformer form="ring" intensity={1.4} position={[0, 3, 0.4]} scale={3} target={[0, 0, 0]} color="#fff4e6" />
+      <Lightformer form="rect" intensity={0.6} position={[0, 0.6, 3.2]} scale={[4, 1.4, 1]} color="#f5ead8" />
+    </Environment>
+  );
 }
 
 export default function BakedViewer() {
   const [state, setState] = useState<"on" | "off">("on");
-  // ~pi cancels three's RECIPROCAL_PI on the MeshBasic lightmap, giving a truer
-  // 1:1 match to the Cycles irradiance we baked.
-  const [intensity, setIntensity] = useState(3.1);
+  const [exposure, setExposure] = useState(1.15);
+  const glRef = useRef<THREE.WebGLRenderer | null>(null);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -171,26 +137,32 @@ export default function BakedViewer() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  useEffect(() => {
+    if (glRef.current) glRef.current.toneMappingExposure = exposure;
+  }, [exposure]);
+
   return (
     <div style={{ position: "fixed", inset: 0, width: "100vw", height: "100vh", background: "#0a0a0c", zIndex: 50 }}>
       <div style={{ position: "absolute", zIndex: 10, top: 12, left: 12, display: "flex", gap: 8, alignItems: "center", fontFamily: "monospace", color: "#eee", fontSize: 13 }}>
         <button onClick={() => setState("on")} style={{ padding: "4px 10px", background: state === "on" ? "#c75833" : "#333", color: "#fff", border: 0, borderRadius: 4 }}>lamp ON</button>
         <button onClick={() => setState("off")} style={{ padding: "4px 10px", background: state === "off" ? "#3a5a8a" : "#333", color: "#fff", border: 0, borderRadius: 4 }}>lamp OFF</button>
-        <span>intensity</span>
-        <input type="range" min={0.2} max={4} step={0.05} value={intensity} onChange={(e) => setIntensity(parseFloat(e.target.value))} />
-        <span>{intensity.toFixed(2)}</span>
+        <span>exposure</span>
+        <input type="range" min={0.4} max={2.5} step={0.05} value={exposure} onChange={(e) => setExposure(parseFloat(e.target.value))} />
+        <span>{exposure.toFixed(2)}</span>
       </div>
       <Canvas
         dpr={[1, 2]}
         camera={{ fov: 40, near: 0.05, far: 30, position: HERO_POS }}
         gl={{ antialias: true, preserveDrawingBuffer: true }}
         onCreated={({ gl }) => {
+          glRef.current = gl;
           gl.toneMapping = THREE.ACESFilmicToneMapping;
-          gl.toneMappingExposure = 1.55;
+          gl.toneMappingExposure = exposure;
         }}
       >
         <color attach="background" args={["#0a0a0c"]} />
-        <Baked intensity={intensity} />
+        <SceneEnv />
+        <Baked envIntensity={0.35} />
         <MixDriver state={state} />
         <OrbitControls target={HERO_TGT} />
       </Canvas>
