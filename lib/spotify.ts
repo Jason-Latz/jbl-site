@@ -336,7 +336,22 @@ async function fetchAccessToken() {
   return accessToken;
 }
 
-async function spotifyRequest(path: string, shouldRetry = true): Promise<Response> {
+const SPOTIFY_RATE_LIMIT_MAX_RETRIES = 2;
+const SPOTIFY_RATE_LIMIT_FALLBACK_DELAY_MS = 1_000;
+// Spotify returns a Retry-After (seconds) on 429s. We'll briefly ride out a
+// short cooldown inline, but a multi-minute one means we give up and let the
+// caller fall back to cached/DB data rather than block the response on it.
+const SPOTIFY_RATE_LIMIT_MAX_WAIT_MS = 8_000;
+
+function delay(ms: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, ms));
+}
+
+async function spotifyRequest(
+  path: string,
+  shouldRetry = true,
+  rateLimitRetriesLeft = SPOTIFY_RATE_LIMIT_MAX_RETRIES
+): Promise<Response> {
   const accessToken = await fetchAccessToken();
   const response = await fetch(`${SPOTIFY_API_BASE_URL}${path}`, {
     headers: {
@@ -348,7 +363,20 @@ async function spotifyRequest(path: string, shouldRetry = true): Promise<Respons
 
   if (response.status === 401 && shouldRetry) {
     cachedAccessToken = null;
-    return spotifyRequest(path, false);
+    return spotifyRequest(path, false, rateLimitRetriesLeft);
+  }
+
+  if (response.status === 429 && rateLimitRetriesLeft > 0) {
+    const retryAfterSeconds = Number(response.headers.get("retry-after"));
+    const retryAfterMs =
+      Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0
+        ? retryAfterSeconds * 1000
+        : SPOTIFY_RATE_LIMIT_FALLBACK_DELAY_MS;
+
+    if (retryAfterMs <= SPOTIFY_RATE_LIMIT_MAX_WAIT_MS) {
+      await delay(retryAfterMs);
+      return spotifyRequest(path, shouldRetry, rateLimitRetriesLeft - 1);
+    }
   }
 
   return response;
