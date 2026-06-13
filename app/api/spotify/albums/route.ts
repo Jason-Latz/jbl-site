@@ -108,6 +108,12 @@ export async function GET() {
     auth: {
       autoRefreshToken: false,
       persistSession: false
+    },
+    global: {
+      // Opt out of Next 14's data cache for supabase-js GETs so the album
+      // history reflects the latest synced plays rather than a frozen snapshot.
+      fetch: (input: RequestInfo | URL, init?: RequestInit) =>
+        fetch(input, { ...init, cache: "no-store" })
     }
   });
 

@@ -208,6 +208,14 @@ function getSupabaseServiceClient() {
     auth: {
       autoRefreshToken: false,
       persistSession: false
+    },
+    global: {
+      // Next 14 data-caches supabase-js GET fetches inside route handlers even
+      // under force-dynamic, which silently freezes reads (a stale "latest
+      // stored play" watermark, stale top-artists). Opt every request out of
+      // the data cache so reads always hit the database. (See CLAUDE.md.)
+      fetch: (input: RequestInfo | URL, init?: RequestInit) =>
+        fetch(input, { ...init, cache: "no-store" })
     }
   });
 
