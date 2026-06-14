@@ -203,7 +203,10 @@ function LampSpotKey() {
     return o;
   }, []);
   useFrame(() => {
-    if (ref.current) ref.current.intensity = 3.6 * Math.max(0, lampGlowRef.current);
+    // Just a specular glint on the glossy vinyl/desk — the diffuse lamp POOL is
+    // already in the baked lightmap, so a strong spot double-lit it into blown
+    // white hotspots. Low intensity (was 3.6) keeps the shine, not the blowout.
+    if (ref.current) ref.current.intensity = 0.9 * Math.max(0, lampGlowRef.current);
   });
   return (
     <group position={PLACEMENT.lamp.position} rotation-y={PLACEMENT.lamp.rotationY}>
