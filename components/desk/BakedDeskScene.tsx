@@ -30,16 +30,17 @@ import { DeskThemeProvider, useDeskTheme } from "./DeskThemeContext";
 import { useSiteTheme } from "./useSiteTheme";
 import { CAMERA, FOCUS_VIEWS, PLACEMENT, type FocusId } from "./layout";
 import LampBeam from "./objects/LampBeam";
+import MacBook from "./objects/MacBook";
 import { lampGlowRef } from "./objects/DeskLamp";
 import MoonBeam, { moonGlowRef } from "./objects/MoonBeam";
 import type { DeskSceneProps } from "./DeskScene";
 
 const GLB_URL = "/_bake/desk-window-uv1.glb";
 
-// Which baked object maps to which focus view. Lamp is special (theme toggle).
+// Which baked object maps to which focus view. Lamp is special (theme toggle);
+// macbook is owned by the live overlay below, not routed off the baked tag.
 const FOCUS_MAP: Record<string, FocusId> = {
   turntable: "records",
-  macbook: "work",
   bookRow: "reading",
   chessboard: "chess",
   notepad: "notes"
@@ -54,9 +55,10 @@ const PORTRAIT_TARGET = new THREE.Vector3(-0.14, 0.02, -0.02);
 
 // ——— two-state lightmap blend, driven by the real theme mix ———
 const uMix = { value: 1 };
-// Keeps the baked moonlight visible without washing it flat; the cool moon
-// directional below supplies the "from the window" direction + speculars.
-const uOffBoost = { value: 2.0 };
+// Lifts the baked OFF (moonlit) lightmap so the night room reads without
+// washing flat; the baked lightmap holds the moon's direction, MoonAmbient adds
+// cool fill, MoonBeam draws the shaft. 1.8 keeps the room dark (was 2.0).
+const uOffBoost = { value: 1.8 };
 
 // Lamp local axis (matches BakeScene's LAMP_HEAD/TARGET_LOCAL).
 const LAMP_HEAD_LOCAL: [number, number, number] = [0.3446, 0.4195, 0.0088];
@@ -115,6 +117,15 @@ function BakedStatics({
       (gltf) => {
         if (cancelled) return;
         gltf.scene.traverse((o) => {
+          // The live MacBook overlays the baked one (which is frozen shut), so
+          // hide every baked macbook mesh — mirror objectOf()'s self-or-parent
+          // resolution.
+          if (
+            o.userData?.object === "macbook" ||
+            o.parent?.userData?.object === "macbook"
+          ) {
+            o.visible = false;
+          }
           const mesh = o as THREE.Mesh;
           if (!mesh.isMesh) return;
           const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
@@ -235,48 +246,9 @@ function LampSpotKey() {
 function MoonAmbient() {
   const ref = useRef<THREE.HemisphereLight>(null);
   useFrame(() => {
-    if (ref.current) ref.current.intensity = 1.05 * Math.max(0, 1 - uMix.value);
+    if (ref.current) ref.current.intensity = 0.6 * Math.max(0, 1 - uMix.value);
   });
   return <hemisphereLight ref={ref} args={["#8298cc", "#0a0b12", 0]} />;
-}
-
-// The MacBook screen glow in dark mode. The baked laptop is closed, so its
-// screen can't spill light — this stands in for it: a cool point glow + a small
-// emissive panel just in front of the lid, pooling cool light on the desk the
-// way the ajar screen did on the live scene. Dark-only.
-function LaptopGlow() {
-  const lightRef = useRef<THREE.PointLight>(null);
-  const matRef = useRef<THREE.MeshBasicMaterial>(null);
-  useFrame(() => {
-    const dark = Math.max(0, 1 - uMix.value);
-    if (lightRef.current) lightRef.current.intensity = 0.55 * dark;
-    if (matRef.current) matRef.current.opacity = 0.38 * dark;
-  });
-  // macbook sits at PLACEMENT.macbook ([0.02, 0, -0.08]); the spill is just in
-  // front of its lid, low over the desk.
-  return (
-    <group position={[0.02, 0, 0.04]}>
-      <pointLight
-        ref={lightRef}
-        position={[0, 0.045, 0.02]}
-        color="#bcd2ff"
-        intensity={0}
-        distance={0.55}
-        decay={2}
-      />
-      <mesh position={[0, 0.004, 0.0]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => null}>
-        <planeGeometry args={[0.16, 0.13]} />
-        <meshBasicMaterial
-          ref={matRef}
-          color="#bcd2ff"
-          transparent
-          opacity={0}
-          blending={THREE.AdditiveBlending}
-          depthWrite={false}
-        />
-      </mesh>
-    </group>
-  );
 }
 
 function SceneEnvironment() {
@@ -407,17 +379,36 @@ function SceneContents({ focus, onFocus, onReady }: DeskSceneProps) {
       <SceneEnvironment />
       <CameraDirector controlsRef={controlsRef} rig={rig} focus={focus} />
       <BakedStatics onFocus={onFocus} onReady={onReady} />
+      {/* The live, animated MacBook overlays the (hidden) baked one. Its baked
+          contact shadow stays on the desk lightmap and grounds it, so the
+          transform MUST be exactly PLACEMENT.macbook — no offset. */}
+      <group
+        position={PLACEMENT.macbook.position}
+        rotation-y={PLACEMENT.macbook.rotationY}
+        onClick={(e: ThreeEvent<MouseEvent>) => {
+          e.stopPropagation();
+          onFocus("work");
+        }}
+        onPointerOver={(e: ThreeEvent<PointerEvent>) => {
+          e.stopPropagation();
+          document.body.style.cursor = "pointer";
+        }}
+        onPointerOut={() => {
+          document.body.style.cursor = "auto";
+        }}
+      >
+        <MacBook open={focus === "work"} />
+      </group>
       <LampSpotKey />
       <MoonAmbient />
-      <LaptopGlow />
       {/* The visible moonlight shaft: streams in through the window opening and
           lands in a pool on the desk. Start sits just inside the glass so the
           bright head isn't stuck on the mullions. */}
       <MoonBeam
         start={[0.08, 1.12, -0.7]}
         end={[0.25, 0.02, 0.05]}
-        topRadius={0.22}
-        poolRadius={0.34}
+        topRadius={0.2}
+        poolRadius={0.3}
       />
       <group position={PLACEMENT.lamp.position} rotation-y={PLACEMENT.lamp.rotationY}>
         <LampBeam />
