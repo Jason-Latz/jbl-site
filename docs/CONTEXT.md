@@ -6,6 +6,81 @@
 
 ## Session log
 
+### 2026-06-14 — Baked homepage is LIVE (behind ?baked=1) + a feedback/polish round
+
+THE CURRENT STATE — read this first for a cold start:
+
+**The baked-GI scene is wired into the REAL homepage**, gated behind the URL
+param **`?baked=1`** (the default `/` is still the untouched live `DeskScene`,
+so nothing is at risk until sign-off). It looks lifelike in both themes and
+runs cheap. Branch `claude/goofy-jang-fa9bd0`, ~16 commits ahead of
+origin/the-desk, NOT pushed. Build green (17/17). Dev: `npm run dev` (port
+3120 via .claude/launch.json "desk-dev").
+
+**How the baked homepage works (the architecture):**
+- `components/desk/BakedDeskScene.tsx` — a drop-in for `DeskScene` (same
+  `DeskSceneProps`/HUD contract). `DeskHero.tsx` branches its `dynamic()` import
+  on `?baked=1`. It loads the world-space uv1 GLB with a bare `three-stdlib`
+  `GLTFLoader` (drei's useGLTF HANGS on the big GLB), keeps each material as
+  **MeshStandard** (so chrome/gloss reflect) + attaches the **baked lightmap**
+  on `uv1` for diffuse GI, + an **Environment** (Lightformers) for specular.
+  Two baked states (lamp ON / OFF) **crossfade** via an injected shader
+  (`onBeforeCompile`, `uMix` driven by the theme `mixRef`; `lightMapIntensity≈π`
+  cancels three's RECIPROCAL_PI; `uOffBoost` lifts the OFF map). Clicks dispatch
+  off each baked mesh's `object` tag → focus views / lamp toggle. Beauty kept:
+  `LampBeam`, `MoonBeam`, bloom/grain/vignette, emissives. Expensive GI dropped
+  (no shadow maps, N8AO, IBL warm-up). A resize-nudge on mount fixes a
+  cold-load race where the canvas latched R3F's default 300×150 → black.
+- **The bake pipeline (all headless, Node + Blender):**
+  `scripts/bake/build_uv1.mjs` (flatten+weld the exported GLB, watlas-unwrap a
+  uv1 per primitive, tag each unit with its `object`, emit
+  `bake/desk-window-uv1.glb` + `rig.json` + `bake_manifest.json`) →
+  `scripts/bake/bake_lightmaps.py` (Cycles diffuse-irradiance bake per unit,
+  per state, reusing render_ab's approved rig) → copy `bake/lightmaps_hq/*.png`
+  + the uv1 GLB into `public/_bake/` for the viewer.
+- **TO RE-BAKE after any geometry/light/lamp-position change:** (1) edit the
+  source component(s); (2) re-export the GLB — open `/bake?room=window&theme=light`
+  on the dev server, it auto-exports `bake/desk-window-light.glb` (its canvas
+  may need a window-resize nudge to mount); (3) `node scripts/bake/build_uv1.mjs`;
+  (4) `Blender -b --python scripts/bake/bake_lightmaps.py -- --glb
+  bake/desk-window-uv1.glb --rig bake/rig.json --manifest bake/bake_manifest.json
+  --state on --out bake/lightmaps_hq --res-cap 1024 --samples 256 --margin 16`
+  (then `--state off`), ~23 min each; (5) `cp bake/desk-window-uv1.glb
+  public/_bake/ && rm -f public/_bake/lightmaps/*.png && cp
+  bake/lightmaps_hq/*.png public/_bake/lightmaps/`. Texture-only edits (book
+  art, etc.) need NO re-bake (albedo is live); geometry/light-rig/lamp-position
+  changes DO. `/baked` is a standalone dev viewer for the same maps.
+
+**This round's fixes (Jason's feedback on the baked dark theme + look):**
+- **Window light patch + hard desk hotspot → removed.** Both were the runtime
+  moon DIRECTIONAL throwing sharp speculars; it was redundant (the baked OFF
+  lightmap already carries the moon's direction). Dropped it; cooled the dark
+  env/background → the warm window patch is gone too.
+- **MoonBeam** (`components/desk/objects/MoonBeam.tsx`, new, Opus sub-agent +
+  my tuning) — a cool edgeless volumetric shaft (moonlight analogue of
+  `LampBeam`, world-space `start`/`end` props, gated by `moonGlowRef` = inverse
+  mix). The "stream through the window and along the desk."
+- **Laptop screen glow** restored in dark (`LaptopGlow` in BakedDeskScene —
+  cool point light + emissive panel standing in for the baked-closed lid).
+- **Books reworked for realism** (`DeskBookRow.tsx`, Opus sub-agent): varied
+  sizes, fore-edge page blocks, two dust jackets, worn covers, debossed spines;
+  verified titles preserved.
+- **Lamp moved to the desk's far left corner** (`layout.ts` lamp x −0.6→−0.84).
+- Re-baked BOTH states (new books + moved lamp).
+
+**OPEN / next:**
+- Light theme: where the lamp pool lands on glossy vinyl/desk it reads a touch
+  blown (baked Cycles specular + the volumetric beam pool stacking) — soften via
+  a bake-rig tweak (lower lamp watts / raise vinyl roughness) + re-bake.
+- The baked scene is STATIC — chess pieces / tonearm / MacBook lid don't animate
+  (they bake in rest pose). Re-adding the dynamic objects LIVE on top (probe +
+  blob shadows, BAKING.md Stage E) is the next real chunk.
+- Clicks need hand-testing (R3F raycast can't be driven headlessly).
+- Decide when to flip `DeskHero` to default-baked (drop the `?baked` gate) and
+  push.
+- `docs/BAKE-NIGHT-1.md` has the full pipeline write-up; `racket-rework-wip`
+  branch holds the shelved racket (removed from the scene).
+
 ### 2026-06-13 — Bake Night 1: the freeze-dry pipeline WORKS
 
 Built and proved the baked-GI pipeline end-to-end. The full scene now
