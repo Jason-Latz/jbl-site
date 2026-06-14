@@ -6,6 +6,42 @@
 
 ## Session log
 
+### 2026-06-14 (later) — First live object on the baked scene: the MacBook opens
+
+THE CHANGE — the baked homepage gained its **first dynamic object**. Until now
+the baked scene was fully static (lid/chess/tonearm frozen into the GLB). Jason's
+feedback: the dark-theme moonlight was "too much," and the laptop's keys peeked on
+the "closed" lid + "the computer should open." Both laptop issues had one root
+cause — the laptop was baked shut — and one fix:
+
+- **Live MacBook overlay** (`BakedDeskScene.tsx`): hide the baked macbook meshes
+  (self-or-parent `userData.object === "macbook"`) and render the live, animated
+  `<MacBook open={focus==='work'}/>` on top at EXACTLY `PLACEMENT.macbook`,
+  mirroring `DeskScene`'s `<Placed name="macbook">`. So it opens on the work-focus
+  click and its baked contact shadow (still painted into the desk lightmap)
+  grounds it. **This is the template for re-adding the other dynamic objects**
+  (chess, tonearm) — BAKING.md Stage E. `macbook` dropped from `FOCUS_MAP` (the
+  live overlay owns the click); the `LaptopGlow` stand-in deleted (the live ajar
+  lid now supplies the night screen glow).
+- **Closed-lid fix** (`MacBook.tsx`): `lidPose.closed` zeroed `-π/2 + 0.008 →
+  -π/2`. The residual front-up tilt raised the lip so back key rows peeked; a flat
+  seat sits the underside uniformly over the deck. The 4 mm proud lift is kept; the
+  open-to-110° swing is untouched.
+- **Moonlight dialed back** (`MoonBeam.tsx` + `BakedDeskScene.tsx`): too much → a
+  contained stream. `MOON_INTENSITY 0.85→0.5`, mote `0.45→0.28`, `FALLOFF
+  1.35→1.55`; `MoonAmbient 1.05→0.6`, MoonBeam radii `0.22/0.34→0.2/0.3`,
+  `uOffBoost 2.0→1.8`. QA pixel readback: walls 9–27 (dark), beam 103, desk pool 158.
+
+Built by a 5-agent Opus team (Luna moon / Mac lid / Forge integrate / Vega QA /
+Cosmo review). Commits `9b69c63`, `7d2005f`, `a1f041a`. **NO re-bake needed** — no
+baked geometry/lights changed; the live MacBook replaces the baked one at runtime
+and the desk's baked macbook shadow is intentionally kept.
+
+CARRY-FORWARD: the open-on-click lid SWING can't be verified headlessly (R3F
+raycasts from `offsetX/offsetY` — synthetic events can't carry it); it needs a
+manual click to confirm live. The rest of the baked scene is still static (chess
+pieces, tonearm, lamp) — the same overlay technique applies when those go dynamic.
+
 ### 2026-06-14 — Baked homepage is LIVE (behind ?baked=1) + a feedback/polish round
 
 THE CURRENT STATE — read this first for a cold start:
