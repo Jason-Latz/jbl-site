@@ -31,6 +31,7 @@ import { useSiteTheme } from "./useSiteTheme";
 import { CAMERA, FOCUS_VIEWS, PLACEMENT, type FocusId } from "./layout";
 import LampBeam from "./objects/LampBeam";
 import { lampGlowRef } from "./objects/DeskLamp";
+import MoonBeam, { moonGlowRef } from "./objects/MoonBeam";
 import type { DeskSceneProps } from "./DeskScene";
 
 const GLB_URL = "/_bake/desk-window-uv1.glb";
@@ -183,6 +184,8 @@ function ThemeDrivers() {
     uMix.value = mix;
     // keep the volumetric beam + motes in sympathy with the lamp
     lampGlowRef.current = mix;
+    // the moon shaft is the inverse — full at night, gone in lamplight
+    moonGlowRef.current = 1 - mix;
   });
   return null;
 }
@@ -220,43 +223,57 @@ function LampSpotKey() {
   );
 }
 
-// Cool moonlight streaming IN from the window — the dark theme's key light.
-// The baked OFF lightmap holds the soft window-pattern; this adds the cool
-// directional fill + speculars so it reads as moonlight, not flat ambient.
-// On in dark, off in light. Shadowless. Matches the bake's Moon position.
-function Moonlight() {
-  const ref = useRef<THREE.DirectionalLight>(null);
-  const target = useMemo(() => {
-    const o = new THREE.Object3D();
-    o.position.set(0.1, 0, 0.2);
-    return o;
-  }, []);
-  useFrame(() => {
-    if (ref.current) ref.current.intensity = 2.4 * Math.max(0, 1 - uMix.value);
-  });
-  return (
-    <>
-      <primitive object={target} />
-      <directionalLight
-        ref={ref}
-        position={[-0.3, 1.9, -1.9]}
-        target={target}
-        color="#9db6ec"
-        intensity={0}
-      />
-    </>
-  );
-}
-
-// Cool omnidirectional fill for the dark theme — replaces the warm env's job
-// in dark so the moonlit room is visible AND cool (not the old warm wash).
-// The directional moon above is the key; this is the soft blue ambient.
+// Cool omnidirectional fill for the dark theme. The baked OFF lightmap already
+// carries the moon's DIRECTIONAL shading (baked from the kiln's Moon light), so
+// a runtime directional was a redundant second key — and its sharp specular on
+// the glossy desk was the hard white hotspot Jason flagged. We drop it: the
+// lightmap does direction, this soft blue hemisphere does fill, and MoonBeam
+// does the visible shaft.
 function MoonAmbient() {
   const ref = useRef<THREE.HemisphereLight>(null);
   useFrame(() => {
-    if (ref.current) ref.current.intensity = 0.85 * Math.max(0, 1 - uMix.value);
+    if (ref.current) ref.current.intensity = 1.05 * Math.max(0, 1 - uMix.value);
   });
   return <hemisphereLight ref={ref} args={["#8298cc", "#0a0b12", 0]} />;
+}
+
+// The MacBook screen glow in dark mode. The baked laptop is closed, so its
+// screen can't spill light — this stands in for it: a cool point glow + a small
+// emissive panel just in front of the lid, pooling cool light on the desk the
+// way the ajar screen did on the live scene. Dark-only.
+function LaptopGlow() {
+  const lightRef = useRef<THREE.PointLight>(null);
+  const matRef = useRef<THREE.MeshBasicMaterial>(null);
+  useFrame(() => {
+    const dark = Math.max(0, 1 - uMix.value);
+    if (lightRef.current) lightRef.current.intensity = 0.55 * dark;
+    if (matRef.current) matRef.current.opacity = 0.38 * dark;
+  });
+  // macbook sits at PLACEMENT.macbook ([0.02, 0, -0.08]); the spill is just in
+  // front of its lid, low over the desk.
+  return (
+    <group position={[0.02, 0, 0.04]}>
+      <pointLight
+        ref={lightRef}
+        position={[0, 0.045, 0.02]}
+        color="#bcd2ff"
+        intensity={0}
+        distance={0.55}
+        decay={2}
+      />
+      <mesh position={[0, 0.004, 0.0]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => null}>
+        <planeGeometry args={[0.16, 0.13]} />
+        <meshBasicMaterial
+          ref={matRef}
+          color="#bcd2ff"
+          transparent
+          opacity={0}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+        />
+      </mesh>
+    </group>
+  );
 }
 
 function SceneEnvironment() {
@@ -270,7 +287,7 @@ function SceneEnvironment() {
 
   useFrame(() => {
     const mix = mixRef.current;
-    scene.environmentIntensity = THREE.MathUtils.lerp(0.07, 0.45, mix);
+    scene.environmentIntensity = THREE.MathUtils.lerp(0.05, 0.45, mix);
     scene.background = background.copy(darkBg).lerp(lightBg, mix);
     gl.toneMappingExposure = THREE.MathUtils.lerp(1.08, 1.25, mix);
   });
@@ -388,8 +405,17 @@ function SceneContents({ focus, onFocus, onReady }: DeskSceneProps) {
       <CameraDirector controlsRef={controlsRef} rig={rig} focus={focus} />
       <BakedStatics onFocus={onFocus} onReady={onReady} />
       <LampSpotKey />
-      <Moonlight />
       <MoonAmbient />
+      <LaptopGlow />
+      {/* The visible moonlight shaft: streams in through the window opening and
+          lands in a pool on the desk. Start sits just inside the glass so the
+          bright head isn't stuck on the mullions. */}
+      <MoonBeam
+        start={[0.08, 1.12, -0.7]}
+        end={[0.25, 0.02, 0.05]}
+        topRadius={0.22}
+        poolRadius={0.34}
+      />
       <group position={PLACEMENT.lamp.position} rotation-y={PLACEMENT.lamp.rotationY}>
         <LampBeam />
       </group>
