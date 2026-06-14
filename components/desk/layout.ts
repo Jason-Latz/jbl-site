@@ -24,11 +24,11 @@ type Placement = {
 // speakers and floor bookcase retired (clutter).
 export const PLACEMENT: Record<string, Placement> = {
   turntable: { position: [-0.58, 0, 0.06], rotationY: 0.14 },
-  // Lamp STAYS in the back-left corner (behind the turntable). Only its aim
-  // changes: rotationY -0.56 swings the beam off the platter and across the
-  // desk toward the MIDDLE — the gap between the record player and the
-  // computer (Jason's composition v4). Was -1.28 (straight onto the platter).
-  lamp: { position: [-0.6, 0, -0.34], rotationY: -0.56 },
+  // Moved to the desk's far back-LEFT corner (Jason: "move the lamp to the
+  // absolute corner of the desk"). Base radius ~0.072; the desk top spans
+  // x∈[-0.95,0.95], so x=-0.84 seats the base just inside the corner. The aim
+  // (rotationY -0.56) still swings the pool toward the middle / turntable.
+  lamp: { position: [-0.84, 0, -0.34], rotationY: -0.56 },
   macbook: { position: [0.02, 0, -0.08], rotationY: Math.PI },
   // Rotated ~80° clockwise (viewed from above) from the v3 pose per Jason:
   // 0.45 - 1.40 ≈ -0.95.
