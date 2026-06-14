@@ -1366,10 +1366,11 @@ export default function MacBook({ open }: MacBookProps) {
     const rng = mulberry32(0x5eed_11d);
     return {
       open: THREE.MathUtils.degToRad(110 + (rng() - 0.5) * 3) - Math.PI / 2,
-      // Near-flat (was +0.035): the old front tilt opened a ~1 cm gap that let
-      // the keyboard peek out from the hero angle when "closed". The 4 mm lid
-      // lift below still clears the key caps.
-      closed: -Math.PI / 2 + 0.008,
+      // Dead flat (was +0.008): any residual front-up tilt raises the lid's
+      // front lip so the back key rows peek out past it from the hero/rest
+      // angle. A flat seat sits the whole underside uniformly over the deck;
+      // the small lift below keeps it a hair proud of the key caps.
+      closed: -Math.PI / 2,
       // Wedge widened + leak brightened when the lacquer reflector landed:
       // the mirror film darkens the base wood, so the night blade needs
       // more energy to pool AND reflect (the dark-mode money shot).
