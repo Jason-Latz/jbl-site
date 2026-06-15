@@ -59,6 +59,33 @@ real lifecycle. Also: this worktree's `.claude/launch.json` shares port 3120
 with other active worktrees' `desk-dev` — bump the port locally to preview, but
 that change is incidental (left reverted, out of the feature commits).
 
+HARDENING (adversarial review fan-out over the diff → 3 confirmed low-sev fixes):
+- Fallback dissolve: detection resolves in an effect after first paint, so the
+  curtain (emitted while "pending") was hard-cut when a no-WebGL/reduced-motion
+  visitor's early return swapped in the static fallback. Now the fallback branch
+  also renders `<Preloader ready>`, so the curtain dissolves over the fallback.
+  Kept the SSR-safe "pending" first render (the reviewer's lazy-useState idea
+  would have hydration-mismatched the common scene path too — rejected).
+- Focus trap: the opaque z-2000 curtain covers the header nav + theme toggle,
+  which stayed tabbable (WCAG 2.4.7). Focus the curtain on mount + swallow Tab
+  while up, restore prior focus on lift. (focusin-refocus was tried first and is
+  unreliable — calling focus() mid-focus-event is a browser quirk; Tab-keydown
+  preventDefault is the robust path.)
+- Announced status: a role="status" region speaks its CONTENT, not its name, so
+  the aria-label was silent — replaced with sr-only text via the existing
+  `.desk-hud-sr` util.
+The same review REFUTED two non-issues (a leftRef/StrictMode double-fire and the
+uncaptured EXIT_MS timeout — harmless, React 18 no-ops setState after unmount).
+Re-verified: tsc clean, build green, curtain focus-trap + sr-only confirmed live,
+no console errors.
+
+GOTCHA (verification, take 2): on a COLD dev server the scene's frame-driven
+ReadySignal may not fire while the preview page is backgrounded (rAF is
+throttled — the documented preview gotcha), so `sceneReady` stays false and the
+9s safety timer lifts the curtain over an opacity-0 scene (just the warm
+shimmer). It is NOT a regression — the scene path is untouched; a foreground/prod
+browser bakes in ~1-2s and the curtain lifts on sceneReady. Don't "fix" the 9s.
+
 NEXT (if Jason likes it): merge to main once the other worktrees settle;
 optionally pull `ClaudeMark` into the `Made with Claude` sticker chip too, and
 consider a tasteful min-display time so very fast loads still register the verb.
