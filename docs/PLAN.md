@@ -161,6 +161,10 @@ up to the level of the record player."
 ## Stage 4 — polish and beyond
 
 - [ ] Spotify Web Playback SDK: full tracks when Jason is signed in (Premium)
+- [x] Branded entrance preloader: the Claude burst mark turning over a randomly
+      cycling Claude Code spinner verb ("Reticulating…"), a warm full-viewport
+      curtain that continues the desk's own loading shimmer and lifts on the
+      scene-ready signal (SHIPPED on worktree branch 2026-06-15, not merged)
 - [x] Postprocessing pass (landed early in Stage 1.5: Bloom + Vignette + SMAA)
 - [ ] Static poster render of the scene for the fallback hero + social OG image
 - [ ] Mobile tuning pass (touch orbit, portrait framing, perf tiers)

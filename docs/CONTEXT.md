@@ -6,6 +6,63 @@
 
 ## Session log
 
+### 2026-06-15 — Branded entrance preloader (worktree `objective-curie-e74b62`, NOT merged)
+
+Jason wanted the homepage to "look super bougie right out of the box" — no
+one-or-two-second window of raw buffering. The fix: a brief, designed loading
+curtain that holds over whatever is buffering and lifts when the scene is
+actually ready. The curtain is the Claude burst mark turning slowly over a
+randomly cycling **Claude Code spinner verb** ("Reticulating…", "Schlepping…").
+Built on a worktree per his instruction — other worktrees are active, so this
+is NOT merged.
+
+What landed (5 granular commits + docs):
+- `lib/spinnerVerbs.ts` — the ~195 leaked Claude Code spinner gerunds (sourced
+  online, not from disk, per Jason; cross-checked across public reproductions of
+  the extracted array) + `randomSpinnerVerb(exclude)` that never repeats the
+  current word.
+- `components/desk/ClaudeMark.tsx` — the Claude sunburst as an inline
+  currentColor SVG (canonical Simple Icons geometry, verbatim).
+- `components/desk/Preloader.tsx` + the `.site-preloader` block in `globals.css`
+  — the curtain. Fixed full-viewport at z-index 2000 (above the header and the
+  1100 photo modal), warm radial vignette that **continues the desk's own
+  `.desk-hero-loading` gradient** (light `#f8f1e3→#e4d3b6`, dark embers
+  `#241a11→#0c0805`) so the lift has no colour seam. Mark = coral `#d97757`,
+  slow 19s rotation + 3.4s breathe inside a pulsing aura; verb in Newsreader
+  serif with an animated ellipsis, crossfading every 1.9s. Exit = fade + slight
+  scale + 6px blur "lift away" over 0.76s, layered under the existing 1.15s
+  canvas fade-in.
+- `components/desk/DeskHero.tsx` — `<Preloader ready={sceneReady}>` at the top of
+  the scene path; rides the existing `ReadySignal` (compileAsync + 3 frames).
+
+Design choices worth keeping:
+- It lives ONLY in the `capability === "scene"` path, so the no-WebGL /
+  reduced-motion fallback (which early-returns with no heavy scene) never shows
+  a curtain. CSS also zeroes all animation under `prefers-reduced-motion`.
+- Hydration-safe: the random verb is client-only, so SSR/first paint renders a
+  reserved empty slot (matches), then the first verb fades in.
+- Two escape hatches so a visitor is never trapped behind it: a `<noscript>`
+  rule hides the curtain when JS is off (nothing could dismiss it otherwise),
+  and a 9s safety timeout dismisses it if `sceneReady` never fires.
+
+Verified: tsc clean; clean production build (homepage first-load 126 kB, up
+~3 kB from 123 — the verb list + curtain); both themes and mobile (375px,
+longest verb "Whatchamacalliting" fits, no overflow) screenshot-QA'd via the
+real global CSS; zero console errors; natural flow confirmed (curtain present on
+load → scene ready → curtain gone).
+
+GOTCHA (verification): once the dev server is warm the heavy route is cached, so
+the scene reports ready in <1s and the curtain lifts before a screenshot can
+land. To inspect the curtain deterministically, inject a static clone of its
+markup (it's all global CSS classes) and screenshot that, rather than racing the
+real lifecycle. Also: this worktree's `.claude/launch.json` shares port 3120
+with other active worktrees' `desk-dev` — bump the port locally to preview, but
+that change is incidental (left reverted, out of the feature commits).
+
+NEXT (if Jason likes it): merge to main once the other worktrees settle;
+optionally pull `ClaudeMark` into the `Made with Claude` sticker chip too, and
+consider a tasteful min-display time so very fast loads still register the verb.
+
 ### 2026-06-13 — Spotify pipeline redesign: stop the rate-limit "maxing out"
 
 Jason: the widget kept freezing ("only two plays ever," "maxes out, only
