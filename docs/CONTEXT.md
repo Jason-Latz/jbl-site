@@ -6,6 +6,72 @@
 
 ## Session log
 
+### 2026-06-15 — Overnight autonomous build: live chess + live turntable + designed fallback + mobile framing
+
+Ran `docs/OVERNIGHT-PLAN.md` to completion. Four goals, in priority order; all
+on `origin/the-desk` (now at `88dc5db`), homepage still gated behind `?baked=1`.
+Every object below is overlaid on the baked scene with the proven MacBook
+pattern (hide the baked meshes via the `HIDDEN` set; overlay the live component
+at `PLACEMENT[name]` so the baked contact shadow still grounds it).
+
+**① Live chessboard** (`c12425f`). The baked board was frozen at bake time and
+never showed the real world-vs-Jason game. Now `<Chessboard fen lastMove>` reads
+from props, mirroring DeskScene. `HIDDEN` += `chessboard`; dropped from
+`FOCUS_MAP` (the overlay owns the `chess` click). Verified: single clean board
+(no z-fight) in light + dark. (`e523815` also re-added the `?v=2` lightmap
+cache-bust I'd briefly reverted while splitting commits — redundant with the
+side-task's `a381db6`, harmless.)
+
+**② Live record player** (`e3a9bc9`). Live `<Turntable>` overlays the frozen
+baked one so the platter spins on play + the tonearm drops on the needle click.
+`HIDDEN` += `turntable`; **removed** `turntable:"records"` from `FOCUS_MAP` to
+match DeskScene exactly — the wrapping group has NO body-click focus; the needle
+is the only interaction (`onNeedleClick` → records view). Verified visually in
+both themes (platter/vinyl/tonearm present, grounded). Spin + needle-drop +
+audio are code-parity with DeskScene — can't be JS-dispatched (R3F raycasts from
+offsetX/Y), so **flagged for Jason's manual play**.
+
+**③ Fallback + mobile** (`cb416c1` poster, `88dc5db` portrait):
+- *No-WebGL / reduced-motion fallback* is now a **designed poster** of the
+  actual Cycles render (theme-aware: `public/desk-poster-{light,dark}.jpg`,
+  ~120-160 KB, optimized from `bake/renders/window-{light,dark}.png`) behind a
+  bottom scrim + text-shadow, with reworded copy that owns the still instead of
+  apologizing. It's shared by the live and baked heroes (DeskHero gates
+  capability before choosing the scene). Verified by temporarily forcing
+  `detectCapability()→"fallback"`: both themes load the right poster, text
+  legible, mobile crop clean.
+- *Mobile portrait* now makes the **turntable the hero** instead of clipping it
+  at the left edge of the narrow phone frustum. New `PORTRAIT_REST/TARGET`
+  derived from the `records` FOCUS_VIEW pulled back ~1.5×, with "Drop the needle"
+  sitting right under it. Verified at 375px. (DeskScene's own portrait constants
+  were left untouched — same treatment is available there if wanted.)
+
+**④ Bake/lighting polish — verification, no change needed.** Premise was "this
+worktree's gitignored lightmaps may predate the lamp→10 W hotspot fix." Tested
+it: re-baked the **ON** state with the committed 10 W scripts (OFF is unaffected
+by the lamp), then compared unit-by-unit — **old == new across every unit**
+(±1 px denoise). So the public maps were **already the 10 W fix** (the side-task
+had landed it here). Confirmed visually at `/?baked=1` light mode: the desk in
+front of the laptop is clean walnut, the warm pool reads warm — no white
+blowout. (My first scan's "3240 clipped px on `bakeunit_012`" was a
+max-of-channels metric catching the warm pool's **red** channel clipping —
+expected for wood directly under a warm lamp — not white; consistent with the
+side-task's "0 pure-white px" canvas probe.) No lightmap swap, no speculative
+lighting changes (everything was already tuned; the residual is what Jason
+deferred). Re-bake artifacts removed.
+
+**Aesthetic / taste calls made (please sanity-check):**
+- Mobile = turntable-as-hero (could instead frame more of the desk top-down).
+- Fallback poster crop/scrim + the reworded copy ("You're seeing a still of my
+  desk…").
+
+**Needs Jason's eyes (couldn't verify headlessly):**
+- In-canvas interactions: chess click → focus panel, turntable needle-drop +
+  audio, MacBook sticker hover popup. Click them.
+- The MacBook polished-front-edge specular glint (runtime specular, not the
+  bake — see the entry below) is still your call.
+- Flipping `/` to default-baked + any real merge of `the-desk` — left for you.
+
 ### 2026-06-15 — Light-mode desk hotspot FIXED (it was direct lamp light, not a caustic)
 
 The deferred light-mode "white hotspot on the desk in front of the laptop" is
