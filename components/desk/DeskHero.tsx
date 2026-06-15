@@ -59,8 +59,8 @@ function detectCapability(): Capability {
   }
 }
 
-// Designed fallback for no-WebGL / reduced-motion: same voice, no apology.
-// Stage 4 swaps the background for a rendered still of the actual scene.
+// Designed fallback for no-WebGL / reduced-motion: a rendered still of the
+// actual desk (the Cycles bake) as the backdrop, same voice, no apology.
 function DeskHeroFallback() {
   return (
     <section className="desk-hero-fallback" aria-label="Introduction">
@@ -69,9 +69,10 @@ function DeskHeroFallback() {
           Out and about, occasionally building things.
         </h1>
         <p className="desk-hero-fallback-copy">
-          This page is normally a 3D desk — turntable spinning whatever I'm
-          listening to, books I'm reading, an open chess game. Everything on it
-          lives in the pages below too.
+          You&rsquo;re seeing a still of my desk. Live, it&rsquo;s a 3D scene —
+          the turntable spins whatever I&rsquo;m listening to, the books are what
+          I&rsquo;m reading, the chess game is real and ongoing. Everything on it
+          lives in the pages below, too.
         </p>
       </div>
     </section>
