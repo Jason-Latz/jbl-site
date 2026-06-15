@@ -12,7 +12,7 @@
 // Dynamic objects layer back on top later. The live DeskScene remains the
 // fallback until this is signed off.
 
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, memo, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Environment, Lightformer, OrbitControls } from "@react-three/drei";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
@@ -31,18 +31,27 @@ import { useSiteTheme } from "./useSiteTheme";
 import { CAMERA, FOCUS_VIEWS, PLACEMENT, type FocusId } from "./layout";
 import LampBeam from "./objects/LampBeam";
 import MacBook from "./objects/MacBook";
+import ChessboardBase from "./objects/Chessboard";
 import { lampGlowRef } from "./objects/DeskLamp";
 import MoonBeam, { moonGlowRef } from "./objects/MoonBeam";
 import type { DeskSceneProps } from "./DeskScene";
 
+// Memoized like DeskScene's: a theme/poll re-render must not re-reconcile the
+// board's hundreds of R3F elements unless its fen/lastMove actually changed.
+const Chessboard = memo(ChessboardBase);
+
 const GLB_URL = "/_bake/desk-window-uv1.glb";
 
+// Baked meshes hidden because a LIVE component overlays them (their baked
+// contact shadow stays painted on the desk lightmap to ground the overlay).
+const HIDDEN = new Set(["macbook", "chessboard"]);
+
 // Which baked object maps to which focus view. Lamp is special (theme toggle);
-// macbook is owned by the live overlay below, not routed off the baked tag.
+// macbook and chessboard are owned by their live overlays below, not routed off
+// the baked tag.
 const FOCUS_MAP: Record<string, FocusId> = {
   turntable: "records",
   bookRow: "reading",
-  chessboard: "chess",
   notepad: "notes"
 };
 
@@ -118,15 +127,14 @@ function BakedStatics({
       (gltf) => {
         if (cancelled) return;
         gltf.scene.traverse((o) => {
-          // The live MacBook overlays the baked one (which is frozen shut), so
-          // hide every baked macbook mesh — mirror objectOf()'s self-or-parent
-          // resolution.
-          if (
-            o.userData?.object === "macbook" ||
-            o.parent?.userData?.object === "macbook"
-          ) {
-            o.visible = false;
-          }
+          // Hide every baked mesh whose object has a live overlay (frozen shut
+          // macbook, frozen-position chessboard) — mirror objectOf()'s
+          // self-or-parent tag resolution.
+          const tag =
+            (o.userData?.object as string) ||
+            (o.parent?.userData?.object as string) ||
+            "";
+          if (HIDDEN.has(tag)) o.visible = false;
           const mesh = o as THREE.Mesh;
           if (!mesh.isMesh) return;
           const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
@@ -218,7 +226,7 @@ function LampSpotKey() {
     // Just a specular glint on the glossy vinyl/desk — the diffuse lamp POOL is
     // already in the baked lightmap, so a strong spot double-lit it into blown
     // white hotspots. Low intensity (was 3.6) keeps the shine, not the blowout.
-    if (ref.current) ref.current.intensity = 0.9 * Math.max(0, lampGlowRef.current);
+    if (ref.current) ref.current.intensity = 0.0 * Math.max(0, lampGlowRef.current);
   });
   return (
     <group position={PLACEMENT.lamp.position} rotation-y={PLACEMENT.lamp.rotationY}>
@@ -373,7 +381,13 @@ function BakedPost() {
   );
 }
 
-function SceneContents({ focus, onFocus, onReady }: DeskSceneProps) {
+function SceneContents({
+  focus,
+  onFocus,
+  chessFen,
+  chessLastMove,
+  onReady
+}: DeskSceneProps) {
   const controlsRef = useRef<OrbitControlsImpl>(null!);
   const rig = useCameraRig();
   return (
@@ -401,6 +415,27 @@ function SceneContents({ focus, onFocus, onReady }: DeskSceneProps) {
         }}
       >
         <MacBook open={focus === "work"} />
+      </group>
+      {/* The live chessboard overlays the (hidden) baked one and shows the real
+          world-vs-Jason game from props — the baked board was frozen at the
+          bake's rest position. Same transform as the bake so its painted
+          contact shadow still grounds it. */}
+      <group
+        position={PLACEMENT.chessboard.position}
+        rotation-y={PLACEMENT.chessboard.rotationY}
+        onClick={(e: ThreeEvent<MouseEvent>) => {
+          e.stopPropagation();
+          onFocus("chess");
+        }}
+        onPointerOver={(e: ThreeEvent<PointerEvent>) => {
+          e.stopPropagation();
+          document.body.style.cursor = "pointer";
+        }}
+        onPointerOut={() => {
+          document.body.style.cursor = "auto";
+        }}
+      >
+        <Chessboard fen={chessFen} lastMove={chessLastMove} />
       </group>
       <LampSpotKey />
       <MoonAmbient />
