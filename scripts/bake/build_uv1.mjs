@@ -187,9 +187,29 @@ for (const mesh of meshes) {
     // rename-in-place would make several primitives target one image with
     // overlapping uv1. A clone gives each unit its own bake image (textures
     // stay shared by reference, so this is cheap).
+    const object = (mesh.getExtras() && mesh.getExtras().object) || "";
     const mat = prim.getMaterial();
     if (mat) {
       const cloned = mat.clone().setName(`${unit}_mat`);
+      if (object === "macbook") {
+        // The baked laptop is HIDDEN at runtime (the live MacBook overlays it) —
+        // it exists in the bake ONLY to cast a contact shadow. With its real
+        // materials it deposits a bright spot on the desk in front of it (Jason's
+        // "light from the computer" in light mode) two ways: the closed-lid
+        // screen emissive (strength 1.5) + legend (0.5), AND the lamp mirroring
+        // off its glossy metal lid. Reduce it to a matte near-black occluder so
+        // it emits nothing, reflects nothing, and bounces almost no light onto
+        // the desk — leaving only the shadow we actually want.
+        cloned.setEmissiveFactor([0, 0, 0]);
+        cloned.setEmissiveTexture(null);
+        const es = cloned.getExtension("KHR_materials_emissive_strength");
+        if (es) es.setEmissiveStrength(1);
+        cloned.setBaseColorFactor([0.04, 0.04, 0.04, 1]);
+        cloned.setBaseColorTexture(null);
+        cloned.setMetallicFactor(0);
+        cloned.setRoughnessFactor(1);
+        cloned.setMetallicRoughnessTexture(null);
+      }
       prim.setMaterial(cloned);
     }
 
