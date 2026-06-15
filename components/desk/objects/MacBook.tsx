@@ -1407,8 +1407,11 @@ export default function MacBook({ open }: MacBookProps) {
         1
       );
     }
+    // Dark end pulled 2.0 -> 0.8 (Jason: the open-screen glow was far too
+    // bright and bloomed hard past the 1.0 threshold at night). Still clearly
+    // lit at the work focus, just no longer a blinding white slab.
     screenMaterial.emissiveIntensity =
-      THREE.MathUtils.lerp(2.0, 0.35, mix) * openFraction;
+      THREE.MathUtils.lerp(0.8, 0.28, mix) * openFraction;
     legendMaterial.emissiveIntensity =
       THREE.MathUtils.lerp(0.5, 0.04, mix) * openFraction;
     if (glowRef.current && lidRef.current) {
@@ -1419,11 +1422,12 @@ export default function MacBook({ open }: MacBookProps) {
         0,
         1
       );
-      // 1.25 cd at the wedge mouth: spills a cool pool onto the lacquer in
-      // FRONT of the machine (the reflector doubles it as a streak toward
-      // the viewer) without breaking the embers mood. (0.18 predates
-      // physical-light scaling + the reflector and reads as pitch black.)
-      glowRef.current.intensity = THREE.MathUtils.lerp(1.25, 0, mix) * leak;
+      // 0.4 cd at the wedge mouth (was 1.25): the cool pool this casts onto the
+      // lacquer in FRONT of the machine is what reads as "screen glow on the
+      // desk." Jason flagged it as far too bright, so it's pulled down hard
+      // while still reading as a soft spill (the screen's own emissive above is
+      // a separate knob and doesn't light the desk).
+      glowRef.current.intensity = THREE.MathUtils.lerp(0.4, 0, mix) * leak;
     }
   });
 
@@ -1652,7 +1656,7 @@ export default function MacBook({ open }: MacBookProps) {
               LID_T / 2 + 0.02
             ]}
             center
-            distanceFactor={0.5}
+            distanceFactor={1.6}
             zIndexRange={[6, 1]}
           >
             <a
