@@ -6,6 +6,46 @@
 
 ## Session log
 
+### 2026-06-14 (later still) — Lighting tuning round + the "laptop glow" deep dive
+
+Jason feedback on the baked homepage, in order:
+- **Moonlight still too much** → dropped further for a clear day/night gap:
+  `MOON_INTENSITY 0.5→0.38`, `MoonAmbient 0.6→0.26`, `uOffBoost 1.8→1.45`. Motes
+  held at 0.28 (he wanted them kept up). (commit c8ed9e1)
+- **Open-screen glow too bright** + **sticker hover popup too small** → MacBook
+  screen emissive `2.0→0.8` (dark end), the cool desk-spill point light
+  `glowRef 1.25→0.4` (this is the knob that lights the *wood*, NOT the screen's
+  own emissive — they're separate), credit popup `distanceFactor 0.5→1.6`.
+  (commit 3d8b9b7)
+- **"Light coming from the computer" on the desk in light mode** → a long hunt.
+  Findings, in case it resurfaces:
+  - The baked laptop's **screen material emits at strength 1.5** in the bake
+    source (the GLTF export captured the authored emissive, not the runtime
+    closed-state 0). It baked a real glow onto the desk. Fixed in `build_uv1.mjs`:
+    every `macbook`-tagged unit is reduced to a **matte near-black occluder**
+    (emissive stripped, metal 0 / rough 1 / albedo ~0) — the live overlay
+    supplies all screen glow at runtime, so the baked one should only cast a
+    shadow. (commit 30efed5)
+  - A **separate, stubborn bright speck** in front of the laptop survived: env=0
+    (live + baked), lamp-spotlight off, the matte laptop, AND an indirect-firefly
+    clamp. It does NOT appear in a Cycles camera render of the same scene → it's
+    a **bake-process hotspot**, the documented "light-theme lamp blows out glossy
+    surfaces" issue. Confirmed in the lightmap data: the **rangefinder camera
+    (`filmCamera`) bakes to clipped white (65535)** and desk plank `bakeunit_012`
+    has saturated regions. Added an indirect clamp (`sample_clamp_indirect=3.0`,
+    commit bb49c88) as a firefly guard, but it didn't kill this one (the hotspot
+    sits under 3.0 yet still blooms at runtime). **Jason chose to defer it** —
+    see the spawned follow-up task. The real fix is a bake-rig tweak: lower
+    `--lamp-watts` and/or raise glossy-prop roughness for the bake, then re-bake.
+
+**Bake state note:** lightmaps are **gitignored** (local-only; the baked
+homepage is still behind `?baked=1` and unpushed). The current local
+`public/_bake` has the matte-laptop + clamp **ON** lightmaps and the
+screen-stripped **OFF** lightmaps (dark mode is unaffected by the lamp blowout
+since the lamp is off). A clean both-state re-bake should happen when the
+glossy-blowout task is tackled. The `build_uv1.mjs` + `bake_lightmaps.py`
+changes ARE committed, so a re-bake reproduces the fixes.
+
 ### 2026-06-14 (later) — First live object on the baked scene: the MacBook opens
 
 THE CHANGE — the baked homepage gained its **first dynamic object**. Until now
