@@ -6,6 +6,46 @@
 
 ## Session log
 
+### 2026-06-15 — Light-mode desk hotspot FIXED (it was direct lamp light, not a caustic)
+
+The deferred light-mode "white hotspot on the desk in front of the laptop" is
+**removed**. The earlier hypothesis (a glossy CAUSTIC — the camera/vinyl
+focusing the lamp — fixable by roughening props) was **disproven**.
+
+DIAGNOSIS (cheap ablation — bake only the desk unit `bakeunit_012` under the ON
+rig with passes split, `scripts/bake/_diag_desk.py` style):
+- baseline → blown white core (≈6.5k clipped px). direct-only → **core present**.
+  indirect-only → **core gone** (max 0.44). roughen camera+turntable → **no change**.
+- So it is **direct lamp light** clipping the desk-top irradiance past the
+  lightmap's 1.0 ceiling (then runtime ×π blooms it). It doesn't show in
+  `render_ab.py`'s camera render because ACES tonemaps the peak; the raw-linear
+  bake can't.
+
+FIX (`scripts/bake/bake_lightmaps.py`): bake lamp **spot 18 W → 10 W** (new
+`--lamp-watts` default). A watts sweep showed the desk POOL is carried by
+RoomKey/RoomFill (40/16 W area lights) while the spot only makes the hot spike —
+so 10 W erases the white core (`bakeunit_012-on` white px **2245 → 0**, blue-chan
+max 1.000 → 0.769; the hottest texel is now warm wood, not white) while the pool
+brightness barely moves. `render_ab.py` stays at 18 W on purpose (it tonemaps);
+divergence documented in BAKING.md §4.
+
+RE-BAKE: only the **ON** state (the spot lights only the ON rig; OFF untouched).
+Did NOT re-run `build_uv1.mjs`, so UVs/manifest/OFF maps stay valid. Re-baked ON
+at 1024/256 → `bake/lightmaps_hq`, copied `*-on.png` → `public/_bake/lightmaps`.
+To reproduce: just the ON bake command from the recipe below (default watts now 10).
+
+VERIFIED: data (white px 2245→0) + runtime at `/?baked=1` light mode — the desk
+front reads warm, no white blowout (canvas pixel probe: 0 pure-white px in the
+rested view). NOTE: a faint **view-dependent** white speck can still catch the
+**live MacBook's polished front edge** (an env/specular glint on the aluminum) —
+it survives fresh maps AND LampSpotKey-off, so it is a RUNTIME specular, not the
+bake. Left for Jason to judge (retuning it touches the intended chrome glints,
+and `BakedDeskScene.tsx` was being edited in parallel — see below).
+
+PARALLEL WORK SEEN: `BakedDeskScene.tsx` gained a **live Chessboard overlay**
+(memoized, `HIDDEN` now = {macbook, chessboard}) during this session — not mine;
+left intact.
+
 ### 2026-06-14 (later still) — Lighting tuning round + the "laptop glow" deep dive
 
 Jason feedback on the baked homepage, in order:
