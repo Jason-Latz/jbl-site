@@ -60,9 +60,15 @@ const FOCUS_MAP: Record<string, FocusId> = {
 const CAMERA_START = new THREE.Vector3(...CAMERA.start);
 const CAMERA_REST = new THREE.Vector3(...CAMERA.rest);
 const CAMERA_TARGET = new THREE.Vector3(...CAMERA.target);
+// Portrait (phone) framing: the narrow frustum (~0.45 m wide at the desk) can't
+// hold the whole desk, so it makes the turntable the hero — the "now playing"
+// centerpiece the HUD invites you to play, with "Drop the needle" sitting right
+// under it. Derived from the records FOCUS_VIEW (a hand-framed turntable shot)
+// pulled back ~1.5x so the record player reads with margin instead of clipping;
+// visitors orbit to the rest.
 const PORTRAIT_START = new THREE.Vector3(0.3, 1.8, 2.4);
-const PORTRAIT_REST = new THREE.Vector3(-0.1, 1.15, 1.0);
-const PORTRAIT_TARGET = new THREE.Vector3(-0.14, 0.02, -0.02);
+const PORTRAIT_REST = new THREE.Vector3(-0.55, 0.9, 1.1);
+const PORTRAIT_TARGET = new THREE.Vector3(-0.58, 0.05, 0.05);
 
 // ——— two-state lightmap blend, driven by the real theme mix ———
 const uMix = { value: 1 };
