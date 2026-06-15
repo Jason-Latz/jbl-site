@@ -40,7 +40,17 @@ def parse_args():
     p.add_argument("--res-min", type=int, default=64)
     p.add_argument("--samples", type=int, default=64)
     p.add_argument("--margin", type=int, default=8)
-    p.add_argument("--lamp-watts", type=float, default=18.0)
+    # 10.0 (was 18.0): at 18 W the lamp SPOT clipped a hard white core into the
+    # desk-top irradiance in front of the laptop — Jason's light-mode "hotspot."
+    # Diagnosed by baking just the desk unit under the ON rig split into passes:
+    # the blown core lives ENTIRELY in the DIRECT pass (gone in indirect-only,
+    # unchanged by roughening the glossy camera/turntable), so it is direct lamp
+    # light blowing past the lightmap's 1.0 ceiling, NOT a glossy caustic. The
+    # warm desk *pool* is carried by RoomKey/RoomFill (40/16 W area lights), not
+    # the spot, so dropping the spot to 10 W erases the white core while the pool
+    # barely dims (white-luminance clip on bakeunit_012: 5974 px at 18 W -> 0 px
+    # at <=11 W). Only the ON rig uses this; the OFF (moonlit) bake is unaffected.
+    p.add_argument("--lamp-watts", type=float, default=10.0)
     p.add_argument("--limit", type=int, default=0, help="bake only first N units (debug)")
     p.add_argument("--save-blend", action="store_true")
     return p.parse_args(argv)

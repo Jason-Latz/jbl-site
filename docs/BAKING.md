@@ -220,6 +220,19 @@ Current rig values to start from (in `render_ab.py`, window room):
 - **dark/off:** Moon AREA ~18W (cool) + night backdrop emission ~11 + ember
   fill ~0.9W; lamp off.
 
+> **Bake vs. render lamp watts diverge on purpose.** `render_ab.py`'s ACES
+> tonemap rolls off the bright lamp-pool center, so its spot can sit at 18W and
+> still look right. The lightmap bake (`bake_lightmaps.py`) stores **raw linear
+> irradiance** that hard-clips at 1.0, so an 18W spot baked a blown WHITE core
+> into the desk top in front of the laptop (Jason's light-mode hotspot). It is
+> direct lamp light, not a glossy caustic — proven by baking the desk unit with
+> the direct/indirect passes split (the core is 100% in the DIRECT pass) and by
+> roughening the camera/turntable to no effect. Fix: the bake spot defaults to
+> **10W** (`--lamp-watts`), which erases the white core while the desk pool —
+> carried by the 40/16W RoomKey/RoomFill, not the spot — barely dims. If you
+> re-approve the look at a different spot energy, keep the bake spot a few watts
+> under render_ab's so the desk irradiance stays below the 1.0 clip.
+
 ---
 
 ## 5. Toolchain quick-reference (verified, with gotchas)
