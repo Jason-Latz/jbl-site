@@ -253,7 +253,16 @@ export default function DeskHero() {
   }, [phase, liftNeedle, dropNeedle]);
 
   if (capability === "fallback") {
-    return <DeskHeroFallback />;
+    // Detection resolves after first paint, so the curtain may already be up
+    // (capability was "pending"). Keep it mounted and let it dissolve over the
+    // fallback rather than hard-cutting — graceful even for the reduced-motion
+    // cohort that lands here.
+    return (
+      <>
+        <Preloader ready />
+        <DeskHeroFallback />
+      </>
+    );
   }
 
   const armDown = phase === "dropping" || phase === "playing";
