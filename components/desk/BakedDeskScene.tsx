@@ -57,8 +57,9 @@ const PORTRAIT_TARGET = new THREE.Vector3(-0.14, 0.02, -0.02);
 const uMix = { value: 1 };
 // Lifts the baked OFF (moonlit) lightmap so the night room reads without
 // washing flat; the baked lightmap holds the moon's direction, MoonAmbient adds
-// cool fill, MoonBeam draws the shaft. 1.8 keeps the room dark (was 2.0).
-const uOffBoost = { value: 1.8 };
+// cool fill, MoonBeam draws the shaft. 1.45 (was 2.0, then 1.8): the night
+// base was still too lit — this widens the gap between light and dark mode.
+const uOffBoost = { value: 1.45 };
 
 // Lamp local axis (matches BakeScene's LAMP_HEAD/TARGET_LOCAL).
 const LAMP_HEAD_LOCAL: [number, number, number] = [0.3446, 0.4195, 0.0088];
@@ -246,7 +247,9 @@ function LampSpotKey() {
 function MoonAmbient() {
   const ref = useRef<THREE.HemisphereLight>(null);
   useFrame(() => {
-    if (ref.current) ref.current.intensity = 0.6 * Math.max(0, 1 - uMix.value);
+    // 0.26 (was 1.05 -> 0.6 -> 0.42): less cool flood so dark mode reads as
+    // night, not a lit room. Jason wanted the moon fill down again (motes stay).
+    if (ref.current) ref.current.intensity = 0.26 * Math.max(0, 1 - uMix.value);
   });
   return <hemisphereLight ref={ref} args={["#8298cc", "#0a0b12", 0]} />;
 }

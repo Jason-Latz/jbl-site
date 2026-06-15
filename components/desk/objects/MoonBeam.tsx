@@ -36,8 +36,9 @@ import * as THREE from "three";
 // Peak radiance scale of the gaussian density. Deliberately well under the
 // 1.0 bloom threshold — moonlight is a soft wash, not a hot spotlight. Pulled
 // down from 0.85: Jason flagged the dark theme as "too much" moonlight, so the
-// shaft now reads as a subtle stream, not a flood.
-export const MOON_INTENSITY = 0.5;
+// shaft now reads as a subtle stream, not a flood. Then 0.5 -> 0.38 so dark
+// mode is unmistakably dimmer than light mode (Jason wanted a clearer gap).
+export const MOON_INTENSITY = 0.38;
 // Gaussian sharpness: density = exp(-FALLOFF * (d/R)^2). Between the lamp's
 // tight 1.8 and a pure haze — enough definition to read as a STREAM through
 // the window, not just ambient fog. Nudged up from 1.35 to tighten the tails
@@ -51,7 +52,8 @@ export const MOON_POOL_RADIUS = 0.55;
 export const MOON_COLOR = "#a9c4f2";
 // Sparse, faint dust — fewer than the lamp's 150.
 export const MOON_MOTE_COUNT = 60;
-// Pulled down from 0.45 alongside the shaft — faint glints, not a sparkle field.
+// Pulled down from 0.45 — faint glints, not a sparkle field. Held at 0.28
+// (Jason: "keep the motes up") even as the fill around them came down.
 export const MOON_MOTE_INTENSITY = 0.28;
 // Mote sprite size in px at 1 m, before DPR.
 export const MOON_MOTE_SIZE = 4.0;
