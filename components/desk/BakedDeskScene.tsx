@@ -32,25 +32,27 @@ import { CAMERA, FOCUS_VIEWS, PLACEMENT, type FocusId } from "./layout";
 import LampBeam from "./objects/LampBeam";
 import MacBook from "./objects/MacBook";
 import ChessboardBase from "./objects/Chessboard";
+import TurntableBase from "./objects/Turntable";
 import { lampGlowRef } from "./objects/DeskLamp";
 import MoonBeam, { moonGlowRef } from "./objects/MoonBeam";
 import type { DeskSceneProps } from "./DeskScene";
 
-// Memoized like DeskScene's: a theme/poll re-render must not re-reconcile the
-// board's hundreds of R3F elements unless its fen/lastMove actually changed.
+// Memoized like DeskScene's: a theme/poll re-render must not re-reconcile these
+// objects' hundreds of R3F elements unless their own props actually changed.
 const Chessboard = memo(ChessboardBase);
+const Turntable = memo(TurntableBase);
 
 const GLB_URL = "/_bake/desk-window-uv1.glb";
 
 // Baked meshes hidden because a LIVE component overlays them (their baked
 // contact shadow stays painted on the desk lightmap to ground the overlay).
-const HIDDEN = new Set(["macbook", "chessboard"]);
+const HIDDEN = new Set(["macbook", "chessboard", "turntable"]);
 
 // Which baked object maps to which focus view. Lamp is special (theme toggle);
-// macbook and chessboard are owned by their live overlays below, not routed off
-// the baked tag.
+// macbook/chessboard/turntable are owned by their live overlays below, not
+// routed off the baked tag. The turntable, like DeskScene, has NO body-click
+// focus — its needle owns the only interaction (drop → records view).
 const FOCUS_MAP: Record<string, FocusId> = {
-  turntable: "records",
   bookRow: "reading",
   notepad: "notes"
 };
@@ -80,7 +82,7 @@ function lightmap(unit: string, state: "on" | "off"): THREE.Texture {
   const key = `${unit}-${state}`;
   let t = lmCache.get(key);
   if (!t) {
-    t = texLoader.load(`/_bake/lightmaps/${key}.png?v=2`);
+    t = texLoader.load(`/_bake/lightmaps/${key}.png`);
     t.flipY = false;
     t.channel = 1;
     t.colorSpace = THREE.LinearSRGBColorSpace;
@@ -226,7 +228,7 @@ function LampSpotKey() {
     // Just a specular glint on the glossy vinyl/desk — the diffuse lamp POOL is
     // already in the baked lightmap, so a strong spot double-lit it into blown
     // white hotspots. Low intensity (was 3.6) keeps the shine, not the blowout.
-    if (ref.current) ref.current.intensity = 0.0 * Math.max(0, lampGlowRef.current);
+    if (ref.current) ref.current.intensity = 0.9 * Math.max(0, lampGlowRef.current);
   });
   return (
     <group position={PLACEMENT.lamp.position} rotation-y={PLACEMENT.lamp.rotationY}>
@@ -382,8 +384,12 @@ function BakedPost() {
 }
 
 function SceneContents({
+  turntablePlaying,
+  armDown,
+  onNeedleClick,
   focus,
   onFocus,
+  labelArtUrl,
   chessFen,
   chessLastMove,
   onReady
@@ -436,6 +442,23 @@ function SceneContents({
         }}
       >
         <Chessboard fen={chessFen} lastMove={chessLastMove} />
+      </group>
+      {/* The live turntable overlays the (hidden) baked one so the platter
+          spins on play and the tonearm drops on the needle click. Like
+          DeskScene, the wrapping group has NO onClick — the only interaction
+          is the needle (onNeedleClick → records view), handled inside the
+          component. Same transform as the bake so its contact shadow grounds
+          it. */}
+      <group
+        position={PLACEMENT.turntable.position}
+        rotation-y={PLACEMENT.turntable.rotationY}
+      >
+        <Turntable
+          playing={turntablePlaying}
+          armDown={armDown}
+          onNeedleClick={onNeedleClick}
+          labelArtUrl={labelArtUrl}
+        />
       </group>
       <LampSpotKey />
       <MoonAmbient />
