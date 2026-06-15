@@ -29,6 +29,7 @@ export default function Preloader({ ready }: PreloaderProps) {
   const [leaving, setLeaving] = useState(false);
   const [hidden, setHidden] = useState(false);
   const leftRef = useRef(false);
+  const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setVerb((current) => current ?? randomSpinnerVerb());
@@ -56,16 +57,46 @@ export default function Preloader({ ready }: PreloaderProps) {
     return () => window.clearTimeout(safety);
   }, [ready]);
 
+  // The curtain covers the header (nav + theme toggle); while it's up, swallow
+  // Tab so keyboard focus can't advance onto controls hidden behind the opaque
+  // overlay. Self-contained — no coupling to the surrounding page structure.
+  // (Mouse can't reach them: the curtain keeps pointer-events until it leaves.)
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) {
+      return;
+    }
+    const previous = document.activeElement as HTMLElement | null;
+    root.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Tab") {
+        event.preventDefault();
+        root.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      if (previous && document.contains(previous)) {
+        previous.focus();
+      }
+    };
+  }, []);
+
   if (hidden) {
     return null;
   }
 
   return (
     <div
+      ref={rootRef}
       className={`site-preloader${leaving ? " is-leaving" : ""}`}
       role="status"
-      aria-label="Loading Jason's desk"
+      tabIndex={-1}
     >
+      {/* Real content for the status region — a role="status" announces its
+          content, not its name, so aria-label alone would stay silent. */}
+      <span className="desk-hud-sr">Loading Jason&apos;s desk</span>
       {/* No JS means nothing can ever dismiss the curtain — hide it outright
           and let the (sceneless) page show through. */}
       <noscript>
