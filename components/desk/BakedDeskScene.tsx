@@ -80,7 +80,7 @@ function lightmap(unit: string, state: "on" | "off"): THREE.Texture {
   const key = `${unit}-${state}`;
   let t = lmCache.get(key);
   if (!t) {
-    t = texLoader.load(`/_bake/lightmaps/${key}.png`);
+    t = texLoader.load(`/_bake/lightmaps/${key}.png?v=2`);
     t.flipY = false;
     t.channel = 1;
     t.colorSpace = THREE.LinearSRGBColorSpace;
