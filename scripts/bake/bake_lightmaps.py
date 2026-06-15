@@ -145,6 +145,12 @@ def main():
     scene.cycles.device = "GPU"
     scene.cycles.samples = args.samples
     scene.cycles.use_denoising = True
+    # Clamp bright indirect samples. Without this a single glossy/near-light
+    # firefly survives the denoiser and bakes a hard white speck into a texel
+    # (it recurred every bake because the Cycles seed is fixed) — Jason saw one
+    # as a stray bright spot on the desk in front of the laptop. Diffuse GI we
+    # actually want sits well under 3.0, so this only decapitates the spikes.
+    scene.cycles.sample_clamp_indirect = 3.0
 
     bake = scene.render.bake
     bake.use_pass_direct = True
