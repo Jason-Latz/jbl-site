@@ -162,9 +162,13 @@ up to the level of the record player."
 
 - [ ] Spotify Web Playback SDK: full tracks when Jason is signed in (Premium)
 - [x] Postprocessing pass (landed early in Stage 1.5: Bloom + Vignette + SMAA)
-- [ ] Static poster render of the scene for the fallback hero + social OG image
-      (now a free byproduct of the Stage 5 kiln)
-- [ ] Mobile tuning pass (touch orbit, portrait framing, perf tiers)
+- [~] Static poster render of the scene for the fallback hero + social OG image
+      (now a free byproduct of the Stage 5 kiln) — fallback hero poster DONE
+      (theme-aware `public/desk-poster-{light,dark}.jpg`, 2026-06-15); social OG
+      image still TODO
+- [~] Mobile tuning pass (touch orbit, portrait framing, perf tiers) — portrait
+      framing reframed on the turntable hero (2026-06-15); touch orbit + perf
+      tiers still TODO
 - [ ] Inner pages typography refresh to match the desk's palette
 - [ ] Easter eggs (dust motes in lamp cone, mug steam, seasonal touches)
 - [ ] /music page (Jason 2026-06-11): record CRATE click → /music with his
