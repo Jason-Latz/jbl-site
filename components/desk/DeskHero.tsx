@@ -7,6 +7,7 @@ import { useChessGame } from "@/lib/useChessGame";
 import { useSpotifyLive } from "@/lib/useSpotifyLive";
 import { type FocusId } from "./layout";
 import NowPlayingHUD, { type NeedlePhase } from "./NowPlayingHUD";
+import Preloader from "./Preloader";
 import ChessPanel from "./panels/ChessPanel";
 import DeskPanel from "./panels/DeskPanel";
 import NotesPanel from "./panels/NotesPanel";
@@ -271,6 +272,7 @@ export default function DeskHero() {
       className="desk-hero"
       aria-label="Jason's desk — an interactive 3D scene"
     >
+      <Preloader ready={sceneReady} />
       {capability === "scene" ? (
         <>
           <div className="desk-hero-loading" aria-hidden="true" />
