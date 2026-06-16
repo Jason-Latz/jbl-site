@@ -38,7 +38,9 @@ import * as THREE from "three";
 // down from 0.85: Jason flagged the dark theme as "too much" moonlight, so the
 // shaft now reads as a subtle stream, not a flood. Then 0.5 -> 0.38 so dark
 // mode is unmistakably dimmer than light mode (Jason wanted a clearer gap).
-export const MOON_INTENSITY = 0.38;
+// Then 0.38 -> 0.18: Jason wanted the night "quite a lot" darker — the shaft is
+// now a faint moonlit hint, not a stream you read by.
+export const MOON_INTENSITY = 0.18;
 // Gaussian sharpness: density = exp(-FALLOFF * (d/R)^2). Between the lamp's
 // tight 1.8 and a pure haze — enough definition to read as a STREAM through
 // the window, not just ambient fog. Nudged up from 1.35 to tighten the tails
