@@ -25,6 +25,89 @@ icon + aria-label, and the button's own click still toggles and persists.
 Note: this worktree had no R3F deps installed (`three`/`@react-three/*` absent
 from the shared `node_modules`) — ran `npm install` here so the desk compiles.
 
+### 2026-06-15 — Branded entrance preloader (MERGED to main from `objective-curie-e74b62`)
+
+Jason wanted the homepage to "look super bougie right out of the box" — no
+one-or-two-second window of raw buffering. The fix: a brief, designed loading
+curtain that holds over whatever is buffering and lifts when the scene is
+actually ready. The curtain is the Claude burst mark turning slowly over a
+randomly cycling **Claude Code spinner verb** ("Reticulating…", "Schlepping…").
+Built on a worktree per his instruction, then merged to main on Jason's go.
+
+What landed (5 granular commits + docs):
+- `lib/spinnerVerbs.ts` — the ~195 leaked Claude Code spinner gerunds (sourced
+  online, not from disk, per Jason; cross-checked across public reproductions of
+  the extracted array) + `randomSpinnerVerb(exclude)` that never repeats the
+  current word.
+- `components/desk/ClaudeMark.tsx` — the Claude sunburst as an inline
+  currentColor SVG (canonical Simple Icons geometry, verbatim).
+- `components/desk/Preloader.tsx` + the `.site-preloader` block in `globals.css`
+  — the curtain. Fixed full-viewport at z-index 2000 (above the header and the
+  1100 photo modal), warm radial vignette that **continues the desk's own
+  `.desk-hero-loading` gradient** (light `#f8f1e3→#e4d3b6`, dark embers
+  `#241a11→#0c0805`) so the lift has no colour seam. Mark = coral `#d97757`,
+  slow 19s rotation + 3.4s breathe inside a pulsing aura; verb in Newsreader
+  serif with an animated ellipsis, crossfading every 1.9s. Exit = fade + slight
+  scale + 6px blur "lift away" over 0.76s, layered under the existing 1.15s
+  canvas fade-in.
+- `components/desk/DeskHero.tsx` — `<Preloader ready={sceneReady}>` at the top of
+  the scene path; rides the existing `ReadySignal` (compileAsync + 3 frames).
+
+Design choices worth keeping:
+- It lives ONLY in the `capability === "scene"` path, so the no-WebGL /
+  reduced-motion fallback (which early-returns with no heavy scene) never shows
+  a curtain. CSS also zeroes all animation under `prefers-reduced-motion`.
+- Hydration-safe: the random verb is client-only, so SSR/first paint renders a
+  reserved empty slot (matches), then the first verb fades in.
+- Two escape hatches so a visitor is never trapped behind it: a `<noscript>`
+  rule hides the curtain when JS is off (nothing could dismiss it otherwise),
+  and a 9s safety timeout dismisses it if `sceneReady` never fires.
+
+Verified: tsc clean; clean production build (homepage first-load 126 kB, up
+~3 kB from 123 — the verb list + curtain); both themes and mobile (375px,
+longest verb "Whatchamacalliting" fits, no overflow) screenshot-QA'd via the
+real global CSS; zero console errors; natural flow confirmed (curtain present on
+load → scene ready → curtain gone).
+
+GOTCHA (verification): once the dev server is warm the heavy route is cached, so
+the scene reports ready in <1s and the curtain lifts before a screenshot can
+land. To inspect the curtain deterministically, inject a static clone of its
+markup (it's all global CSS classes) and screenshot that, rather than racing the
+real lifecycle. Also: this worktree's `.claude/launch.json` shares port 3120
+with other active worktrees' `desk-dev` — bump the port locally to preview, but
+that change is incidental (left reverted, out of the feature commits).
+
+HARDENING (adversarial review fan-out over the diff → 3 confirmed low-sev fixes):
+- Fallback dissolve: detection resolves in an effect after first paint, so the
+  curtain (emitted while "pending") was hard-cut when a no-WebGL/reduced-motion
+  visitor's early return swapped in the static fallback. Now the fallback branch
+  also renders `<Preloader ready>`, so the curtain dissolves over the fallback.
+  Kept the SSR-safe "pending" first render (the reviewer's lazy-useState idea
+  would have hydration-mismatched the common scene path too — rejected).
+- Focus trap: the opaque z-2000 curtain covers the header nav + theme toggle,
+  which stayed tabbable (WCAG 2.4.7). Focus the curtain on mount + swallow Tab
+  while up, restore prior focus on lift. (focusin-refocus was tried first and is
+  unreliable — calling focus() mid-focus-event is a browser quirk; Tab-keydown
+  preventDefault is the robust path.)
+- Announced status: a role="status" region speaks its CONTENT, not its name, so
+  the aria-label was silent — replaced with sr-only text via the existing
+  `.desk-hud-sr` util.
+The same review REFUTED two non-issues (a leftRef/StrictMode double-fire and the
+uncaptured EXIT_MS timeout — harmless, React 18 no-ops setState after unmount).
+Re-verified: tsc clean, build green, curtain focus-trap + sr-only confirmed live,
+no console errors.
+
+GOTCHA (verification, take 2): on a COLD dev server the scene's frame-driven
+ReadySignal may not fire while the preview page is backgrounded (rAF is
+throttled — the documented preview gotcha), so `sceneReady` stays false and the
+9s safety timer lifts the curtain over an opacity-0 scene (just the warm
+shimmer). It is NOT a regression — the scene path is untouched; a foreground/prod
+browser bakes in ~1-2s and the curtain lifts on sceneReady. Don't "fix" the 9s.
+
+NEXT (optional): pull `ClaudeMark` into the `Made with Claude` sticker chip too,
+and consider a tasteful min-display time so very fast loads still register the
+verb.
+
 ### 2026-06-13 — Spotify pipeline redesign: stop the rate-limit "maxing out"
 
 Jason: the widget kept freezing ("only two plays ever," "maxes out, only

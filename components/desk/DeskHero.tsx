@@ -7,6 +7,7 @@ import { useChessGame } from "@/lib/useChessGame";
 import { useSpotifyLive } from "@/lib/useSpotifyLive";
 import { type FocusId } from "./layout";
 import NowPlayingHUD, { type NeedlePhase } from "./NowPlayingHUD";
+import Preloader from "./Preloader";
 import ChessPanel from "./panels/ChessPanel";
 import DeskPanel from "./panels/DeskPanel";
 import NotesPanel from "./panels/NotesPanel";
@@ -252,7 +253,16 @@ export default function DeskHero() {
   }, [phase, liftNeedle, dropNeedle]);
 
   if (capability === "fallback") {
-    return <DeskHeroFallback />;
+    // Detection resolves after first paint, so the curtain may already be up
+    // (capability was "pending"). Keep it mounted and let it dissolve over the
+    // fallback rather than hard-cutting — graceful even for the reduced-motion
+    // cohort that lands here.
+    return (
+      <>
+        <Preloader ready />
+        <DeskHeroFallback />
+      </>
+    );
   }
 
   const armDown = phase === "dropping" || phase === "playing";
@@ -271,6 +281,7 @@ export default function DeskHero() {
       className="desk-hero"
       aria-label="Jason's desk — an interactive 3D scene"
     >
+      <Preloader ready={sceneReady} />
       {capability === "scene" ? (
         <>
           <div className="desk-hero-loading" aria-hidden="true" />
