@@ -6,6 +6,34 @@
 
 ## Session log
 
+### 2026-06-16 — Notes on the pad + white-noise filter; the-desk merged to main
+
+Two requested features, each built by a pair-programming agent team (debate →
+implementer ↔ reviewer, both approved in one round):
+- **Guestbook notes now write on the 3D notepad.** `Notepad` takes a `notes`
+  prop and paints the latest two approved notes as cursive on the top-sheet
+  albedo, repainting only that map on a content key (old texture disposed); only
+  public fields reach the canvas. `DeskHero` fetches `/api/desk-notes` once and
+  threads an identity-stable `notes` down. In the baked scene the pad became a
+  live overlay (HIDDEN += notepad, dropped from FOCUS_MAP) like chess/turntable.
+  The handwriting was then enlarged + darkened a touch so it reads from the
+  resting camera, not just the focus view.
+- **White noise removed from the Spotify stats.** One exported
+  `isWhiteNoiseListening` predicate (`/white\s*noise/i` on track/album/artist)
+  filters now-playing, recent, this-week top artists, today stats, and the
+  heavy-rotation crate. Read-time only — no schema/RPC change, no prod-DB writes.
+
+**Merged `the-desk` → `main`** (this commit). Clean code auto-merge: main's
+durable-store Spotify redesign (see below) and the new white-noise filter touch
+different parts of `lib/spotify.ts` and coexist; main's entrance preloader and
+the-desk's notes/fallback edits to `DeskHero.tsx`/`globals.css` also auto-merged.
+Verified: prod build green; `/api/spotify/live` serves the durable-store payload
+with white noise filtered (recent/today read 0 only because nothing is playing
+in dev right now — origin/main shows the identical baseline, so it's not a merge
+regression). Only this log conflicted; resolved by keeping every entry. The
+homepage default stays the live `DeskScene` — the baked scene is still gated
+behind `?baked=1` (not flipped).
+
 ### 2026-06-15 — Fix: header ThemeToggle now follows the lamp
 
 Clicking the lamp toggles the site theme (it writes `data-theme` on `<html>`
@@ -160,6 +188,543 @@ GOTCHAS discovered:
 NEXT (optional): a Vercel CDN `s-maxage` on the live route would collapse
 visitor bursts globally (shared, not per-instance) for an even smaller upstream
 call count; deferred to preserve the documented "always fresh" contract.
+
+### 2026-06-15 — Overnight autonomous build: live chess + live turntable + designed fallback + mobile framing
+
+Ran `docs/OVERNIGHT-PLAN.md` to completion. Four goals, in priority order; all
+on `origin/the-desk` (now at `88dc5db`), homepage still gated behind `?baked=1`.
+Every object below is overlaid on the baked scene with the proven MacBook
+pattern (hide the baked meshes via the `HIDDEN` set; overlay the live component
+at `PLACEMENT[name]` so the baked contact shadow still grounds it).
+
+**① Live chessboard** (`c12425f`). The baked board was frozen at bake time and
+never showed the real world-vs-Jason game. Now `<Chessboard fen lastMove>` reads
+from props, mirroring DeskScene. `HIDDEN` += `chessboard`; dropped from
+`FOCUS_MAP` (the overlay owns the `chess` click). Verified: single clean board
+(no z-fight) in light + dark. (`e523815` also re-added the `?v=2` lightmap
+cache-bust I'd briefly reverted while splitting commits — redundant with the
+side-task's `a381db6`, harmless.)
+
+**② Live record player** (`e3a9bc9`). Live `<Turntable>` overlays the frozen
+baked one so the platter spins on play + the tonearm drops on the needle click.
+`HIDDEN` += `turntable`; **removed** `turntable:"records"` from `FOCUS_MAP` to
+match DeskScene exactly — the wrapping group has NO body-click focus; the needle
+is the only interaction (`onNeedleClick` → records view). Verified visually in
+both themes (platter/vinyl/tonearm present, grounded). Spin + needle-drop +
+audio are code-parity with DeskScene — can't be JS-dispatched (R3F raycasts from
+offsetX/Y), so **flagged for Jason's manual play**.
+
+**③ Fallback + mobile** (`cb416c1` poster, `88dc5db` portrait):
+- *No-WebGL / reduced-motion fallback* is now a **designed poster** of the
+  actual Cycles render (theme-aware: `public/desk-poster-{light,dark}.jpg`,
+  ~120-160 KB, optimized from `bake/renders/window-{light,dark}.png`) behind a
+  bottom scrim + text-shadow, with reworded copy that owns the still instead of
+  apologizing. It's shared by the live and baked heroes (DeskHero gates
+  capability before choosing the scene). Verified by temporarily forcing
+  `detectCapability()→"fallback"`: both themes load the right poster, text
+  legible, mobile crop clean.
+- *Mobile portrait* now makes the **turntable the hero** instead of clipping it
+  at the left edge of the narrow phone frustum. New `PORTRAIT_REST/TARGET`
+  derived from the `records` FOCUS_VIEW pulled back ~1.5×, with "Drop the needle"
+  sitting right under it. Verified at 375px. (DeskScene's own portrait constants
+  were left untouched — same treatment is available there if wanted.)
+
+**④ Bake/lighting polish — verification, no change needed.** Premise was "this
+worktree's gitignored lightmaps may predate the lamp→10 W hotspot fix." Tested
+it: re-baked the **ON** state with the committed 10 W scripts (OFF is unaffected
+by the lamp), then compared unit-by-unit — **old == new across every unit**
+(±1 px denoise). So the public maps were **already the 10 W fix** (the side-task
+had landed it here). Confirmed visually at `/?baked=1` light mode: the desk in
+front of the laptop is clean walnut, the warm pool reads warm — no white
+blowout. (My first scan's "3240 clipped px on `bakeunit_012`" was a
+max-of-channels metric catching the warm pool's **red** channel clipping —
+expected for wood directly under a warm lamp — not white; consistent with the
+side-task's "0 pure-white px" canvas probe.) No lightmap swap, no speculative
+lighting changes (everything was already tuned; the residual is what Jason
+deferred). Re-bake artifacts removed.
+
+**Aesthetic / taste calls made (please sanity-check):**
+- Mobile = turntable-as-hero (could instead frame more of the desk top-down).
+- Fallback poster crop/scrim + the reworded copy ("You're seeing a still of my
+  desk…").
+
+**Needs Jason's eyes (couldn't verify headlessly):**
+- In-canvas interactions: chess click → focus panel, turntable needle-drop +
+  audio, MacBook sticker hover popup. Click them.
+- The MacBook polished-front-edge specular glint (runtime specular, not the
+  bake — see the entry below) is still your call.
+- Flipping `/` to default-baked + any real merge of `the-desk` — left for you.
+
+### 2026-06-15 — Light-mode desk hotspot FIXED (it was direct lamp light, not a caustic)
+
+The deferred light-mode "white hotspot on the desk in front of the laptop" is
+**removed**. The earlier hypothesis (a glossy CAUSTIC — the camera/vinyl
+focusing the lamp — fixable by roughening props) was **disproven**.
+
+DIAGNOSIS (cheap ablation — bake only the desk unit `bakeunit_012` under the ON
+rig with passes split, `scripts/bake/_diag_desk.py` style):
+- baseline → blown white core (≈6.5k clipped px). direct-only → **core present**.
+  indirect-only → **core gone** (max 0.44). roughen camera+turntable → **no change**.
+- So it is **direct lamp light** clipping the desk-top irradiance past the
+  lightmap's 1.0 ceiling (then runtime ×π blooms it). It doesn't show in
+  `render_ab.py`'s camera render because ACES tonemaps the peak; the raw-linear
+  bake can't.
+
+FIX (`scripts/bake/bake_lightmaps.py`): bake lamp **spot 18 W → 10 W** (new
+`--lamp-watts` default). A watts sweep showed the desk POOL is carried by
+RoomKey/RoomFill (40/16 W area lights) while the spot only makes the hot spike —
+so 10 W erases the white core (`bakeunit_012-on` white px **2245 → 0**, blue-chan
+max 1.000 → 0.769; the hottest texel is now warm wood, not white) while the pool
+brightness barely moves. `render_ab.py` stays at 18 W on purpose (it tonemaps);
+divergence documented in BAKING.md §4.
+
+RE-BAKE: only the **ON** state (the spot lights only the ON rig; OFF untouched).
+Did NOT re-run `build_uv1.mjs`, so UVs/manifest/OFF maps stay valid. Re-baked ON
+at 1024/256 → `bake/lightmaps_hq`, copied `*-on.png` → `public/_bake/lightmaps`.
+To reproduce: just the ON bake command from the recipe below (default watts now 10).
+
+VERIFIED: data (white px 2245→0) + runtime at `/?baked=1` light mode — the desk
+front reads warm, no white blowout (canvas pixel probe: 0 pure-white px in the
+rested view). NOTE: a faint **view-dependent** white speck can still catch the
+**live MacBook's polished front edge** (an env/specular glint on the aluminum) —
+it survives fresh maps AND LampSpotKey-off, so it is a RUNTIME specular, not the
+bake. Left for Jason to judge (retuning it touches the intended chrome glints,
+and `BakedDeskScene.tsx` was being edited in parallel — see below).
+
+PARALLEL WORK SEEN: `BakedDeskScene.tsx` gained a **live Chessboard overlay**
+(memoized, `HIDDEN` now = {macbook, chessboard}) during this session — not mine;
+left intact.
+
+### 2026-06-14 (later still) — Lighting tuning round + the "laptop glow" deep dive
+
+Jason feedback on the baked homepage, in order:
+- **Moonlight still too much** → dropped further for a clear day/night gap:
+  `MOON_INTENSITY 0.5→0.38`, `MoonAmbient 0.6→0.26`, `uOffBoost 1.8→1.45`. Motes
+  held at 0.28 (he wanted them kept up). (commit c8ed9e1)
+- **Open-screen glow too bright** + **sticker hover popup too small** → MacBook
+  screen emissive `2.0→0.8` (dark end), the cool desk-spill point light
+  `glowRef 1.25→0.4` (this is the knob that lights the *wood*, NOT the screen's
+  own emissive — they're separate), credit popup `distanceFactor 0.5→1.6`.
+  (commit 3d8b9b7)
+- **"Light coming from the computer" on the desk in light mode** → a long hunt.
+  Findings, in case it resurfaces:
+  - The baked laptop's **screen material emits at strength 1.5** in the bake
+    source (the GLTF export captured the authored emissive, not the runtime
+    closed-state 0). It baked a real glow onto the desk. Fixed in `build_uv1.mjs`:
+    every `macbook`-tagged unit is reduced to a **matte near-black occluder**
+    (emissive stripped, metal 0 / rough 1 / albedo ~0) — the live overlay
+    supplies all screen glow at runtime, so the baked one should only cast a
+    shadow. (commit 30efed5)
+  - A **separate, stubborn bright speck** in front of the laptop survived: env=0
+    (live + baked), lamp-spotlight off, the matte laptop, AND an indirect-firefly
+    clamp. It does NOT appear in a Cycles camera render of the same scene → it's
+    a **bake-process hotspot**, the documented "light-theme lamp blows out glossy
+    surfaces" issue. Confirmed in the lightmap data: the **rangefinder camera
+    (`filmCamera`) bakes to clipped white (65535)** and desk plank `bakeunit_012`
+    has saturated regions. Added an indirect clamp (`sample_clamp_indirect=3.0`,
+    commit bb49c88) as a firefly guard, but it didn't kill this one (the hotspot
+    sits under 3.0 yet still blooms at runtime). **Jason chose to defer it** —
+    see the spawned follow-up task. The real fix is a bake-rig tweak: lower
+    `--lamp-watts` and/or raise glossy-prop roughness for the bake, then re-bake.
+
+**Bake state note:** lightmaps are **gitignored** (local-only; the baked
+homepage is still behind `?baked=1` and unpushed). The current local
+`public/_bake` has the matte-laptop + clamp **ON** lightmaps and the
+screen-stripped **OFF** lightmaps (dark mode is unaffected by the lamp blowout
+since the lamp is off). A clean both-state re-bake should happen when the
+glossy-blowout task is tackled. The `build_uv1.mjs` + `bake_lightmaps.py`
+changes ARE committed, so a re-bake reproduces the fixes.
+
+### 2026-06-14 (later) — First live object on the baked scene: the MacBook opens
+
+THE CHANGE — the baked homepage gained its **first dynamic object**. Until now
+the baked scene was fully static (lid/chess/tonearm frozen into the GLB). Jason's
+feedback: the dark-theme moonlight was "too much," and the laptop's keys peeked on
+the "closed" lid + "the computer should open." Both laptop issues had one root
+cause — the laptop was baked shut — and one fix:
+
+- **Live MacBook overlay** (`BakedDeskScene.tsx`): hide the baked macbook meshes
+  (self-or-parent `userData.object === "macbook"`) and render the live, animated
+  `<MacBook open={focus==='work'}/>` on top at EXACTLY `PLACEMENT.macbook`,
+  mirroring `DeskScene`'s `<Placed name="macbook">`. So it opens on the work-focus
+  click and its baked contact shadow (still painted into the desk lightmap)
+  grounds it. **This is the template for re-adding the other dynamic objects**
+  (chess, tonearm) — BAKING.md Stage E. `macbook` dropped from `FOCUS_MAP` (the
+  live overlay owns the click); the `LaptopGlow` stand-in deleted (the live ajar
+  lid now supplies the night screen glow).
+- **Closed-lid fix** (`MacBook.tsx`): `lidPose.closed` zeroed `-π/2 + 0.008 →
+  -π/2`. The residual front-up tilt raised the lip so back key rows peeked; a flat
+  seat sits the underside uniformly over the deck. The 4 mm proud lift is kept; the
+  open-to-110° swing is untouched.
+- **Moonlight dialed back** (`MoonBeam.tsx` + `BakedDeskScene.tsx`): too much → a
+  contained stream. `MOON_INTENSITY 0.85→0.5`, mote `0.45→0.28`, `FALLOFF
+  1.35→1.55`; `MoonAmbient 1.05→0.6`, MoonBeam radii `0.22/0.34→0.2/0.3`,
+  `uOffBoost 2.0→1.8`. QA pixel readback: walls 9–27 (dark), beam 103, desk pool 158.
+
+Built by a 5-agent Opus team (Luna moon / Mac lid / Forge integrate / Vega QA /
+Cosmo review). Commits `9b69c63`, `7d2005f`, `a1f041a`. **NO re-bake needed** — no
+baked geometry/lights changed; the live MacBook replaces the baked one at runtime
+and the desk's baked macbook shadow is intentionally kept.
+
+CARRY-FORWARD: the open-on-click lid SWING can't be verified headlessly (R3F
+raycasts from `offsetX/offsetY` — synthetic events can't carry it); it needs a
+manual click to confirm live. The rest of the baked scene is still static (chess
+pieces, tonearm, lamp) — the same overlay technique applies when those go dynamic.
+
+### 2026-06-14 — Baked homepage is LIVE (behind ?baked=1) + a feedback/polish round
+
+THE CURRENT STATE — read this first for a cold start:
+
+**The baked-GI scene is wired into the REAL homepage**, gated behind the URL
+param **`?baked=1`** (the default `/` is still the untouched live `DeskScene`,
+so nothing is at risk until sign-off). It looks lifelike in both themes and
+runs cheap. Branch `claude/goofy-jang-fa9bd0`, ~16 commits ahead of
+origin/the-desk, NOT pushed. Build green (17/17). Dev: `npm run dev` (port
+3120 via .claude/launch.json "desk-dev").
+
+**How the baked homepage works (the architecture):**
+- `components/desk/BakedDeskScene.tsx` — a drop-in for `DeskScene` (same
+  `DeskSceneProps`/HUD contract). `DeskHero.tsx` branches its `dynamic()` import
+  on `?baked=1`. It loads the world-space uv1 GLB with a bare `three-stdlib`
+  `GLTFLoader` (drei's useGLTF HANGS on the big GLB), keeps each material as
+  **MeshStandard** (so chrome/gloss reflect) + attaches the **baked lightmap**
+  on `uv1` for diffuse GI, + an **Environment** (Lightformers) for specular.
+  Two baked states (lamp ON / OFF) **crossfade** via an injected shader
+  (`onBeforeCompile`, `uMix` driven by the theme `mixRef`; `lightMapIntensity≈π`
+  cancels three's RECIPROCAL_PI; `uOffBoost` lifts the OFF map). Clicks dispatch
+  off each baked mesh's `object` tag → focus views / lamp toggle. Beauty kept:
+  `LampBeam`, `MoonBeam`, bloom/grain/vignette, emissives. Expensive GI dropped
+  (no shadow maps, N8AO, IBL warm-up). A resize-nudge on mount fixes a
+  cold-load race where the canvas latched R3F's default 300×150 → black.
+- **The bake pipeline (all headless, Node + Blender):**
+  `scripts/bake/build_uv1.mjs` (flatten+weld the exported GLB, watlas-unwrap a
+  uv1 per primitive, tag each unit with its `object`, emit
+  `bake/desk-window-uv1.glb` + `rig.json` + `bake_manifest.json`) →
+  `scripts/bake/bake_lightmaps.py` (Cycles diffuse-irradiance bake per unit,
+  per state, reusing render_ab's approved rig) → copy `bake/lightmaps_hq/*.png`
+  + the uv1 GLB into `public/_bake/` for the viewer.
+- **TO RE-BAKE after any geometry/light/lamp-position change:** (1) edit the
+  source component(s); (2) re-export the GLB — open `/bake?room=window&theme=light`
+  on the dev server, it auto-exports `bake/desk-window-light.glb` (its canvas
+  may need a window-resize nudge to mount); (3) `node scripts/bake/build_uv1.mjs`;
+  (4) `Blender -b --python scripts/bake/bake_lightmaps.py -- --glb
+  bake/desk-window-uv1.glb --rig bake/rig.json --manifest bake/bake_manifest.json
+  --state on --out bake/lightmaps_hq --res-cap 1024 --samples 256 --margin 16`
+  (then `--state off`), ~23 min each; (5) `cp bake/desk-window-uv1.glb
+  public/_bake/ && rm -f public/_bake/lightmaps/*.png && cp
+  bake/lightmaps_hq/*.png public/_bake/lightmaps/`. Texture-only edits (book
+  art, etc.) need NO re-bake (albedo is live); geometry/light-rig/lamp-position
+  changes DO. `/baked` is a standalone dev viewer for the same maps.
+
+**This round's fixes (Jason's feedback on the baked dark theme + look):**
+- **Window light patch + hard desk hotspot → removed.** Both were the runtime
+  moon DIRECTIONAL throwing sharp speculars; it was redundant (the baked OFF
+  lightmap already carries the moon's direction). Dropped it; cooled the dark
+  env/background → the warm window patch is gone too.
+- **MoonBeam** (`components/desk/objects/MoonBeam.tsx`, new, Opus sub-agent +
+  my tuning) — a cool edgeless volumetric shaft (moonlight analogue of
+  `LampBeam`, world-space `start`/`end` props, gated by `moonGlowRef` = inverse
+  mix). The "stream through the window and along the desk."
+- **Laptop screen glow** restored in dark (`LaptopGlow` in BakedDeskScene —
+  cool point light + emissive panel standing in for the baked-closed lid).
+- **Books reworked for realism** (`DeskBookRow.tsx`, Opus sub-agent): varied
+  sizes, fore-edge page blocks, two dust jackets, worn covers, debossed spines;
+  verified titles preserved.
+- **Lamp moved to the desk's far left corner** (`layout.ts` lamp x −0.6→−0.84).
+- Re-baked BOTH states (new books + moved lamp).
+
+**OPEN / next:**
+- Light theme: where the lamp pool lands on glossy vinyl/desk it reads a touch
+  blown (baked Cycles specular + the volumetric beam pool stacking) — soften via
+  a bake-rig tweak (lower lamp watts / raise vinyl roughness) + re-bake.
+- The baked scene is STATIC — chess pieces / tonearm / MacBook lid don't animate
+  (they bake in rest pose). Re-adding the dynamic objects LIVE on top (probe +
+  blob shadows, BAKING.md Stage E) is the next real chunk.
+- Clicks need hand-testing (R3F raycast can't be driven headlessly).
+- Decide when to flip `DeskHero` to default-baked (drop the `?baked` gate) and
+  push.
+- `docs/BAKE-NIGHT-1.md` has the full pipeline write-up; `racket-rework-wip`
+  branch holds the shelved racket (removed from the scene).
+
+### 2026-06-13 — Bake Night 1: the freeze-dry pipeline WORKS
+
+Built and proved the baked-GI pipeline end-to-end. The full scene now
+replays in the browser with ZERO scene lights — albedo × baked lightmap —
+and convincingly matches the approved Cycles still. Full write-up in
+**`docs/BAKE-NIGHT-1.md`** (read that first). Headlines:
+
+- **Pipeline (3 new pieces, all committed, all headless):**
+  - `scripts/bake/build_uv1.mjs` — flatten+weld the exported scene GLB, give
+    every primitive its own lightmap UV (uv1) via watlas (xatlas WASM),
+    area-sized atlas. Emits `desk-window-uv1.glb`, `rig.json`, `bake_manifest.json`.
+  - `scripts/bake/bake_lightmaps.py` — Cycles diffuse-irradiance bake (color
+    OFF) into one image per unit, reusing render_ab's approved rig, per lamp
+    state. 347 units, ~6 min at 512/64.
+  - `/baked` viewer — unlit MeshBasic, albedo × lightmap on uv1, with an
+    ON/OFF crossfade (uMix, like the real mixRef). 436/440 meshes lightmapped.
+- **Look:** `bake/shots/baked-on-*.png` vs `bake/renders/window-light.png` —
+  close. lightMapIntensity ≈ π cancels three's RECIPROCAL_PI for a truer match.
+- **Gotchas burned:** watlas re-splits verts (remap ALL attrs via xref —
+  COLOR_0 was the trap); drei useGLTF HANGS on the big embedded GLB (use bare
+  three-stdlib GLTFLoader); preview viewport collapsed to 1px + stale webpack
+  chunks needed a clean `.next` restart; MeshBasic lightmap × 1/π.
+- **Still open (tomorrow):** match the look exactly (rig warmth vs tonemap),
+  wire the bake into the REAL interactive DeskScene + strip the live
+  shadow/AO/reflector/IBL stack (Stage F), dynamic objects (Stage E), combine
+  the 347 lightmaps into a few atlases. The racket is the old reverted model
+  (rework shelved on branch `racket-rework-wip`).
+- Overnight: baked BOTH lamp states at 1024px/256 samples into
+  `bake/lightmaps_hq/` (~23 min each), copied to `public/_bake/lightmaps/`.
+  The ON/OFF crossfade is wired and validated against both approved stills
+  (`bake/shots/final-{on,off2}.png`). intensity≈π + uOffBoost tuning landed.
+- **THEN (after Jason's feedback) baked it INTO THE REAL HOMEPAGE.** Diagnosis:
+  the flat look was the unlit MeshBasic viewer, not the bake — switching to
+  MeshStandard + an Environment map (lightmap = diffuse, env = specular/chrome)
+  restored the chrome lamp, desk sheen, record-player shine. Built
+  `BakedDeskScene` (drop-in for DeskScene, behind `?baked=1` so the live scene
+  stays default), loads the uv1 GLB, crossfades by `mixRef`, dispatches
+  focus/theme CLICKS off each baked mesh's `object` tag (build_uv1 now stamps
+  it), keeps the beam/motes/bloom/grain/vignette, drops shadow maps + N8AO +
+  IBL warm-up. Removed the racket (scene + bake); flattened the MacBook closed
+  lid. Both themes render (`bake/shots/homepage-baked-{on,off}.png`); build
+  green. OPEN: clicks need hand-testing; first pass is STATIC (chess/tonearm/lid
+  don't animate — re-add live on top next); dark env a touch warm; screen-glow
+  in dark TBD.
+
+### 2026-06-12 — v4 finish: left wall + the bake runbook
+
+- Enclosed the room: looking all the way left showed void (room had
+  back + right walls only). Brought FLOOR_X_MIN in from -2.7 to -1.85
+  and added a matching dark-walnut LEFT wall (winWallLeft) — base
+  plane, raised-panel run (placeLeft), chair rail, baseboard, all
+  mirroring the right wall. Clears the record crate.
+- **Wrote `docs/BAKING.md`** — the complete lightmap-bake runbook so
+  the bake can be run cleanly after compaction. It's the canonical
+  source for Stage 5: static/dynamic split, the 6 stages, toolchain,
+  gotchas, look-parity, acceptance. NEXT ACTION after compact = run
+  the bake per that doc, spike-one-object first.
+- Composition is now FROZEN at v4. Re-baked stills hold.
+
+### 2026-06-12 — Composition v4: dark-walnut study, racket, lamp aim
+
+Quick polish round (Jason: "this should be the last thing"):
+- WALLS are now dark-walnut raised-panel wainscoting (RoomWindow):
+  walnut base texture + a grid of beveled raised panels with stiles/
+  rails, chair rail, baseboard. Turns the room into a lawyer's study
+  and gives the night-window light a warm surface to bounce off.
+- Racket: stencilled the iconic HEAD nested-chevron logo across the
+  string bed (the reference photo's give-away detail) + a PRO label
+  near the top of the hoop. Reads as a real HEAD Radical Pro now.
+- Lamp: STAYS in the back-left corner (Jason corrected me — do NOT
+  move it); only re-aimed. rotationY -1.28 -> -0.56 so the beam swings
+  off the platter toward the gap between turntable and computer.
+- Chess: rotated ~80 deg clockwise (rotationY 0.45 -> -0.95).
+- Re-baked both themes: bake/renders/window-{light,dark}.png show the
+  walnut study. Light theme is moodier now (dark walls absorb the key)
+  but that fits "always night, lamp on." Both build green.
+
+Reminder: the dev cold-load curtain stall (slow first compile after
+rm -rf .next) bit AGAIN — the v3 entry has the diagnostic; the
+production build is the source of truth, not the dev cold load.
+
+### 2026-06-12 — Composition v3: centered night window, the law of night
+
+Jason's third pass (voice notes). The room is now built around a
+window CENTERED in the back wall that you look out of, and the
+lighting law: it is ALWAYS NIGHT outside. Light theme = lamp on +
+soft warm practicals; dark theme = the night window (moon + city) is
+the hero light, plus the screen glow. Every requested change shipped:
+
+- Speakers + floor bookcase RETIRED (clutter). Both component files
+  stay in the repo, unmounted, in case they return.
+- Books now stand in a ROW on the desk against a new back gallery
+  rail ("the little bump up at the back"): DeskBookRow.tsx, all ten
+  verified titles + a steel bookend; the rail is in Desk.tsx
+  (deskRail/deskRailPosts). Desk legs were already thickened in v2.
+- Window moved to the back wall, centered x=0, deeper sill; day
+  backdrop deleted; night backdrop repainted as a city-rooftop view
+  (moon upper-left, skyline with lit windows, water tower, stars).
+  A terracotta succulent sits on the sill's left end.
+- HEAD Radical Pro on the wall right of the window: TennisRacket.tsx,
+  colorway researched (2023 neon orange / navy, white strings).
+- Lamp moved BEHIND the turntable (rotY -1.28 keeps the beam on the
+  platter); computer dead-center; notepad left; chess right; travel
+  vignette to the back row; Clawd stickers ~30% bigger.
+- New HERO bake camera (lower, head-on) so the window/wall/racket
+  read — the top-down rest cam hid the whole back wall (Jason: "the
+  camera is still in front, not optimal"). The live rest camera still
+  looks down at the desk — an open question whether to lower it too.
+
+Bugs fought this session (all fixed):
+- The MULTI-AGENT WORKFLOW STALLED: 2 of 4 agents (racket, room
+  rework) hung with no output and no error. Lesson: don't poll
+  transcripts to decide if it's alive — cut it loose and finish the
+  stalled pieces directly. Built the racket inline; relaunched the
+  room rework as one fresh agent.
+- Night view rendered BLACK. Root cause was NOT centering (though the
+  3m backdrop did hide the moon — fixed by shrinking to 1.55m close
+  to the wall). Real cause: the backdrop ships its image in the glTF
+  EMISSIVE slot with a black base-color factor; the bake script's
+  make_emissive (base-color -> emission) emitted black. New
+  make_pure_emission() rebuilds a clean emission shader from the raw
+  image. THE moon/city now read through the glass.
+- Racket was buried IN the wall (z=-0.893 vs inner face -0.855) —
+  moved to z=-0.84.
+
+Renders: bake/renders/window-light.png + window-dark.png (the v3
+hero pair). GOTCHA banked in CLAUDE.md: emissive-from-glTF backdrops
+need make_pure_emission, not make_emissive.
+
+LIVE INTEGRATION DONE: RoomWindow now renders in the live homepage
+(DeskScene imports ./concepts/RoomWindow as the room) and the rest
+camera is a middle tilt (layout CAMERA) that holds both the desk and
+the centered window; orbit maxPolarAngle opened to 1.32. The browser
+now shows the full v3 composition — window night view, wall racket,
+sill succulent, book row.
+
+TIME-SINK LESSON (cost ~an hour of thrash): after `rm -rf .next`, the
+first cold page load compiles every shader from scratch, so
+ReadySignal's compileAsync is slow and the load curtain (the warm
+radial gradient) stays up for 20-40s+ — the scene is rendering
+BEHIND it the whole time (canvas ancestor stuck at opacity 0). This
+looks exactly like a blank/broken scene with NO console error. Do NOT
+conclude a code change broke rendering: (1) check the wrapper opacity
+chain — a 0 means curtain-not-lifted, not a render failure; (2) force
+it visible to confirm (`el.style.opacity='1'`); (3) a warm reload
+lifts it on its own. I wrongly blamed the RoomWindow swap, reverted
+it, saw the same blank, and only then realized it was the curtain.
+RoomWindow-live was fine all along.
+
+Open / next: the live night view is the real-time approximation (the
+emissive backdrop glows through the glass) — the real payoff is still
+the lightmap bake (Stage 5 checklist). Also: tune the live tilt
+against the window framing in-person; consider lowering the curtain's
+cold-load timeout or showing a spinner past N seconds.
+
+### 2026-06-11 (late evening) — Composition v2 from Jason's voice notes
+
+Jason's verdict on the A/B: "This looks incredible. This is exactly
+what I want." Room decision = the WINDOW concept, with the window on
+the RIGHT wall (cross-light against the lamp) — the original artisan
+placement, restored from git (74cfbc9). His voice notes drove a full
+composition pass, all landed and live:
+
+- Minimalist center: MacBook squared to the desk (rotY = pi exactly)
+  and near-centered at [0.1, -0.14]; center column = computer + notepad.
+- Chessboard diagonal strengthened (rotY 0.45); WHITE faces the sitter
+  (squareToLocal puts rank 1 at local +z — the world plays white).
+- Hero camera shifted right (rest [0.28, 1.08, 1.02]); work focus view
+  tracks the new MacBook; reading focus retargeted to the floor case.
+- Pixel-Clawd stickers from his photo of his real laptop: skateboard
+  above the logo, bubble-blower viewer-left, idea-bulb viewer-right;
+  string-array sprite maps, rectilinear die-cut Shapes edge-walked from
+  dilated pixels; hover/Made-with-Claude wiring intact (hand-check the
+  chip — raycast can't be JS-tested).
+- Desk legs thickened to "commanding" (vase swell 12.7cm dia, blocks
+  9.4cm, aprons 11.5cm); stance/footprint unchanged.
+- FloorBookcase.tsx replaces the desktop Bookshelf (which stays in the
+  repo, unmounted): 1.25m walnut case behind the desk's left corner,
+  same ten verified titles, bookends, horizontal stack with On the
+  Edge cover-up, potted succulent. ~21 draws.
+- Speaker.tsx — walnut bookshelf speaker (grille-off woofer/tweeter,
+  LATZ AUDIO badge, rear port so one component mirrors as both
+  channels); pair placed at the desk's far corners, toed in
+  (speakerLeft/-Right in layout).
+- Composition-v2 Cycles stills rendered: bake/renders/window-light.png
+  (morning sun patch raking the desk + lamp pool) and window-dark.png
+  (ember room, lamp off). Light theme final grade is bake-time work.
+- Backlog banked in PLAN: /music page with crate-vs-player click split,
+  parallax window view (feasible, cheap), /photography route split.
+
+Known/watch: left speaker mostly occluded behind the turntable from
+rest cam (fine — it reads in focus views and renders); reading focus
+view needs a hand-framing check; window-light brightness is approval-
+grade, not final art.
+
+### 2026-06-11 (evening) — Stage 5 opens: the kiln, de-jank, new objects, room A/B
+
+Post-launch reckoning. Jason: record player great, but "background,
+books, desk, notebook, and laptop still aren't high-fidelity" and
+performance is "very jittered... pauses and jumps. when loading, when
+moving" — and how does Bruno Simon do it? Research (both his repos read
+file-by-file): folio-2019 = matcaps + ZERO lights + painted orange blob
+shadows; my-room-in-3d = ONE mesh + four baked 4K JPEGs blended in a
+shader (uNightMix = literally our lamp toggle); zero shadow maps
+anywhere. Conclusion both qualms share one root: we compute lighting
+live. Greenlit pivot = the "freeze-dry" pipeline (PLAN.md Stage 5):
+procedural authoring stays, Blender Cycles becomes a headless kiln,
+runtime becomes playback. Jason: happy to let the M4 cook for days,
+"high fixed cost, low variable" — but he never touches Blender's GUI.
+
+Decisions locked this session: windowless-or-window decided by a
+Cycles A/B bake-off (A perfected void vs B corner window — "1 vs 2");
+camera+photos vignette over a globe (globe = generic unless pinned;
+maybe later on the shelf); unlined notepad paper; static desk
+reflection approved; broad palette stays (wood/cream good, room being
+redesigned anyway). FOUND: /photography is a hard redirect to /travel
+— the vignette is decor until the routes split.
+
+Landed (one commit each):
+- De-jank: DoF pass deleted (full-res bokeh chain, blurred the detail
+  we keep buying); AdaptiveDpr + performance.regress deleted (the 55%
+  resolution sag + snap-back WAS much of "jumps when moving"); fixed
+  dpr [1, 1.5].
+- FilmCamera.tsx (rangefinder, ~26 draws) + PhotoStack.tsx (7 fanned
+  prints, placeholder faces — real trip photos swap in as albedo, free)
+  modeled by verified artisan agents; placed front-left (layout.ts
+  photos/filmCamera) and mounted in DeskScene as decor.
+- Notepad ruling removed (paper now clean cream).
+- Room concepts (bake-off only): concepts/RoomVoid.tsx (chiaroscuro
+  stage, falloff painted into albedos) + concepts/RoomWindow.tsx
+  (corner room; windowBackdropNight/Day planes the renderer toggles).
+- Bake pipeline v1, WORKING END-TO-END: /bake?room=&theme= (dev-only)
+  mounts the real scene, settles 3.5s, GLTF-exports (reflector film
+  hidden structurally, beam/motes/AccumulativeShadows simply not
+  mounted, MARKER_* empties carry camPos/camStart/camTarget + lamp
+  head/target axis) → POST /api/bake/upload → /bake/*.glb (~50 MB,
+  gitignored) → scripts/bake/render_ab.py: Blender 5.1.2 headless
+  (brew cask; "blender" not on PATH — use
+  /Applications/Blender.app/Contents/MacOS/Blender), Cycles on Metal
+  GPU, deletes the KHR runtime lights that ride along, builds a rig
+  per room+theme, denoised render. 384 samples at 1536x960 ≈ 30s/frame
+  on the M4 Pro. First-ever path-traced stills of the desk live in
+  bake/renders/.
+- A/B took three rounds of art direction, all four finals in
+  bake/renders/: round 1 — void-light already beautiful, but the window
+  was built into the RIGHT side wall = out of the judging frame, lamp
+  pool too weak vs key, dark too murky. Round 2 — window relocated to
+  the back wall (x≈-0.5, real 9cm reveal; agent-surgical), void
+  rebalanced (lamp 18W/key 45W, ember 2.5W)… and daylight STILL didn't
+  enter. Round 3 found why: the emissive sky backdrops sit between
+  sun/moon and the opening and were shadow-casting — visible_shadow=
+  False and the day shot gained a true mullioned sun patch across the
+  desk. Also: camera advance lever clipped the shutter dial ~4mm
+  (adversarial re-review caught it numerically) — swing -0.3 → -0.8.
+  Known limitation, fine for the room decision: the MacBook exports
+  closed at rest, so dark renders lack the lid-glow story.
+
+Gotchas discovered:
+- zsh does NOT word-split unquoted vars (`set -- $combo` keeps it one
+  word) — write explicit commands or ${=var}.
+- A bare `bake/` in .gitignore also ignored app/api/bake and
+  scripts/bake — anchor root-level ignores: `/bake/`.
+- GLTFExporter serializes three.js punctual lights (KHR extension) —
+  the kiln must delete them or the runtime rig double-lights the bake.
+- Blender glTF import: read marker matrix_world only after
+  view_layer.update(); axis swap is t2b(x,y,z)=(x,-z,y) for hand-placed
+  rig elements.
+- Spotify live refresh is erroring in dev tonight ([useSpotifyLive]
+  failed) — pre-existing/external (token or rate limit), NOT the scene;
+  worked at launch. Investigate separately.
+
+Next:
+- Jason picks room A or B from bake/renders/ (void-light.png,
+  void-dark.png, window-light.png, window-dark.png).
+- Winner replaces Room.tsx; then UV2 unwrap (xatlas), true lightmap
+  bakes (lamp-on/lamp-off), runtime blend, strip the live stack
+  (PLAN.md Stage 5 checklist).
+- Hand-checks for Jason: vignette placement in person, de-jank feel
+  (resolution pops should be gone), unlined notepad.
 
 ### 2026-06-11 — LAUNCHED: the-desk merged to main
 

@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, type ElementRef } from "react";
 import * as THREE from "three";
+import { mergeBufferGeometries } from "three-stdlib";
 import { MeshReflectorMaterial, RoundedBox } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { makeCanvasTexture } from "@/lib/three/materials";
@@ -21,9 +22,9 @@ const CAP_W = 0.09; // breadboard end caps
 const SEAM_GAP = 0.0012;
 
 const LEG_INSET = 0.105;
-const BLOCK = 0.062;
-const BLOCK_H = 0.115;
-const APRON_H = 0.1;
+const BLOCK = 0.094;
+const BLOCK_H = 0.13;
+const APRON_H = 0.115;
 const APRON_T = 0.022;
 
 // ── Lacquer reflection knobs ──────────────────────────────────────────────
@@ -55,6 +56,25 @@ export const REFLECTOR_MIX_STRENGTH_DARK = 1.35;
 export const REFLECTOR_DEPTH_SCALE = 1.1;
 export const REFLECTOR_MIN_DEPTH_THRESHOLD = 0.35;
 export const REFLECTOR_MAX_DEPTH_THRESHOLD = 1.3;
+
+// ── Back gallery rail ─────────────────────────────────────────────────────
+// The "little bump up at the back": a low solid-mahogany bullnose running
+// the back edge — the big-time-lawyer-desk lip the book row leans against.
+// Exported so back-row integrators (books, prints) can rest things on it.
+export const RAIL_H = 0.05; // rail top sits at RAIL_BASE_Y + RAIL_H
+export const RAIL_T = 0.025;
+export const RAIL_BACK_INSET = 0.012; // desk back edge -> rail back face
+export const RAIL_END_INSET = 0.06; // bare desk top left beyond each end
+// Base floats a hair above the reflector film (film at +0.4 mm, rail base
+// at +0.5 mm) so the lacquer plane never clips the rail's underside —
+// same convention every object resting on the slab follows.
+export const RAIL_BASE_Y = REFLECTOR_LIFT + 0.0001;
+const RAIL_LEN = W - 2 * RAIL_END_INSET;
+const RAIL_Z = -D / 2 + RAIL_BACK_INSET + RAIL_T / 2; // rail center z
+const POST_SIDE = 0.035; // end posts: squat square caps…
+const POST_H = 0.035;
+const POST_CHAMFER = 0.006; // …with a chamfered crown
+const POST_TOP_SIDE = 0.024; // square side above the chamfer
 
 function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
@@ -93,35 +113,38 @@ function bandPath(ctx: CanvasRenderingContext2D, b: Band, w: number) {
 
 // Turned leg silhouette, bottom-up: ball foot, long taper, twin ring
 // beads, vase swell, collar meeting the square top block. Heights sum
-// to 0.595 and get rescaled to the actual leg length.
+// to 0.595 and get rescaled to the actual leg length. Radii are cut for
+// a commanding leg: the shaft runs ~1.7x a parlor-table taper (6-9 cm
+// through the barrel — more than one hand wraps) and the swell crests
+// at 0.0635, so the desk plants instead of perching.
 const LEG_PROFILE: [number, number][] = [
   [0.001, 0.0],
-  [0.017, 0.0],
-  [0.0205, 0.005],
-  [0.0275, 0.013],
-  [0.032, 0.027],
-  [0.029, 0.041],
-  [0.0205, 0.05],
-  [0.018, 0.057],
-  [0.0185, 0.09],
-  [0.02, 0.16],
-  [0.0215, 0.26],
-  [0.023, 0.36],
-  [0.0245, 0.44],
-  [0.0252, 0.462],
-  [0.026, 0.47],
-  [0.032, 0.4775],
-  [0.0262, 0.4855],
-  [0.0312, 0.4925],
-  [0.0258, 0.5],
-  [0.029, 0.5095],
-  [0.037, 0.527],
-  [0.0425, 0.5505],
-  [0.0408, 0.5685],
-  [0.033, 0.5825],
-  [0.029, 0.5865],
-  [0.0288, 0.5905],
-  [0.0288, 0.595]
+  [0.027, 0.0],
+  [0.0325, 0.005],
+  [0.0425, 0.013],
+  [0.048, 0.027],
+  [0.0445, 0.041],
+  [0.0335, 0.05],
+  [0.0305, 0.057],
+  [0.0315, 0.09],
+  [0.034, 0.16],
+  [0.0362, 0.26],
+  [0.0385, 0.36],
+  [0.0407, 0.44],
+  [0.0417, 0.462],
+  [0.0429, 0.47],
+  [0.048, 0.4775],
+  [0.0432, 0.4855],
+  [0.047, 0.4925],
+  [0.0426, 0.5],
+  [0.0465, 0.5095],
+  [0.058, 0.527],
+  [0.0635, 0.5505],
+  [0.0613, 0.5685],
+  [0.0515, 0.5825],
+  [0.0455, 0.5865],
+  [0.045, 0.5905],
+  [0.045, 0.595]
 ];
 
 export default function Desk() {
@@ -767,6 +790,64 @@ export default function Desk() {
       };
     });
 
+    // --- back gallery rail: shallow bullnose body + chamfered end posts ---
+    // Profile is a box capped by a half-round (full cylinder; the lower half
+    // hides inside the box) so the top reads as a hand-routed bullnose. The
+    // cylinder's UVs are swapped (u along the axis) before rotation so grain
+    // keeps running the rail's LENGTH across the curve, continuous with the
+    // flat faces below it.
+    const railR = RAIL_T / 2;
+    const railBodyH = RAIL_H - railR;
+    const railBody = new THREE.BoxGeometry(RAIL_LEN, railBodyH, RAIL_T);
+    railBody.translate(0, railBodyH / 2, 0);
+    const railCap = new THREE.CylinderGeometry(railR, railR, RAIL_LEN, 28);
+    const capUvs = railCap.attributes.uv as THREE.BufferAttribute;
+    for (let i = 0; i < capUvs.count; i++) {
+      const u = capUvs.getX(i);
+      capUvs.setXY(i, capUvs.getY(i), u);
+    }
+    railCap.rotateZ(Math.PI / 2);
+    railCap.translate(0, railBodyH, 0);
+    const railGeo = mergeBufferGeometries([railBody, railCap]);
+    if (!railGeo) throw new Error("Desk: gallery rail merge failed.");
+
+    // End posts: squat square plinths the rail dies into, each crowned by a
+    // 4-sided frustum chamfer (radius = the square's circumradius). Faceted
+    // normals on the chamfer — it's a cut, not a turning.
+    const postGeos: THREE.BufferGeometry[] = [];
+    for (const s of [-1, 1] as const) {
+      const plinthH = POST_H - POST_CHAMFER;
+      const plinth = new THREE.BoxGeometry(
+        POST_SIDE,
+        plinthH,
+        POST_SIDE
+      ).toNonIndexed();
+      plinth.translate(s * (RAIL_LEN / 2), plinthH / 2, 0);
+      const crown = new THREE.CylinderGeometry(
+        POST_TOP_SIDE / Math.SQRT2,
+        POST_SIDE / Math.SQRT2,
+        POST_CHAMFER,
+        4,
+        1
+      ).toNonIndexed();
+      crown.rotateY(Math.PI / 4); // vertices to the diagonals, faces axis-aligned
+      crown.computeVertexNormals(); // flat facets, not a smoothed cone
+      crown.translate(s * (RAIL_LEN / 2), plinthH + POST_CHAMFER / 2, 0);
+      postGeos.push(plinth, crown);
+    }
+    const postsGeo = mergeBufferGeometries(postGeos);
+    if (!postsGeo) throw new Error("Desk: rail post merge failed.");
+
+    // The rail wears the edge band's finish family, sampling its own strip
+    // of the shared mahogany canvases (offset 0.62 vs the band's 0.35) so it
+    // reads as one more board off the same tree, not a clone of the band.
+    const rail = physical(
+      orient(colorTex, 0, 1, 0.07, 0, 0.62),
+      orient(bumpTex, 0, 1, 0.07, 0, 0.62),
+      { clearcoat: 0.78, clearcoatRoughness: 0.16, color: "#ecddd3" }
+    );
+    rail.envMapIntensity = 1.25;
+
     return {
       top,
       cap,
@@ -778,6 +859,9 @@ export default function Desk() {
       endGrain,
       legGeo,
       legs,
+      rail,
+      railGeo,
+      postsGeo,
       reflectorColor,
       reflectorBump,
       reflectorRough
@@ -946,6 +1030,26 @@ export default function Desk() {
         material={built.edge}
       />
 
+      {/* back gallery rail: low bullnose bumper along the back edge with
+          chamfered end posts — base at +0.5 mm (0.1 mm above the reflector
+          film) so the lacquer plane never z-fights its underside */}
+      <mesh
+        name="deskRail"
+        geometry={built.railGeo}
+        material={built.rail}
+        position={[0, RAIL_BASE_Y, RAIL_Z]}
+        castShadow
+        receiveShadow
+      />
+      <mesh
+        name="deskRailPosts"
+        geometry={built.postsGeo}
+        material={built.rail}
+        position={[0, RAIL_BASE_Y, RAIL_Z]}
+        castShadow
+        receiveShadow
+      />
+
       {/* turned legs under square top blocks */}
       {built.legs.map((leg, i) => (
         <group key={`leg${i}`}>
@@ -984,7 +1088,7 @@ export default function Desk() {
             castShadow
             material={built.edge}
           >
-            <cylinderGeometry args={[0.0045, 0.0045, 2 * LX - 0.05, 18]} />
+            <cylinderGeometry args={[0.0045, 0.0045, 2 * LX - 0.09, 18]} />
           </mesh>
         </group>
       ))}
@@ -1005,7 +1109,7 @@ export default function Desk() {
             castShadow
             material={built.edge}
           >
-            <cylinderGeometry args={[0.0045, 0.0045, 2 * LZ - 0.05, 18]} />
+            <cylinderGeometry args={[0.0045, 0.0045, 2 * LZ - 0.09, 18]} />
           </mesh>
         </group>
       ))}
@@ -1019,7 +1123,7 @@ export default function Desk() {
       ] as const).map(([sx, sz], i) => (
         <mesh
           key={`brace${i}`}
-          position={[sx * (LX - 0.052), apronY, sz * (LZ - 0.052)]}
+          position={[sx * (LX - 0.068), apronY, sz * (LZ - 0.068)]}
           rotation={[0, sx * sz > 0 ? Math.PI / 4 : -Math.PI / 4, 0]}
           material={built.dark}
         >

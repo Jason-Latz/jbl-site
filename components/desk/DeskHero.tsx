@@ -6,6 +6,7 @@ import { TurntableAudio } from "@/lib/audio/turntable-audio";
 import { useChessGame } from "@/lib/useChessGame";
 import { useSpotifyLive } from "@/lib/useSpotifyLive";
 import { type FocusId } from "./layout";
+import type { DeskNote } from "./DeskScene";
 import NowPlayingHUD, { type NeedlePhase } from "./NowPlayingHUD";
 import Preloader from "./Preloader";
 import ChessPanel from "./panels/ChessPanel";
@@ -23,10 +24,20 @@ const PANEL_META: Record<FocusId, { eyebrow: string; title: string }> = {
   chess: { eyebrow: "playing", title: "The world vs. Jason" }
 };
 
-const DeskScene = dynamic(() => import("./DeskScene"), {
-  ssr: false,
-  loading: () => <div className="desk-hero-loading" aria-hidden="true" />
-});
+// The baked scene is opt-in via ?baked=1 while it's being proven; the live
+// DeskScene stays the default so the homepage is never at risk. Flip this to
+// default-baked once it's signed off.
+const DeskScene = dynamic(
+  () =>
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).has("baked")
+      ? import("./BakedDeskScene")
+      : import("./DeskScene"),
+  {
+    ssr: false,
+    loading: () => <div className="desk-hero-loading" aria-hidden="true" />
+  }
+);
 
 type Capability = "pending" | "scene" | "fallback";
 
@@ -50,8 +61,8 @@ function detectCapability(): Capability {
   }
 }
 
-// Designed fallback for no-WebGL / reduced-motion: same voice, no apology.
-// Stage 4 swaps the background for a rendered still of the actual scene.
+// Designed fallback for no-WebGL / reduced-motion: a rendered still of the
+// actual desk (the Cycles bake) as the backdrop, same voice, no apology.
 function DeskHeroFallback() {
   return (
     <section className="desk-hero-fallback" aria-label="Introduction">
@@ -60,9 +71,10 @@ function DeskHeroFallback() {
           Out and about, occasionally building things.
         </h1>
         <p className="desk-hero-fallback-copy">
-          This page is normally a 3D desk — turntable spinning whatever I'm
-          listening to, books I'm reading, an open chess game. Everything on it
-          lives in the pages below too.
+          You&rsquo;re seeing a still of my desk. Live, it&rsquo;s a 3D scene —
+          the turntable spins whatever I&rsquo;m listening to, the books are what
+          I&rsquo;m reading, the chess game is real and ongoing. Everything on it
+          lives in the pages below, too.
         </p>
       </div>
     </section>
@@ -75,6 +87,7 @@ export default function DeskHero() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [focus, setFocus] = useState<FocusId | null>(null);
   const [coverArtUrls, setCoverArtUrls] = useState<string[]>([]);
+  const [notes, setNotes] = useState<DeskNote[]>([]);
   // The shadow bake + shader compiles freeze the first frames; the canvas
   // stays invisible over the shimmer until the scene reports it's drawing,
   // then fades in (and the lamp plays its warm-up as the curtain rises).
@@ -115,6 +128,40 @@ export default function DeskHero() {
       });
     return () => controller.abort();
   }, []);
+
+  // Approved guestbook notes for the pad, fetched once. Only the public fields
+  // (body + display name) are kept; createdAt/ip_hash are dropped here and
+  // never reach the canvas.
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/desk-notes", { signal: controller.signal })
+      .then((response) => (response.ok ? response.json() : null))
+      .then(
+        (payload: { notes?: { id: string; body: string; author: unknown }[] } | null) => {
+          if (!Array.isArray(payload?.notes)) {
+            return;
+          }
+          setNotes(
+            payload.notes
+              .filter((n) => typeof n.body === "string" && n.body.trim())
+              .map((n) => ({
+                id: n.id,
+                body: n.body,
+                author: typeof n.author === "string" ? n.author : null
+              }))
+          );
+        }
+      )
+      .catch(() => {
+        // The pad keeps its empty-state prompt.
+      });
+    return () => controller.abort();
+  }, []);
+
+  // Identity-stable subset: `notes` only changes identity on the single
+  // successful fetch, so slicing here stays stable across Spotify/chess polls
+  // and never hands the memoized Notepad a fresh array.
+  const stableNotes = useMemo(() => notes.slice(0, 2), [notes]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -303,6 +350,7 @@ export default function DeskHero() {
               coverArtUrls={coverArtUrls}
               chessFen={chessGame?.fen ?? null}
               chessLastMove={chessLastMove}
+              notes={stableNotes}
               onReady={handleSceneReady}
             />
           </div>

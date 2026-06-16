@@ -166,13 +166,71 @@ up to the level of the record player."
       curtain that continues the desk's own loading shimmer and lifts on the
       scene-ready signal (SHIPPED on worktree branch 2026-06-15, not merged)
 - [x] Postprocessing pass (landed early in Stage 1.5: Bloom + Vignette + SMAA)
-- [ ] Static poster render of the scene for the fallback hero + social OG image
-- [ ] Mobile tuning pass (touch orbit, portrait framing, perf tiers)
+- [~] Static poster render of the scene for the fallback hero + social OG image
+      (now a free byproduct of the Stage 5 kiln) — fallback hero poster DONE
+      (theme-aware `public/desk-poster-{light,dark}.jpg`, 2026-06-15); social OG
+      image still TODO
+- [~] Mobile tuning pass (touch orbit, portrait framing, perf tiers) — portrait
+      framing reframed on the turntable hero (2026-06-15); touch orbit + perf
+      tiers still TODO
 - [ ] Inner pages typography refresh to match the desk's palette
 - [ ] Easter eggs (dust motes in lamp cone, mug steam, seasonal touches)
+- [ ] /music page (Jason 2026-06-11): record CRATE click → /music with his
+      curated favorite records (he edits the list); record PLAYER click →
+      recently playing. Split the two click targets when the page exists.
+- [ ] Window view upgrade: layered parallax outside the glass (skyline /
+      courtyard planes at 2-3 depths). Cheap — the baked light doesn't care;
+      Jason asked "is that too much?" — it isn't.
+- [ ] /photography split from /travel, then camera + photo stack get their
+      own focus views and panels (prints become his real trip photos)
+
+## Stage 5 — the kiln: baked global illumination (IN PROGRESS 2026-06-11)
+
+Direction pivot after launch. Jason's two standing qualms — fidelity below
+the record player everywhere else, and motion that never feels crisp —
+share one root: we compute lighting live. Real GI (contact darkening,
+color bleed, soft falloff on big flat surfaces) is exactly what the desk,
+books, notepad, laptop, and walls are starving for, and exactly what no
+real-time budget buys. New pipeline ("freeze-dry"): authoring stays
+procedural in code; lighting moves offline. Blender (5.1.2, brew cask) is
+driven headless as a render/bake farm — a kiln, never a modeling tool.
+
+Locked decisions: lamp-on + lamp-off as two baked states blended by the
+existing theme mixRef (the lamp click literally drives the crossfade);
+lighting-only bakes so canvas albedos stay live (texture art = no rebake,
+real trip photos swap into PhotoStack for free); static desk reflection
+(moving chess pieces won't reflect — approved); dynamic objects (chess,
+tonearm, lid) get probe light + blob shadows; room redesign rides along —
+A (perfected void) vs B (corner window), decided from Cycles stills.
+
+- [x] De-jank the live site meanwhile: drop DoF, drop the AdaptiveDpr
+      resolution pops (fixed dpr cap 1.5)
+- [x] Travel/photography vignette modeled + placed (FilmCamera, PhotoStack)
+- [x] Export stage: /bake page → GLB (reflector/beam/motes excluded,
+      MARKER_* empties for camera + lamp axis) → /api/bake/upload
+- [x] Cycles renderer: scripts/bake/render_ab.py — headless rig per
+      room+theme, Metal GPU, denoised
+- [x] Room concept block-outs: concepts/RoomVoid.tsx, concepts/RoomWindow.tsx
+- [x] A/B concept stills (rooms × themes) rendered for Jason's decision
+- [x] Jason picks the room → THE CORNER WINDOW won (2026-06-11, his "1 vs 2"
+      bake-off + voice notes: window on the RIGHT wall, cross-light against
+      the lamp). RoomWindow replaces Room.tsx during the bake build-out;
+      RoomVoid stays archived in concepts/.
+- [x] Live integration: RoomWindow is now the live room; middle-tilt camera.
+- [x] Composition frozen at v4 (dark walnut study, lamp aim, chess, racket,
+      enclosed left wall). Ready to bake.
+- [ ] **THE LIGHTMAP BAKE — full runbook in `docs/BAKING.md`.** That doc has
+      everything: the static/dynamic split, the 6 stages (UV2 unwrap →
+      export uv1 → Cycles diffuse bake on/off → runtime mixRef blend →
+      probe+blob dynamics → strip the live stack), toolchain (watlas/
+      xatlas-three), gotchas, look-parity against the stills, and acceptance
+      criteria. START THERE.
+- [ ] Poster / OG / no-WebGL fallback renders from the kiln (free byproduct)
 
 ## Performance budget
 
-- ≤ ~300k triangles, all textures canvas-generated or ≤1k, no runtime HDR/GLB downloads
-- 60 fps target on Apple Silicon / recent integrated GPUs; DPR ≤ 1.75
+- ≤ ~300k triangles; textures canvas-generated or ≤1k at runtime; no
+  third-party asset downloads — our own kiln artifacts (lightmap atlases,
+  eventually a self-exported GLB) are allowed once Stage 5 lands
+- 60 fps target on Apple Silicon / recent integrated GPUs; DPR ≤ 1.5 fixed
 - Lazy-load the scene chunk; homepage HTML must not block on three.js

@@ -17,27 +17,48 @@ type Placement = {
   rotationY: number;
 };
 
+// Composition v3 (Jason's second voice-note pass): window centered in the
+// back wall, lamp BEHIND the turntable on the left, computer dead-center
+// facing the sitter, notepad off-left, chess right, books in a row against
+// the desk's back rail on the right, travel vignette along the back,
+// speakers and floor bookcase retired (clutter).
 export const PLACEMENT: Record<string, Placement> = {
-  turntable: { position: [-0.52, 0, 0.03], rotationY: 0.14 },
-  // Lamp yaw is load-bearing: the Forså's spotlight target sits at local
-  // [0.5, 0, 0.12], and -0.6 rotates that beam onto the turntable.
-  lamp: { position: [-0.82, 0, -0.3], rotationY: -0.6 },
-  // Yaw ~pi-0.25: the keyboard/screen face the camera so the opened lid
-  // presents the display; closed, the sticker lid faces straight up.
-  macbook: { position: [0.26, 0, -0.1], rotationY: 2.89 },
-  bookshelf: { position: [0.71, 0, -0.29], rotationY: -0.05 },
-  chessboard: { position: [0.6, 0, 0.21], rotationY: 0.32 },
-  notepad: { position: [0.02, 0, 0.25], rotationY: -0.08 },
-  crate: { position: [-1.08, FLOOR_Y, 0.16], rotationY: 0.5 }
+  turntable: { position: [-0.58, 0, 0.06], rotationY: 0.14 },
+  // Moved to the desk's far back-LEFT corner (Jason: "move the lamp to the
+  // absolute corner of the desk"). Base radius ~0.072; the desk top spans
+  // x∈[-0.95,0.95], so x=-0.84 seats the base just inside the corner. The aim
+  // (rotationY -0.56) still swings the pool toward the middle / turntable.
+  lamp: { position: [-0.84, 0, -0.34], rotationY: -0.56 },
+  macbook: { position: [0.02, 0, -0.08], rotationY: Math.PI },
+  // Rotated ~80° clockwise (viewed from above) from the v3 pose per Jason:
+  // 0.45 - 1.40 ≈ -0.95.
+  chessboard: { position: [0.55, 0, 0.2], rotationY: -0.95 },
+  notepad: { position: [-0.18, 0, 0.22], rotationY: -0.06 },
+  crate: { position: [-1.08, FLOOR_Y, 0.16], rotationY: 0.5 },
+  // Travel vignette moves to the back row (front placement read as clutter):
+  // prints fanned beside the rangefinder between turntable and laptop.
+  photos: { position: [-0.29, 0, -0.3], rotationY: 0.18 },
+  filmCamera: { position: [-0.13, 0, -0.32], rotationY: -0.4 },
+  // Ten books standing against the back gallery rail, right side.
+  bookRow: { position: [0.57, 0, -0.36], rotationY: 0 },
+  // HEAD Radical Pro on the wall right of the window. The back wall's inner
+  // face is at z=-0.855; the racket hangs just in front of it (z=-0.84) with
+  // its peg poking back into the plaster.
+  racket: { position: [0.82, 0.6, -0.84], rotationY: 0 }
 };
 
 // Rest pose sits ~45 degrees above the desk per Jason's art direction —
-// the desk surface is the canvas, the wall barely shows.
+// the desk surface is the canvas, the wall barely shows. Shifted right
+// (composition v2) so the minimalist center column reads off-axis and the
+// right wall's window light rakes across frame.
+// Composition v3 "middle tilt": lower and pulled back from the old top-down
+// pose with the target lifted up the back wall, so the view holds BOTH the
+// desk surface (foreshortened) and the centered window above it.
 export const CAMERA = {
   fov: 40,
-  rest: [0.03, 1.1, 1.05] as [number, number, number],
-  start: [0.45, 1.7, 2.0] as [number, number, number],
-  target: [0, 0.05, -0.04] as [number, number, number]
+  rest: [0.22, 0.96, 1.35] as [number, number, number],
+  start: [0.5, 1.42, 2.1] as [number, number, number],
+  target: [0.08, 0.26, -0.28] as [number, number, number]
 };
 
 // Stage 2 focus views: clicking an object dollies the camera to a fixed,
@@ -49,12 +70,14 @@ export const FOCUS_VIEWS: Record<
   FocusId,
   { position: [number, number, number]; target: [number, number, number] }
 > = {
-  records: { position: [-0.5, 0.62, 0.72], target: [-0.52, 0.04, 0.02] },
-  work: { position: [0.16, 0.32, 0.46], target: [0.28, 0.13, -0.08] },
-  reading: { position: [0.66, 0.5, 0.45], target: [0.71, 0.24, -0.29] },
-  notes: { position: [0.04, 0.55, 0.52], target: [0.02, 0.01, 0.25] },
+  records: { position: [-0.56, 0.62, 0.75], target: [-0.58, 0.04, 0.05] },
+  // Tracks the macbook placement (now centered, squared to the desk).
+  work: { position: [-0.08, 0.32, 0.48], target: [0.04, 0.13, -0.1] },
+  // The reading view leans into the book row against the back rail.
+  reading: { position: [0.42, 0.34, 0.22], target: [0.57, 0.09, -0.36] },
+  notes: { position: [-0.16, 0.55, 0.49], target: [-0.18, 0.01, 0.22] },
   // Elevated three-quarter view from the front-left so the whole board
   // reads plus the graveyard flanks (captured pieces park ±0.218m from
   // board center in local x — keep them in frame).
-  chess: { position: [0.42, 0.52, 0.58], target: [0.6, 0.02, 0.21] }
+  chess: { position: [0.37, 0.52, 0.57], target: [0.55, 0.02, 0.2] }
 };

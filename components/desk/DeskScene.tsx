@@ -4,7 +4,6 @@ import { Suspense, memo, useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import {
   AccumulativeShadows,
-  AdaptiveDpr,
   Environment,
   Lightformer,
   OrbitControls,
@@ -20,13 +19,15 @@ import { useSiteTheme } from "./useSiteTheme";
 import { CAMERA, FOCUS_VIEWS, PLACEMENT, type FocusId } from "./layout";
 import DeskBase from "./Desk";
 import DeskEffects from "./Effects";
-import RoomBase from "./Room";
-import BookshelfBase from "./objects/Bookshelf";
+import RoomBase from "./concepts/RoomWindow";
 import ChessboardBase from "./objects/Chessboard";
+import DeskBookRowBase from "./objects/DeskBookRow";
 import DeskLampBase from "./objects/DeskLamp";
+import FilmCameraBase from "./objects/FilmCamera";
 import LampBeamBase from "./objects/LampBeam";
 import MacBookBase from "./objects/MacBook";
 import NotepadBase from "./objects/Notepad";
+import PhotoStackBase from "./objects/PhotoStack";
 import RecordCrateBase from "./objects/RecordCrate";
 import TurntableBase from "./objects/Turntable";
 
@@ -37,14 +38,21 @@ import TurntableBase from "./objects/Turntable";
 // so memo holds and a click re-renders only what actually changed.
 const Desk = memo(DeskBase);
 const Room = memo(RoomBase);
-const Bookshelf = memo(BookshelfBase);
 const Chessboard = memo(ChessboardBase);
+const DeskBookRow = memo(DeskBookRowBase);
 const DeskLamp = memo(DeskLampBase);
+const FilmCamera = memo(FilmCameraBase);
+const PhotoStack = memo(PhotoStackBase);
 const LampBeam = memo(LampBeamBase);
 const MacBook = memo(MacBookBase);
 const Notepad = memo(NotepadBase);
 const RecordCrate = memo(RecordCrateBase);
 const Turntable = memo(TurntableBase);
+
+// A guestbook note as drawn on the pad: only the public fields ever reach the
+// canvas (id is a cache-key string, never painted; createdAt/ip_hash are
+// dropped upstream in DeskHero).
+export type DeskNote = { id: string; body: string; author: string | null };
 
 export type DeskSceneProps = {
   turntablePlaying: boolean;
@@ -54,6 +62,8 @@ export type DeskSceneProps = {
   onFocus: (id: FocusId) => void;
   labelArtUrl: string | null;
   coverArtUrls: string[];
+  // Approved guestbook notes (newest first); rendered as handwriting on the pad.
+  notes: DeskNote[];
   // Live world-vs-Jason game state for the 3D board (null until loaded;
   // the board falls back to the start position).
   chessFen: string | null;
@@ -275,19 +285,15 @@ function CameraDirector({
       toTarget: view ? new THREE.Vector3(...view.target) : rig.target.clone(),
       progress: 0,
       // 1.05 s focus flights (was 1.25): with the panel's backdrop blur
-      // gone and DPR regressing during motion, the shorter dolly reads
-      // snappy instead of rushed.
+      // gone, the shorter dolly reads snappy instead of rushed.
       duration: isFirst ? 2.3 : 1.05,
       unlockOnLand: !focus
     };
   }, [rig, focus, camera, controlsRef]);
 
-  useFrame((state, delta) => {
+  useFrame((_state, delta) => {
     const flight = flightRef.current;
     if (flight) {
-      // Tell the adaptive-DPR system we're in motion: resolution drops for
-      // the flight (blur hides it) and recovers at the framed rest pose.
-      state.performance.regress();
       flight.progress = Math.min(1, flight.progress + delta / flight.duration);
       const eased = 1 - Math.pow(1 - flight.progress, 3);
       camera.position.lerpVectors(flight.from, flight.to, eased);
@@ -421,6 +427,7 @@ function SceneContents({
   coverArtUrls,
   chessFen,
   chessLastMove,
+  notes,
   onReady
 }: DeskSceneProps) {
   const controlsRef = useRef<OrbitControlsImpl>(null!);
@@ -430,7 +437,6 @@ function SceneContents({
     <>
       <ReadySignal onReady={onReady} />
       <FrozenShadows />
-      <AdaptiveDpr />
       {/* samples 10 (was 16): PCSS runs per-fragment scene-wide; below 10
           the penumbra dithers, above it the eye stops noticing. */}
       <SoftShadows size={18} samples={10} focus={0.42} />
@@ -457,17 +463,25 @@ function SceneContents({
       <Placed name="macbook" focusId="work" onFocus={onFocus}>
         <MacBook open={focus === "work"} />
       </Placed>
-      <Placed name="bookshelf" focusId="reading" onFocus={onFocus}>
-        <Bookshelf />
+      <Placed name="bookRow" focusId="reading" onFocus={onFocus}>
+        <DeskBookRow />
       </Placed>
       <Placed name="chessboard" focusId="chess" onFocus={onFocus}>
         <Chessboard fen={chessFen} lastMove={chessLastMove} />
       </Placed>
       <Placed name="notepad" focusId="notes" onFocus={onFocus}>
-        <Notepad />
+        <Notepad notes={notes} />
       </Placed>
       <Placed name="crate">
         <RecordCrate coverArtUrls={coverArtUrls} />
+      </Placed>
+      {/* Travel/photography vignette — décor for now; focus views and a
+          panel arrive once /photography splits from /travel. */}
+      <Placed name="photos">
+        <PhotoStack />
+      </Placed>
+      <Placed name="filmCamera">
+        <FilmCamera />
       </Placed>
       <OrbitControls
         ref={controlsRef}
@@ -480,11 +494,13 @@ function SceneContents({
         minDistance={1.0}
         maxDistance={rig.maxDistance}
         minPolarAngle={0.55}
-        maxPolarAngle={1.05}
+        // opened from 1.05 for the v3 middle-tilt rest pose, which sits
+        // lower (polar ~1.17) to keep the window in frame
+        maxPolarAngle={1.32}
         minAzimuthAngle={-0.5}
         maxAzimuthAngle={0.5}
       />
-      <DeskEffects focus={focus} />
+      <DeskEffects />
     </>
   );
 }
@@ -495,10 +511,12 @@ export default function DeskScene(props: DeskSceneProps) {
   return (
     <Canvas
       shadows
-      dpr={[1, 1.75]}
-      // Floor for AdaptiveDpr: during camera flights (performance.regress)
-      // resolution sags to ~55% and recovers at rest — motion hides it.
-      performance={{ min: 0.55 }}
+      // Fixed DPR, no adaptive regression: the old AdaptiveDpr +
+      // performance.regress() pairing dropped resolution to ~55% during
+      // camera flights and popped back at rest — a visible snap Jason
+      // read as jank. A constant 1.5 cap costs ~27% fewer pixels than
+      // the old 1.75 ceiling and never changes mid-motion.
+      dpr={[1, 1.5]}
       camera={{
         fov: CAMERA.fov,
         near: 0.1,

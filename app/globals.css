@@ -1237,30 +1237,59 @@ button.primary:disabled {
   background: radial-gradient(ellipse at 42% 38%, #f4ead6 0%, #e3d4ba 72%);
 }
 
+/* No-WebGL / reduced-motion hero: a real rendered still of the desk (the
+   Cycles bake of the actual scene) behind a bottom scrim, so the degraded
+   experience is a designed poster — not an apology. Theme-aware to honor the
+   lamp-on / lamp-off contract. */
 .desk-hero-fallback {
+  position: relative;
   width: 100vw;
   margin-left: calc(50% - 50vw);
   margin-top: -3.5rem;
   margin-bottom: 2.5rem;
-  padding: 5rem 1.5rem 4rem;
-  background: linear-gradient(180deg, var(--surface-soft), var(--bg));
+  height: min(86svh, 800px);
+  min-height: 420px;
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+  background-color: #0e0a07;
+  background-image:
+    linear-gradient(180deg, rgba(8, 6, 4, 0) 40%, rgba(8, 6, 4, 0.85) 100%),
+    url(/desk-poster-dark.jpg);
+  background-size: cover;
+  background-position: center 40%;
+}
+
+:root[data-theme="light"] .desk-hero-fallback,
+:root:not([data-theme]) .desk-hero-fallback {
+  background-color: #e3d4ba;
+  background-image:
+    linear-gradient(180deg, rgba(18, 12, 7, 0) 36%, rgba(18, 12, 7, 0.78) 100%),
+    url(/desk-poster-light.jpg);
 }
 
 .desk-hero-fallback-inner {
   max-width: var(--max-width);
+  width: 100%;
   margin: 0 auto;
+  padding: 0 1.5rem 2.75rem;
 }
 
 .desk-hero-fallback-title {
   margin: 0 0 0.75rem;
   font-size: clamp(1.9rem, 4.5vw, 2.8rem);
   line-height: 1.12;
+  color: #fbf3e4;
+  /* keeps the title legible wherever it lands on the poster — e.g. over the
+     brighter window panes when it wraps tall on narrow screens. */
+  text-shadow: 0 1px 14px rgba(0, 0, 0, 0.55);
 }
 
 .desk-hero-fallback-copy {
   margin: 0;
   max-width: 38rem;
-  color: var(--muted);
+  color: rgba(251, 243, 228, 0.86);
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.5);
 }
 
 /* ---------------------------------------------------------------------------
@@ -1668,7 +1697,8 @@ button.primary:disabled {
 }
 
 @media (max-width: 640px) {
-  .desk-hero {
+  .desk-hero,
+  .desk-hero-fallback {
     height: min(62svh, 540px);
     min-height: 360px;
   }

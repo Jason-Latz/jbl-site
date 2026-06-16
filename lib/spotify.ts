@@ -422,6 +422,25 @@ function mapArtists(artists: SpotifyArtist[] | undefined): string[] {
   );
 }
 
+// White-noise / sleep-sound listening pollutes the music stats. Match the
+// phrase "white noise" (optional space) anywhere in the track, album, or any
+// artist name, case-insensitively. One exported predicate so every read
+// surface agrees; named regex so it is a one-line edit to extend later.
+const WHITE_NOISE_PATTERN = /white\s*noise/i;
+
+export function isWhiteNoiseListening(input: {
+  trackName?: string | null;
+  artists?: string[] | null;
+  albumName?: string | null;
+}): boolean {
+  if (input.trackName && WHITE_NOISE_PATTERN.test(input.trackName)) return true;
+  if (input.albumName && WHITE_NOISE_PATTERN.test(input.albumName)) return true;
+  for (const artist of input.artists ?? []) {
+    if (artist && WHITE_NOISE_PATTERN.test(artist)) return true;
+  }
+  return false;
+}
+
 function parsePlayCount(value: number | string | null | undefined) {
   if (typeof value === "number" && Number.isFinite(value)) {
     return value;
@@ -442,7 +461,7 @@ function mapNowPlaying(item: SpotifyTrack | null | undefined): SpotifyNowPlaying
     return null;
   }
 
-  return {
+  const nowPlaying: SpotifyNowPlaying = {
     trackName: item.name,
     artists: mapArtists(item.artists),
     albumName: item.album?.name ?? null,
@@ -451,6 +470,8 @@ function mapNowPlaying(item: SpotifyTrack | null | undefined): SpotifyNowPlaying
     progressMs: null,
     durationMs: typeof item.duration_ms === "number" ? item.duration_ms : null
   };
+
+  return isWhiteNoiseListening(nowPlaying) ? null : nowPlaying;
 }
 
 function mapRecentTracks(
@@ -470,6 +491,16 @@ function mapRecentTracks(
 
     const playedAtDate = new Date(item.played_at);
     if (Number.isNaN(playedAtDate.getTime())) {
+      continue;
+    }
+
+    if (
+      isWhiteNoiseListening({
+        trackName: item.track.name,
+        artists: mapArtists(item.track.artists),
+        albumName: item.track.album?.name
+      })
+    ) {
       continue;
     }
 
@@ -713,14 +744,16 @@ async function fetchWeeklyTopArtistCandidatesFromSupabase(limit: number) {
 }
 
 function toTopArtists(candidates: SpotifyTopArtistCandidate[]) {
-  return candidates.map((candidate) => {
-    return {
-      name: candidate.name,
-      artistUrl: candidate.artistUrl ?? null,
-      imageUrl: candidate.imageUrl ?? null,
-      playCount: candidate.playCount
-    };
-  });
+  return candidates
+    .filter((candidate) => !isWhiteNoiseListening({ artists: [candidate.name] }))
+    .map((candidate) => {
+      return {
+        name: candidate.name,
+        artistUrl: candidate.artistUrl ?? null,
+        imageUrl: candidate.imageUrl ?? null,
+        playCount: candidate.playCount
+      };
+    });
 }
 
 type SpotifyRecentStoredRow = {
@@ -1059,6 +1092,16 @@ function buildTodayStats(
       continue;
     }
 
+    if (
+      isWhiteNoiseListening({
+        trackName: item.track?.name,
+        artists: mapArtists(item.track?.artists),
+        albumName: item.track?.album?.name
+      })
+    ) {
+      continue;
+    }
+
     playCount += 1;
     if (!mostRecentPlayedAt) {
       mostRecentPlayedAt = item.played_at;
@@ -1182,7 +1225,7 @@ async function buildSpotifyLivePayload(): Promise<SpotifyLivePayload> {
 
   return {
     fetchedAt: new Date().toISOString(),
-    isPlaying: currentPlayback?.is_playing === true,
+    isPlaying: nowPlaying ? currentPlayback?.is_playing === true : false,
     nowPlaying,
     today,
     recentPlaylist,

@@ -9,3 +9,6 @@ dist
 out
 supabase/.temp
 tsconfig.tsbuildinfo
+/bake/
+__pycache__/
+/public/_bake/

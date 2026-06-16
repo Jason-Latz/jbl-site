@@ -276,64 +276,223 @@ function drawAluminum(
   ctx.globalAlpha = 1;
 }
 
-function drawSunburstSticker(
+// ---------------------------------------------------------------------------
+// Pixel-art Clawd stickers — the three die-cut decals on Jason's real lid.
+// Each pose is a character map (rows of palette keys), so the art stays
+// deterministic and tweakable pixel-by-pixel, and the die-cut silhouette is
+// traced from the very same map — print and cut can never drift apart.
+
+const STICKER_BORDER = 2; // white vinyl margin around the art, logical px
+
+const CLAWD_INK: Record<string, string> = {
+  O: "#e08245", // Clawd orange
+  D: "#b85f2e", // darker orange shading along one edge
+  K: "#3b2418", // eyes + bubble wand
+  W: "#ffffff", // puffy under-blob, bubble highlight
+  Y: "#e8b84b", // skate wheels, idea bulb
+  y: "#c9952f", // wheel hubs
+  M: "#6e2f2a", // burgundy skateboard deck
+  G: "#98917f", // bulb screw base
+  b: "#8a7a68" // bubble outline
+};
+
+// Clawd riding a skateboard: crouched into the push, white puff between body
+// and board, kicked tails on the deck, yellow wheels with darker hub pixels.
+const CLAWD_SKATE = [
+  "....OOOOOO.OO...",
+  "...OOOOOOOOOOOO.",
+  "...OOOOOOOOKOKO.",
+  "..OOOOOOOOOOOOO.",
+  "..DOOOOOOOOOOO..",
+  "..DDOOOOOOOOO...",
+  "...WWWWWWWWW....",
+  "M.WWWWWWWWWWW..M",
+  "MMMMMMMMMMMMMMMM",
+  "...YY......YY...",
+  "...Yy......Yy..."
+];
+
+// Clawd blowing a bubble: profile facing the logo, a dark wand pixel at the
+// mouth, a pixel-circle bubble with one white highlight inside.
+const CLAWD_BUBBLE = [
+  ".............bbb..",
+  "............bW..b.",
+  "...........b.....b",
+  "...........b.....b",
+  "...........b.....b",
+  ".OOOOOO.OO..b...b.",
+  "OOOOOOOOOOOO.bbb..",
+  "OOOOOOOKOKOOK.....",
+  "OOOOOOOOOOOO......",
+  "DOOOOOOOOOOO......",
+  "DDOOOOOOOOOO......",
+  ".DD.OO.OO.OO......",
+  ".DD.OO.OO.OO......"
+];
+
+// Clawd having an idea: standing, facing the logo, lightbulb floating over
+// its back — the two filament pixels read as a tiny face in the glass.
+const CLAWD_IDEA = [
+  "........YY..",
+  ".......YYYY.",
+  ".......YDDY.",
+  "........YY..",
+  "........GG..",
+  "............",
+  "..OO.OOOOOO.",
+  "OOOOOOOOOOOO",
+  "OOKOKOOOOOOO",
+  "OOOOOOOOOOOO",
+  "OOOOOOOOOOOD",
+  "OOOOOOOOOODD",
+  "OO.OO.OO.DD.",
+  "OO.OO.OO.DD."
+];
+
+function rot180(sprite: string[]): string[] {
+  return sprite
+    .slice()
+    .reverse()
+    .map((row) => row.split("").reverse().join(""));
+}
+
+// Inflate the sprite into the die-cut mask: every art pixel padded by the
+// white border. Octagonal dilation (radius-2 square minus its far corners)
+// keeps the cut rectilinear but chamfers outside corners, so it hugs the
+// art the way a real plotter path does instead of squaring everything off.
+function buildStickerMask(sprite: string[]): {
+  mask: Uint8Array;
+  w: number;
+  h: number;
+} {
+  const rows = sprite.length;
+  const cols = sprite[0].length;
+  const w = cols + STICKER_BORDER * 2;
+  const h = rows + STICKER_BORDER * 2;
+  const mask = new Uint8Array(w * h);
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      if (!CLAWD_INK[sprite[y][x]]) continue;
+      for (let dy = -STICKER_BORDER; dy <= STICKER_BORDER; dy++) {
+        for (let dx = -STICKER_BORDER; dx <= STICKER_BORDER; dx++) {
+          if (Math.abs(dx) + Math.abs(dy) > STICKER_BORDER + 1) continue;
+          mask[(y + STICKER_BORDER + dy) * w + (x + STICKER_BORDER + dx)] = 1;
+        }
+      }
+    }
+  }
+  return { mask, w, h };
+}
+
+type GridPoint = [number, number];
+type CutEdge = { x: number; y: number; dx: number; dy: number; used: boolean };
+
+// Trace the outer silhouette of the mask as one rectilinear loop walked
+// along cell edges (clockwise in canvas coords). Enclosed pockets are kept
+// on purpose — a die cut is a single closed path, so interior gaps (between
+// the legs, inside the bubble) stay paper, exactly like the real stickers.
+function traceDieCut(mask: Uint8Array, w: number, h: number): GridPoint[] {
+  const filled = (x: number, y: number): boolean =>
+    x >= 0 && y >= 0 && x < w && y < h && mask[y * w + x] === 1;
+  const edges: CutEdge[] = [];
+  const byStart = new Map<number, CutEdge[]>();
+  const push = (x: number, y: number, dx: number, dy: number): void => {
+    const edge: CutEdge = { x, y, dx, dy, used: false };
+    edges.push(edge);
+    const key = y * (w + 1) + x;
+    const list = byStart.get(key);
+    if (list) list.push(edge);
+    else byStart.set(key, [edge]);
+  };
+  // boundary edges exist only where a filled cell meets an empty neighbor
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (!filled(x, y)) continue;
+      if (!filled(x, y - 1)) push(x, y, 1, 0);
+      if (!filled(x + 1, y)) push(x + 1, y, 0, 1);
+      if (!filled(x, y + 1)) push(x + 1, y + 1, -1, 0);
+      if (!filled(x - 1, y)) push(x, y + 1, 0, -1);
+    }
+  }
+  let best: GridPoint[] = [];
+  let bestArea = 0;
+  for (const seed of edges) {
+    if (seed.used) continue;
+    const loop: GridPoint[] = [];
+    let area = 0;
+    let edge = seed;
+    for (let guard = 0; guard <= edges.length; guard++) {
+      edge.used = true;
+      loop.push([edge.x, edge.y]);
+      const nx = edge.x + edge.dx;
+      const ny = edge.y + edge.dy;
+      area += edge.x * ny - nx * edge.y;
+      if (nx === seed.x && ny === seed.y) break;
+      const open = (byStart.get(ny * (w + 1) + nx) ?? []).filter((e) => !e.used);
+      if (open.length === 0) break;
+      let next = open[0];
+      // diagonal pinch: two ways out — take the turn that crosses the pinch
+      // so both lobes stay one cut
+      for (const candidate of open) {
+        if (edge.dx * candidate.dy - edge.dy * candidate.dx < 0) next = candidate;
+      }
+      edge = next;
+    }
+    if (Math.abs(area) > bestArea) {
+      bestArea = Math.abs(area);
+      best = loop;
+    }
+  }
+  // drop collinear midpoints — the cut is long straight runs, not unit steps
+  return best.filter((point, i) => {
+    const prev = best[(i + best.length - 1) % best.length];
+    const next = best[(i + 1) % best.length];
+    return (
+      (point[0] - prev[0]) * (next[1] - point[1]) !==
+      (point[1] - prev[1]) * (next[0] - point[0])
+    );
+  });
+}
+
+// Paint one sticker face: paper white floods the whole canvas (everything
+// outside the cut is discarded by the geometry; everything inside it IS the
+// white border), then the sprite stamps over it at crisp integer scale.
+function drawClawdSticker(
   ctx: CanvasRenderingContext2D,
   size: number,
-  rotationDeg: number,
-  rayCount: number,
-  shape: "circle" | "squircle",
+  sprite: string[],
+  grid: { scale: number; ox: number; oy: number },
   paper: string,
   rng: () => number
 ): void {
+  ctx.imageSmoothingEnabled = false;
   ctx.fillStyle = paper;
   ctx.fillRect(0, 0, size, size);
+  const { scale, ox, oy } = grid;
+  for (let y = 0; y < sprite.length; y++) {
+    for (let x = 0; x < sprite[y].length; x++) {
+      const ink = CLAWD_INK[sprite[y][x]];
+      if (!ink) continue;
+      const px = ox + (x + STICKER_BORDER) * scale;
+      const py = oy + (y + STICKER_BORDER) * scale;
+      ctx.fillStyle = ink;
+      ctx.fillRect(px, py, scale, scale);
+      // whisper of per-pixel mottle so the print doesn't read computer-flat
+      const tone = rng();
+      if (tone < 0.18) {
+        ctx.fillStyle = "rgba(255,255,255,0.05)";
+        ctx.fillRect(px, py, scale, scale);
+      } else if (tone < 0.34) {
+        ctx.fillStyle = "rgba(60,35,20,0.05)";
+        ctx.fillRect(px, py, scale, scale);
+      }
+    }
+  }
+  // print grain over paper and ink alike
   for (let i = 0; i < 320; i++) {
     ctx.fillStyle = rng() > 0.5 ? "rgba(120,110,90,0.06)" : "rgba(255,255,255,0.07)";
     ctx.fillRect(rng() * size, rng() * size, 1.6, 1.6);
   }
-
-  const r = size / 2;
-  ctx.save();
-  ctx.translate(r, r);
-  ctx.rotate((rotationDeg * Math.PI) / 180);
-
-  const trace = (radius: number) => {
-    if (shape === "circle") {
-      ctx.beginPath();
-      ctx.arc(0, 0, radius, 0, Math.PI * 2);
-    } else {
-      roundedRectPath(ctx, -radius, -radius, radius * 2, radius * 2, radius * 0.42);
-    }
-  };
-  trace(r * 0.93);
-  ctx.strokeStyle = "#b3ad9d";
-  ctx.lineWidth = size * 0.012;
-  ctx.stroke();
-
-  // hand-drawn sunburst: tapered petal rays with per-ray jitter
-  const inner = r * 0.1;
-  const outer = r * 0.62;
-  for (let i = 0; i < rayCount; i++) {
-    ctx.save();
-    ctx.rotate((i / rayCount) * Math.PI * 2 + (rng() - 0.5) * 0.09);
-    const len = outer * (0.9 + rng() * 0.18);
-    const wBase = r * (0.075 + rng() * 0.03);
-    ctx.globalAlpha = 0.9 + rng() * 0.1;
-    ctx.beginPath();
-    ctx.moveTo(inner, -wBase);
-    ctx.quadraticCurveTo(len * 0.55, -wBase * 1.12, len, 0);
-    ctx.quadraticCurveTo(len * 0.55, wBase * 1.12, inner, wBase);
-    ctx.closePath();
-    ctx.fillStyle = PALETTE.claudeOrange;
-    ctx.fill();
-    ctx.restore();
-  }
-  ctx.globalAlpha = 1;
-  ctx.beginPath();
-  ctx.arc(0, 0, r * 0.075, 0, Math.PI * 2);
-  ctx.fillStyle = PALETTE.claudeOrange;
-  ctx.fill();
-  ctx.restore();
 }
 
 // Keyboard legends + per-key concave shading. The overlay is drawn rotated
@@ -1072,41 +1231,48 @@ export default function MacBook({ open }: MacBookProps) {
     []
   );
 
-  // raised vinyl sticker decals: Shape + thin bevelled extrude, real parallax
+  // raised vinyl sticker decals: Shape + thin bevelled extrude, real parallax.
+  // Arranged like the real lid: skate Clawd above the logo area, the other
+  // two flanking below it, both facing inward. The closed lid shows its top
+  // face rotated 180deg to the camera (local +y points at the viewer), so
+  // each sprite flips at build time to read upright in the rest pose — same
+  // trick as the keyboard legends.
   const stickers = useMemo(() => {
     const rng = mulberry32(0x571c_4e2);
+    const TEX = 512;
+    // Sizes up ~30% (Jason: "make the Claude stickers a little bit bigger");
+    // positions spread to keep clear of the logo and each other.
     const defs = [
-      { shape: "circle" as const, size: 0.0508, x: -0.051, y: 0.018, rot: -14, rays: 11, paper: "#f0eee5", tilt: -0.06 },
-      { shape: "squircle" as const, size: 0.0403, x: 0.048, y: -0.024, rot: 9, rays: 10, paper: "#ece9de", tilt: 0.04 },
-      { shape: "circle" as const, size: 0.0329, x: 0.027, y: 0.052, rot: 28, rays: 9, paper: "#f2f0e8", tilt: 0.1 }
+      { id: "clawd-skate", sprite: CLAWD_SKATE, size: 0.068, x: 0, y: -0.066, paper: "#f2efe6", tilt: -0.05 },
+      { id: "clawd-bubble", sprite: CLAWD_BUBBLE, size: 0.062, x: 0.066, y: 0.034, paper: "#f4f1e8", tilt: 0.06 },
+      { id: "clawd-idea", sprite: CLAWD_IDEA, size: 0.055, x: -0.064, y: 0.036, paper: "#f1eee3", tilt: -0.08 }
     ];
     return defs.map((def) => {
+      const sprite = rot180(def.sprite);
+      const { mask, w, h } = buildStickerMask(sprite);
+      const scale = Math.floor(TEX / Math.max(w, h));
+      const ox = Math.round((TEX - w * scale) / 2);
+      const oy = Math.round((TEX - h * scale) / 2);
+      // cut and print share one grid->UV mapping, so they always register
       const shape = new THREE.Shape();
-      if (def.shape === "circle") {
-        shape.absarc(0.5, 0.5, 0.5, 0, Math.PI * 2, false);
-      } else {
-        const r = 0.24;
-        shape.moveTo(r, 0);
-        shape.lineTo(1 - r, 0);
-        shape.quadraticCurveTo(1, 0, 1, r);
-        shape.lineTo(1, 1 - r);
-        shape.quadraticCurveTo(1, 1, 1 - r, 1);
-        shape.lineTo(r, 1);
-        shape.quadraticCurveTo(0, 1, 0, 1 - r);
-        shape.lineTo(0, r);
-        shape.quadraticCurveTo(0, 0, r, 0);
-      }
+      traceDieCut(mask, w, h).forEach(([gx, gy], i) => {
+        const u = (ox + gx * scale) / TEX;
+        const v = 1 - (oy + gy * scale) / TEX;
+        if (i === 0) shape.moveTo(u, v);
+        else shape.lineTo(u, v);
+      });
+      shape.closePath();
       const geometry = new THREE.ExtrudeGeometry(shape, {
         depth: 0.00026,
-        curveSegments: 48,
+        curveSegments: 4,
         bevelEnabled: true,
         bevelThickness: 0.00008,
-        bevelSize: 0.008,
+        bevelSize: 0.006,
         bevelSegments: 2
       });
       geometry.translate(-0.5, -0.5, 0);
-      const texture = makeCanvasTexture(512, 512, (ctx, w) =>
-        drawSunburstSticker(ctx, w, def.rot, def.rays, def.shape, def.paper, rng)
+      const texture = makeCanvasTexture(TEX, TEX, (ctx, cw) =>
+        drawClawdSticker(ctx, cw, sprite, { scale, ox, oy }, def.paper, rng)
       );
       // Die-cut vinyl: satin laminate film over matte print — the clearcoat
       // carries the sheen so the ink itself stays paper-flat.
@@ -1200,7 +1366,11 @@ export default function MacBook({ open }: MacBookProps) {
     const rng = mulberry32(0x5eed_11d);
     return {
       open: THREE.MathUtils.degToRad(110 + (rng() - 0.5) * 3) - Math.PI / 2,
-      closed: -Math.PI / 2 + 0.035,
+      // Dead flat (was +0.008): any residual front-up tilt raises the lid's
+      // front lip so the back key rows peek out past it from the hero/rest
+      // angle. A flat seat sits the whole underside uniformly over the deck;
+      // the small lift below keeps it a hair proud of the key caps.
+      closed: -Math.PI / 2,
       // Wedge widened + leak brightened when the lacquer reflector landed:
       // the mirror film darkens the base wood, so the night blade needs
       // more energy to pool AND reflect (the dark-mode money shot).
@@ -1237,8 +1407,11 @@ export default function MacBook({ open }: MacBookProps) {
         1
       );
     }
+    // Dark end pulled 2.0 -> 0.8 (Jason: the open-screen glow was far too
+    // bright and bloomed hard past the 1.0 threshold at night). Still clearly
+    // lit at the work focus, just no longer a blinding white slab.
     screenMaterial.emissiveIntensity =
-      THREE.MathUtils.lerp(2.0, 0.35, mix) * openFraction;
+      THREE.MathUtils.lerp(0.8, 0.28, mix) * openFraction;
     legendMaterial.emissiveIntensity =
       THREE.MathUtils.lerp(0.5, 0.04, mix) * openFraction;
     if (glowRef.current && lidRef.current) {
@@ -1249,11 +1422,12 @@ export default function MacBook({ open }: MacBookProps) {
         0,
         1
       );
-      // 1.25 cd at the wedge mouth: spills a cool pool onto the lacquer in
-      // FRONT of the machine (the reflector doubles it as a streak toward
-      // the viewer) without breaking the embers mood. (0.18 predates
-      // physical-light scaling + the reflector and reads as pitch black.)
-      glowRef.current.intensity = THREE.MathUtils.lerp(1.25, 0, mix) * leak;
+      // 0.4 cd at the wedge mouth (was 1.25): the cool pool this casts onto the
+      // lacquer in FRONT of the machine is what reads as "screen glow on the
+      // desk." Jason flagged it as far too bright, so it's pulled down hard
+      // while still reading as a soft spill (the screen's own emissive above is
+      // a separate knob and doesn't light the desk).
+      glowRef.current.intensity = THREE.MathUtils.lerp(0.4, 0, mix) * leak;
     }
   });
 
@@ -1445,7 +1619,7 @@ export default function MacBook({ open }: MacBookProps) {
           material={sharedMats.antenna}
         />
 
-        {/* raised sticker decals on the lid back — also the site's signature:
+        {/* pixel-art Clawd decals on the lid back — also the site's signature:
             hovering or tapping them reveals the Made-with-Claude chip */}
         <group
           onPointerOver={(event: ThreeEvent<PointerEvent>) => {
@@ -1462,9 +1636,10 @@ export default function MacBook({ open }: MacBookProps) {
             setCreditShown((shown) => !shown);
           }}
         >
-          {stickers.map(({ def, geometry, face }, i) => (
+          {stickers.map(({ def, geometry, face }) => (
             <mesh
-              key={`sticker${i}`}
+              key={def.id}
+              name={`sticker-${def.id}`}
               geometry={geometry}
               material={[face, sharedMats.stickerRim]}
               position={[def.x, LID_CY + def.y, LID_T / 2 + 0.0001]}
@@ -1481,7 +1656,7 @@ export default function MacBook({ open }: MacBookProps) {
               LID_T / 2 + 0.02
             ]}
             center
-            distanceFactor={0.5}
+            distanceFactor={1.6}
             zIndexRange={[6, 1]}
           >
             <a

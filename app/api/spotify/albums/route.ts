@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { isWhiteNoiseListening } from "@/lib/spotify";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +50,17 @@ function aggregateAlbums(rows: SpotifyAlbumHistoryRow[]): SpotifyAlbum[] {
     const imageUrl = row.album_image_url?.trim();
 
     if (!albumName || !imageUrl) {
+      continue;
+    }
+
+    if (
+      isWhiteNoiseListening({
+        albumName: row.album_name,
+        artists: (row.artists ?? [])
+          .map((artist) => artist?.name)
+          .filter((name): name is string => typeof name === "string" && name.length > 0)
+      })
+    ) {
       continue;
     }
 
