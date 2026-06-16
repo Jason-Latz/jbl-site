@@ -276,9 +276,9 @@ function drawScribbles(
         }
       } else {
         ctx.fillStyle = INK;
-        ctx.globalAlpha = 0.26;
+        ctx.globalAlpha = 0.36;
         ctx.fillText(word, size * 0.018, size * 0.016);
-        ctx.globalAlpha = 0.92;
+        ctx.globalAlpha = 1;
         ctx.fillText(word, 0, 0);
       }
       ctx.restore();
@@ -295,11 +295,11 @@ function drawScribbles(
   blocks.forEach((block, bi) => {
     const slant = bi % 2 === 0 ? -0.012 : 0.008;
     for (const line of block.body) {
-      writeLine(line, w * 0.18, baseline, step * 0.62, slant);
+      writeLine(line, w * 0.18, baseline, step * 0.8, slant);
       baseline += step;
     }
     if (block.author) {
-      writeLine(`— ${block.author}`, w * 0.4, baseline, step * 0.5, slant * 0.5);
+      writeLine(`— ${block.author}`, w * 0.4, baseline, step * 0.62, slant * 0.5);
       baseline += step;
     }
     baseline += step;
@@ -390,7 +390,7 @@ function paintTopSheet(
   return (ctx, w, h) => {
     const rand = seededRand(89);
     const step = (0.008 / PAD_D) * h;
-    ctx.font = `italic ${Math.round(step * 0.62)}px ${HAND_FONT}`;
+    ctx.font = `italic ${Math.round(step * 0.8)}px ${HAND_FONT}`;
     const blocks: NoteBlock[] = prepared.map((n) => ({
       body: wrapText(ctx, n.body, w * 0.64),
       author: n.author
@@ -693,7 +693,7 @@ export default function Notepad({ notes = [] }: { notes?: DeskNote[] }) {
         1448,
         2048,
         (c, w, h) => {
-          c.font = `italic ${Math.round((0.008 / PAD_D) * h * 0.62)}px ${HAND_FONT}`;
+          c.font = `italic ${Math.round((0.008 / PAD_D) * h * 0.8)}px ${HAND_FONT}`;
           const blocks: NoteBlock[] = initialBlocks.map((n) => ({
             body: wrapText(c, n.body, w * 0.64),
             author: n.author
