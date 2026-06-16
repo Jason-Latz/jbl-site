@@ -10,8 +10,9 @@ function isTheme(value: string | null): value is Theme {
   return value === "light" || value === "dark";
 }
 
-function applyTheme(theme: Theme) {
-  document.documentElement.setAttribute("data-theme", theme);
+function readDocumentTheme(): Theme {
+  const attr = document.documentElement.getAttribute("data-theme");
+  return isTheme(attr) ? attr : "light";
 }
 
 export default function ThemeToggle() {
@@ -19,38 +20,32 @@ export default function ThemeToggle() {
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    const rootTheme = document.documentElement.getAttribute("data-theme");
-    if (isTheme(rootTheme)) {
-      setTheme(rootTheme);
-    }
+    setTheme(readDocumentTheme());
+    setIsReady(true);
 
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (isTheme(stored)) {
-        setTheme(stored);
-        applyTheme(stored);
-      } else {
-        setTheme("light");
-        applyTheme("light");
-      }
-    } catch {
-      setTheme("light");
-      applyTheme("light");
-    } finally {
-      setIsReady(true);
-    }
+    // Other controls (notably the desk lamp) toggle the theme by writing the
+    // data-theme attribute directly. Observe it so this button never falls out
+    // of sync with the actual theme.
+    const observer = new MutationObserver(() => {
+      setTheme(readDocumentTheme());
+    });
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme"]
+    });
+    return () => observer.disconnect();
   }, []);
 
   const toggleTheme = () => {
-    const next = theme === "dark" ? "light" : "dark";
-    setTheme(next);
-    applyTheme(next);
+    const next = readDocumentTheme() === "dark" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", next);
 
     try {
       localStorage.setItem(STORAGE_KEY, next);
     } catch {
-      // Ignore storage errors and continue with in-memory theme state.
+      // Ignore storage errors; the observer still syncs in-memory state.
     }
+    // React state updates via the MutationObserver in the mount effect.
   };
 
   const icon = isReady
