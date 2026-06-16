@@ -24,15 +24,15 @@ const PANEL_META: Record<FocusId, { eyebrow: string; title: string }> = {
   chess: { eyebrow: "playing", title: "The world vs. Jason" }
 };
 
-// The baked (freeze-dried) scene is now the default homepage — it's signed off.
-// `?baked=0` still loads the original live DeskScene as an escape hatch (for
-// side-by-side comparison, or if the baked path ever needs bypassing in prod).
+// The baked scene is opt-in via ?baked=1 while it's being proven; the live
+// DeskScene stays the default so the homepage is never at risk. Flip this to
+// default-baked once it's signed off.
 const DeskScene = dynamic(
   () =>
     typeof window !== "undefined" &&
-    new URLSearchParams(window.location.search).get("baked") === "0"
-      ? import("./DeskScene")
-      : import("./BakedDeskScene"),
+    new URLSearchParams(window.location.search).has("baked")
+      ? import("./BakedDeskScene")
+      : import("./DeskScene"),
   {
     ssr: false,
     loading: () => <div className="desk-hero-loading" aria-hidden="true" />
