@@ -1,8 +1,7 @@
 import { revalidatePath } from "next/cache";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { requireEditor } from "@/lib/requireEditor";
+import { createFreshRouteHandlerClient } from "@/lib/supabaseRoute";
 
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -10,7 +9,7 @@ export async function GET(
   _request: Request,
   { params }: { params: { id: string } }
 ) {
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = createFreshRouteHandlerClient();
   const access = await requireEditor(supabase);
 
   if (!access.allowed) {
@@ -43,7 +42,7 @@ export async function PATCH(
   request: Request,
   { params }: { params: { id: string } }
 ) {
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = createFreshRouteHandlerClient();
   const access = await requireEditor(supabase);
 
   if (!access.allowed) {

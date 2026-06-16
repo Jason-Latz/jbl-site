@@ -608,6 +608,7 @@ If env vars are missing, helpers safely return empty/null data rather than throw
 - Admin routes are dynamic/interactive:
   - `export const dynamic = "force-dynamic"` on `app/admin/page.tsx`, `app/admin/new/page.tsx`, and `app/admin/[id]/page.tsx`
   - runtime auth + fetch-based state updates in browser clients
+- Admin/editor API route handlers (`/api/posts`, `/api/posts/[id]`, `/api/travel` + its `/api/photos` re-export) build their cookie-bound Supabase client via `createFreshRouteHandlerClient()` (`lib/supabaseRoute.ts`), which overrides `global.fetch` with `cache: "no-store"`. Without it, Next 14 data-caches the `requireEditor` auth check and post/photo reads within a warm instance — same bug class as the `lib/spotify.ts` service client.
 
 Because admin uses fetch calls to API routes, there is no server action dependency.
 

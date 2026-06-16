@@ -1,5 +1,3 @@
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import {
   PHOTO_BUCKET,
@@ -7,6 +5,7 @@ import {
   listPhotoCatalog
 } from "@/lib/photos";
 import { requireEditor } from "@/lib/requireEditor";
+import { createFreshRouteHandlerClient } from "@/lib/supabaseRoute";
 
 const MAX_FILES_PER_REQUEST = 40;
 const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024;
@@ -100,7 +99,7 @@ function isStorageNotFoundError(error: {
 }
 
 export async function GET() {
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = createFreshRouteHandlerClient();
   const access = await requireEditor(supabase);
 
   if (!access.allowed) {
@@ -119,7 +118,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = createFreshRouteHandlerClient();
   const access = await requireEditor(supabase);
 
   if (!access.allowed) {
@@ -243,7 +242,7 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = createFreshRouteHandlerClient();
   const access = await requireEditor(supabase);
 
   if (!access.allowed) {
@@ -322,7 +321,7 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = createFreshRouteHandlerClient();
   const access = await requireEditor(supabase);
 
   if (!access.allowed) {
