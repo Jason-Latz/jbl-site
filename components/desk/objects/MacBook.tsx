@@ -1407,27 +1407,25 @@ export default function MacBook({ open }: MacBookProps) {
         1
       );
     }
-    // Dark end pulled 2.0 -> 0.8 (Jason: the open-screen glow was far too
-    // bright and bloomed hard past the 1.0 threshold at night). Still clearly
-    // lit at the work focus, just no longer a blinding white slab.
+    // Dark end pulled 0.8 -> 0.3 (Jason: the open-screen glow was still far too
+    // bright at night). Now a subtle, dim glow — the screen still reads as on
+    // in the dark room, just no longer a bright slab.
+    // Dark end pulled 0.8 -> 0.3 (Jason: the open-screen glow was still far too
+    // bright at night). Now a subtle, dim glow — the screen still reads as on
+    // in the dark room, just no longer a bright slab.
     screenMaterial.emissiveIntensity =
-      THREE.MathUtils.lerp(0.8, 0.28, mix) * openFraction;
+      THREE.MathUtils.lerp(0.3, 0.28, mix) * openFraction;
     legendMaterial.emissiveIntensity =
-      THREE.MathUtils.lerp(0.5, 0.04, mix) * openFraction;
-    if (glowRef.current && lidRef.current) {
-      const leak = THREE.MathUtils.clamp(
-        ((lidRef.current.rotation.x - lidPose.closed) /
-          (lidPose.open - lidPose.closed)) *
-          10,
-        0,
-        1
-      );
-      // 0.4 cd at the wedge mouth (was 1.25): the cool pool this casts onto the
-      // lacquer in FRONT of the machine is what reads as "screen glow on the
-      // desk." Jason flagged it as far too bright, so it's pulled down hard
-      // while still reading as a soft spill (the screen's own emissive above is
-      // a separate knob and doesn't light the desk).
-      glowRef.current.intensity = THREE.MathUtils.lerp(0.4, 0, mix) * leak;
+      THREE.MathUtils.lerp(0.15, 0.04, mix) * openFraction;
+    if (glowRef.current) {
+      // Desk-spill DISABLED. Parked ~3 cm above the glossy lacquer, this point
+      // light blooms (post Bloom, luminanceThreshold 1) into the bright "light
+      // from the computer" speck Jason kept flagging — the inverse-square core
+      // can't be dimmed away without zeroing it, so the team's 0.4 -> 0.1 cuts
+      // never killed it. (The brighter copy was the GLB's BAKED version of this
+      // light, now dropped in BakedDeskScene's loader.) The screen's own
+      // emissive above carries the laptop's night glow; the desk gets no hotspot.
+      glowRef.current.intensity = 0;
     }
   });
 
@@ -1706,7 +1704,7 @@ export default function MacBook({ open }: MacBookProps) {
         ref={glowRef}
         position={[0, BASE_TOP + 0.012, -(BASE_D / 2) - 0.018]}
         color="#bcd6ff"
-        intensity={0.16}
+        intensity={0}
         distance={0.6}
         decay={2}
       />
