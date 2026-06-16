@@ -92,6 +92,14 @@ model, admin, Spotify pipeline).
   instead. (DoF itself was deleted in the Stage 5 de-jank — only matters if it returns.)
 - GLTFExporter serializes three.js lights as KHR punctual lights — the kiln's render
   script must delete them after import or the Cycles rig double-lights the scene.
+  The SAME lights also load into the **runtime** `BakedDeskScene` GLB and
+  double-light it: the MacBook's screen-glow point light came in baked at its
+  export intensity (0.16), stuck on, throwing a bright "light from the computer"
+  speck on the desk in BOTH themes — invisible to every runtime light/emissive
+  knob because it lives in the asset. `BakedStatics` now hides ALL baked lights
+  (`if (o.isLight) o.visible = false`); the runtime supplies its own lighting.
+  When chasing a stray light that no knob moves, enumerate `scene.traverse`'s
+  lights — a baked one won't be in any component.
 - An emissive backdrop authored as `emissive + emissiveMap` with a BLACK base color
   exports its image to the glTF emissive slot but a black base-color factor. In Blender
   the bake script must rebuild it with `make_pure_emission` (clean Emission shader from

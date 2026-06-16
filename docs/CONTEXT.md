@@ -6,6 +6,33 @@
 
 ## Session log
 
+### 2026-06-16 — Homepage flipped to baked; dark-mode lighting; the BAKED-GLB-LIGHT gotcha
+
+Shipped straight to `main` (now the production homepage).
+
+- **`/` defaults to the baked scene** (DeskHero gate inverted; `?baked=0` still
+  loads the live DeskScene as an escape hatch). The baked scene is signed off.
+- **Dark-mode moonlight dimmed** a lot (two pair-programming agent teams ran the
+  moonlight + laptop reductions in parallel): `MOON_INTENSITY 0.38→0.18`,
+  `MoonAmbient 0.26→0.12`, `uOffBoost 1.45→0.85`; motes kept. Laptop dark-mode:
+  screen emissive `0.8→0.3`, legend `0.5→0.15`.
+- **The "light from the computer" speck — root cause was a BAKED GLB LIGHT.**
+  Jason flagged a bright dot on the desk in front of the laptop that NO knob
+  moved (team cut glowRef 0.4→0.1, I went 0.1→0.04→0 — dot unchanged). After
+  turning off every runtime light, the env, the moonbeam (beam + motes), the
+  lightmap, and the screen/legend emissive and the dot SURVIVED, I enumerated
+  `scene.traverse` lights and found TWO point lights at the laptop front: the
+  live glowRef AND a **second one baked into the GLB** at its export intensity
+  (0.16), stuck on, lighting the desk in BOTH themes. GLTFExporter had
+  serialized the MacBook's point light into the asset; `BakedStatics` hid baked
+  meshes but not baked LIGHTS. Fix: `BakedStatics` now drops every baked light
+  (`if (o.isLight) o.visible=false`). Also DISABLED the live desk-spill light —
+  a point light ~3 cm above glossy lacquer blooms (Bloom threshold 1) into a
+  hotspot at any intensity, so it could never be dimmed, only zeroed; the
+  screen's emissive carries the laptop glow. Lesson now in CLAUDE.md gotchas:
+  **a light no runtime knob moves may be baked into the GLB — check
+  `scene.traverse` lights.**
+
 ### 2026-06-16 — Notes on the pad + white-noise filter; the-desk merged to main
 
 Two requested features, each built by a pair-programming agent team (debate →
