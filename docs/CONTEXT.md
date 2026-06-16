@@ -6,6 +6,25 @@
 
 ## Session log
 
+### 2026-06-15 — Fix: header ThemeToggle now follows the lamp
+
+Clicking the lamp toggles the site theme (it writes `data-theme` on `<html>`
+via `useSiteTheme`), but the header `ThemeToggle` only read `data-theme` once
+on mount — so after a lamp toggle its icon/aria-label went stale and its next
+click tried to switch to the mode you were already in. Gave `ThemeToggle` a
+`MutationObserver` on `data-theme` (the shared DOM contract every theme control
+writes), so it stays in sync no matter who flips the theme; its own click now
+just writes the attribute + localStorage and lets the observer drive state.
+Dropped the mount-time localStorage re-apply — `app/layout.tsx`'s
+`beforeInteractive` boot script already applies the persisted theme pre-hydration.
+
+Verified: clean production build; on the dev home page, writing
+`data-theme=dark/light` (exactly what the lamp does) now flips the button's
+icon + aria-label, and the button's own click still toggles and persists.
+
+Note: this worktree had no R3F deps installed (`three`/`@react-three/*` absent
+from the shared `node_modules`) — ran `npm install` here so the desk compiles.
+
 ### 2026-06-13 — Spotify pipeline redesign: stop the rate-limit "maxing out"
 
 Jason: the widget kept freezing ("only two plays ever," "maxes out, only
