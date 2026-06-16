@@ -32,6 +32,7 @@ import { CAMERA, FOCUS_VIEWS, PLACEMENT, type FocusId } from "./layout";
 import LampBeam from "./objects/LampBeam";
 import MacBook from "./objects/MacBook";
 import ChessboardBase from "./objects/Chessboard";
+import NotepadBase from "./objects/Notepad";
 import TurntableBase from "./objects/Turntable";
 import { lampGlowRef } from "./objects/DeskLamp";
 import MoonBeam, { moonGlowRef } from "./objects/MoonBeam";
@@ -40,21 +41,21 @@ import type { DeskSceneProps } from "./DeskScene";
 // Memoized like DeskScene's: a theme/poll re-render must not re-reconcile these
 // objects' hundreds of R3F elements unless their own props actually changed.
 const Chessboard = memo(ChessboardBase);
+const Notepad = memo(NotepadBase);
 const Turntable = memo(TurntableBase);
 
 const GLB_URL = "/_bake/desk-window-uv1.glb";
 
 // Baked meshes hidden because a LIVE component overlays them (their baked
 // contact shadow stays painted on the desk lightmap to ground the overlay).
-const HIDDEN = new Set(["macbook", "chessboard", "turntable"]);
+const HIDDEN = new Set(["macbook", "chessboard", "turntable", "notepad"]);
 
 // Which baked object maps to which focus view. Lamp is special (theme toggle);
-// macbook/chessboard/turntable are owned by their live overlays below, not
-// routed off the baked tag. The turntable, like DeskScene, has NO body-click
-// focus — its needle owns the only interaction (drop → records view).
+// macbook/chessboard/turntable/notepad are owned by their live overlays below,
+// not routed off the baked tag. The turntable, like DeskScene, has NO
+// body-click focus — its needle owns the only interaction (drop → records view).
 const FOCUS_MAP: Record<string, FocusId> = {
-  bookRow: "reading",
-  notepad: "notes"
+  bookRow: "reading"
 };
 
 const CAMERA_START = new THREE.Vector3(...CAMERA.start);
@@ -398,6 +399,7 @@ function SceneContents({
   labelArtUrl,
   chessFen,
   chessLastMove,
+  notes,
   onReady
 }: DeskSceneProps) {
   const controlsRef = useRef<OrbitControlsImpl>(null!);
@@ -465,6 +467,27 @@ function SceneContents({
           onNeedleClick={onNeedleClick}
           labelArtUrl={labelArtUrl}
         />
+      </group>
+      {/* The live notepad overlays the (hidden) baked one and writes the real
+          guestbook notes from props — the baked sheet was frozen with the old
+          placeholder. Same transform as the bake so its painted contact shadow
+          still grounds it. */}
+      <group
+        position={PLACEMENT.notepad.position}
+        rotation-y={PLACEMENT.notepad.rotationY}
+        onClick={(e: ThreeEvent<MouseEvent>) => {
+          e.stopPropagation();
+          onFocus("notes");
+        }}
+        onPointerOver={(e: ThreeEvent<PointerEvent>) => {
+          e.stopPropagation();
+          document.body.style.cursor = "pointer";
+        }}
+        onPointerOut={() => {
+          document.body.style.cursor = "auto";
+        }}
+      >
+        <Notepad notes={notes} />
       </group>
       <LampSpotKey />
       <MoonAmbient />

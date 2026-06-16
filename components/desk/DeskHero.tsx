@@ -6,6 +6,7 @@ import { TurntableAudio } from "@/lib/audio/turntable-audio";
 import { useChessGame } from "@/lib/useChessGame";
 import { useSpotifyLive } from "@/lib/useSpotifyLive";
 import { type FocusId } from "./layout";
+import type { DeskNote } from "./DeskScene";
 import NowPlayingHUD, { type NeedlePhase } from "./NowPlayingHUD";
 import ChessPanel from "./panels/ChessPanel";
 import DeskPanel from "./panels/DeskPanel";
@@ -85,6 +86,7 @@ export default function DeskHero() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [focus, setFocus] = useState<FocusId | null>(null);
   const [coverArtUrls, setCoverArtUrls] = useState<string[]>([]);
+  const [notes, setNotes] = useState<DeskNote[]>([]);
   // The shadow bake + shader compiles freeze the first frames; the canvas
   // stays invisible over the shimmer until the scene reports it's drawing,
   // then fades in (and the lamp plays its warm-up as the curtain rises).
@@ -125,6 +127,40 @@ export default function DeskHero() {
       });
     return () => controller.abort();
   }, []);
+
+  // Approved guestbook notes for the pad, fetched once. Only the public fields
+  // (body + display name) are kept; createdAt/ip_hash are dropped here and
+  // never reach the canvas.
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/desk-notes", { signal: controller.signal })
+      .then((response) => (response.ok ? response.json() : null))
+      .then(
+        (payload: { notes?: { id: string; body: string; author: unknown }[] } | null) => {
+          if (!Array.isArray(payload?.notes)) {
+            return;
+          }
+          setNotes(
+            payload.notes
+              .filter((n) => typeof n.body === "string" && n.body.trim())
+              .map((n) => ({
+                id: n.id,
+                body: n.body,
+                author: typeof n.author === "string" ? n.author : null
+              }))
+          );
+        }
+      )
+      .catch(() => {
+        // The pad keeps its empty-state prompt.
+      });
+    return () => controller.abort();
+  }, []);
+
+  // Identity-stable subset: `notes` only changes identity on the single
+  // successful fetch, so slicing here stays stable across Spotify/chess polls
+  // and never hands the memoized Notepad a fresh array.
+  const stableNotes = useMemo(() => notes.slice(0, 2), [notes]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -303,6 +339,7 @@ export default function DeskHero() {
               coverArtUrls={coverArtUrls}
               chessFen={chessGame?.fen ?? null}
               chessLastMove={chessLastMove}
+              notes={stableNotes}
               onReady={handleSceneReady}
             />
           </div>

@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import {
   chromeMaterial,
   lacquerMaterial,
   makeCanvasTexture
 } from "@/lib/three/materials";
+import type { DeskNote } from "../DeskScene";
 
 const PAD_W = 0.148;
 const PAD_D = 0.21;
@@ -205,14 +206,43 @@ const PRESS_TAPS: [number, number][] = [
   [0.014, -0.034]
 ];
 
-// The handwriting, drawn twice from the same seed: once as ink on the albedo
-// map, once as pen pressure in the height field. Every rand() call happens in
-// both modes so the two renders stay in registration.
+// One rendered note: its body pre-wrapped into lines, plus an optional author.
+type NoteBlock = { body: string[]; author: string | null };
+
+// Greedy word-wrap against the live font metrics. Pure (no rand): the bump no
+// longer draws words, so registration isn't required, but a deterministic wrap
+// keeps the layout stable across repaints.
+function wrapText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxW: number
+): string[] {
+  const words = text.split(" ").filter(Boolean);
+  const lines: string[] = [];
+  let line = "";
+  for (const word of words) {
+    const next = line ? `${line} ${word}` : word;
+    if (line && ctx.measureText(next).width > maxW) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = next;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+// The handwriting on the top sheet: the latest notes, laid out as cursive ink
+// with an uneven baseline, plus a squiggle underline and a margin doodle.
+// `mode` is retained for the squiggle/doodle weights; words are drawn ONLY in
+// ink mode (the shared height field carries no note text — see drawSheetBump).
 function drawScribbles(
   ctx: CanvasRenderingContext2D,
   w: number,
   h: number,
-  mode: "ink" | "bump"
+  mode: "ink" | "bump",
+  blocks: NoteBlock[]
 ): void {
   const rand = seededRand(131);
   const bump = mode === "bump";
@@ -258,9 +288,22 @@ function drawScribbles(
     ctx.globalAlpha = 1;
   };
 
-  writeLine("leave a note", w * 0.2, top + 2 * step - step * 0.18, step * 0.78, -0.014);
-  writeLine("soon — this pad goes live", w * 0.17, top + 3 * step - step * 0.18, step * 0.6, 0.009);
-  writeLine("for every visitor", w * 0.24, top + 4 * step - step * 0.18, step * 0.6, -0.006);
+  // Lay the notes out down the upper ~60% of the sheet (above the sunburst
+  // doodle at cy = h*0.83): each wrapped body line, then a smaller author
+  // attribution, then a blank line before the next note.
+  let baseline = top + 2 * step - step * 0.18;
+  blocks.forEach((block, bi) => {
+    const slant = bi % 2 === 0 ? -0.012 : 0.008;
+    for (const line of block.body) {
+      writeLine(line, w * 0.18, baseline, step * 0.62, slant);
+      baseline += step;
+    }
+    if (block.author) {
+      writeLine(`— ${block.author}`, w * 0.4, baseline, step * 0.5, slant * 0.5);
+      baseline += step;
+    }
+    baseline += step;
+  });
 
   // squiggle underline
   ctx.strokeStyle = bump ? "#5e5e5e" : INK;
@@ -302,11 +345,59 @@ function drawScribbles(
   ctx.globalAlpha = 1;
 }
 
-const drawTopSheet: Draw = (ctx, w, h, rand) => {
+// The top-sheet albedo, painted from the current notes. Paper base + holes are
+// identical every time; only the handwritten blocks change, so this is the one
+// map that regenerates when the guestbook does.
+function drawTopSheet(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  rand: () => number,
+  blocks: NoteBlock[]
+): void {
   drawPaperBase(ctx, w, h, rand);
   drawHolesAndBinding(ctx, w, h, { holeAlpha: 1 });
-  drawScribbles(ctx, w, h, "ink");
-};
+  drawScribbles(ctx, w, h, "ink", blocks);
+}
+
+// Normalize the (already ≤2) visible notes into the strings the pad will write:
+// collapse whitespace, truncate to ~90 chars with an ellipsis so a long note
+// can't wrap into mush (the full text lives in NotesPanel), and keep only the
+// author display name. Empty guestbook → a softened two-line invitation.
+const NOTE_MAX = 90;
+function prepareNotes(notes: DeskNote[]): { body: string; author: string | null }[] {
+  if (notes.length === 0) {
+    return [
+      { body: "leave a note", author: null },
+      { body: "be the first", author: null }
+    ];
+  }
+  return notes.map((n) => {
+    const collapsed = n.body.trim().replace(/\s+/g, " ");
+    const body =
+      collapsed.length > NOTE_MAX ? `${collapsed.slice(0, NOTE_MAX).trimEnd()}…` : collapsed;
+    return { body, author: n.author || null };
+  });
+}
+
+// Paint the front top-sheet for a given set of prepared notes. Word-wrap needs
+// the live font metrics, so it happens here inside the draw — set the body font
+// first so measureText matches what writeLine will render. Returns the 3-arg
+// painter the CanvasTexture factory calls (seed 89 = the original front map).
+function paintTopSheet(
+  prepared: { body: string; author: string | null }[]
+): (ctx: CanvasRenderingContext2D, w: number, h: number) => void {
+  return (ctx, w, h) => {
+    const rand = seededRand(89);
+    const step = (0.008 / PAD_D) * h;
+    ctx.font = `italic ${Math.round(step * 0.62)}px ${HAND_FONT}`;
+    const blocks: NoteBlock[] = prepared.map((n) => ({
+      body: wrapText(ctx, n.body, w * 0.64),
+      author: n.author
+    }));
+    drawTopSheet(ctx, w, h, rand, blocks);
+  };
+}
 
 // Underside of the curled sheet: blank paper plus a baked occlusion crawl —
 // brightest at the exposed lip, sinking into shadow where the curl folds
@@ -384,10 +475,13 @@ const drawKraft: Draw = (ctx, w, h, rand) => {
   ctx.globalAlpha = 1;
 };
 
-// Height field for the writing surface: paper tooth and cockle with the
-// punch holes and handwriting pressed INTO it, so the pen work reads as
-// debossed wherever light grazes the sheet. Drawn in sheet space (no tiling)
-// to stay registered with the albedo maps.
+// Height field for the writing surface: paper tooth, cockle, and the punch
+// holes pressed INTO it. NOTE TEXT IS DELIBERATELY ABSENT — this field is
+// shared by the front sheet, the curled back, AND the second page, so writing
+// the live notes here would emboss every visitor's words onto the page below.
+// The notes live in the front albedo only; losing pressed relief on them is
+// invisible at the focus view. Drawn in sheet space (no tiling) to stay
+// registered with the albedo maps.
 function drawSheetBump(ctx: CanvasRenderingContext2D, w: number, h: number): void {
   const rand = seededRand(17);
   ctx.fillStyle = "#888888";
@@ -428,7 +522,6 @@ function drawSheetBump(ctx: CanvasRenderingContext2D, w: number, h: number): voi
   }
   ctx.globalAlpha = 1;
   drawHolesAndBinding(ctx, w, h, { holeAlpha: 1, bump: true });
-  drawScribbles(ctx, w, h, "bump");
 }
 
 // Paper scatters forward ever so slightly; a whisper of warm sheen reads
@@ -440,9 +533,22 @@ const PAPER_SHEEN = {
   sheenColor: new THREE.Color("#ffefdb")
 } as const;
 
-// Spiral-bound A5 notepad lying flat, pen resting alongside.
-// The future guestbook — top sheet promises notes from visitors.
-export default function Notepad() {
+// Spiral-bound A5 notepad lying flat, pen resting alongside. The top sheet is
+// the live guestbook: the latest up-to-2 approved notes, in cursive.
+export default function Notepad({ notes = [] }: { notes?: DeskNote[] }) {
+  // Latest two notes, plus a content signature so the front map regenerates on
+  // edits but NOT on unrelated re-renders (array identity is already stable
+  // from DeskHero, but the key guards against any future churn). id is used
+  // ONLY here as a cache key — it's never painted onto the sheet.
+  const visible = useMemo(() => notes.slice(0, 2), [notes]);
+  const notesKey = useMemo(
+    () => visible.map((n) => `${n.id}|${n.body}|${n.author ?? ""}`).join(""),
+    [visible]
+  );
+  // Pre-wrap inputs for the painter (collapse + truncate + empty state). Keyed
+  // on notesKey so the draw closure below is stable between repaints.
+  const prepared = useMemo(() => prepareNotes(visible), [notesKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // --- page block + backing -------------------------------------------------
   const backingGeo = useMemo(
     () => makeSlabGeometry(PAD_W + 0.001, PAD_D + 0.001, BACK_H, 0.002),
@@ -573,12 +679,29 @@ export default function Notepad() {
     return geo;
   }, []);
 
+  // front + back built once. The front's albedo carries the live notes; it is
+  // the only map that regenerates (the effect below), so the back map and the
+  // shared bump field never churn. The initial front map already shows the
+  // current notes, so first paint is correct with no extra rebuild.
   const sheetMats = useMemo(() => {
     const rand = seededRand(89);
+    // Draw the front from the shared `rand` (as before) so the back map below
+    // consumes the sequence in the exact original order and stays identical.
+    const initialBlocks = prepareNotes(visible);
     const front = new THREE.MeshPhysicalMaterial({
-      map: makeCanvasTexture(1448, 2048, (c, w, h) => drawTopSheet(c, w, h, rand), {
-        anisotropy: 8
-      }),
+      map: makeCanvasTexture(
+        1448,
+        2048,
+        (c, w, h) => {
+          c.font = `italic ${Math.round((0.008 / PAD_D) * h * 0.62)}px ${HAND_FONT}`;
+          const blocks: NoteBlock[] = initialBlocks.map((n) => ({
+            body: wrapText(c, n.body, w * 0.64),
+            author: n.author
+          }));
+          drawTopSheet(c, w, h, rand, blocks);
+        },
+        { anisotropy: 8 }
+      ),
       bumpMap: sheetBumpTex,
       bumpScale: 0.00055,
       roughness: 0.94,
@@ -600,7 +723,32 @@ export default function Notepad() {
       ...PAPER_SHEEN
     });
     return [front, back];
+    // Notes are NOT a dep: the initial map is painted from the current notes,
+    // and subsequent edits are handled by the effect below to avoid rebuilding
+    // the (notes-independent) back material and re-running the seeded painters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sheetBumpTex]);
+
+  // Repaint ONLY the front albedo when the visible note text changes. Skip the
+  // very first run (the map built in the memo is already correct, and skipping
+  // avoids StrictMode's double-invoke orphaning the initial texture). Dispose
+  // the PREVIOUS map after swapping in the new one — never the fresh map.
+  const firstRunRef = useRef(true);
+  useEffect(() => {
+    if (firstRunRef.current) {
+      firstRunRef.current = false;
+      return;
+    }
+    const front = sheetMats[0] as THREE.MeshPhysicalMaterial;
+    const prev = front.map;
+    front.map = makeCanvasTexture(1448, 2048, paintTopSheet(prepared), {
+      anisotropy: 8
+    });
+    front.needsUpdate = true;
+    prev?.dispose();
+    // sheetMats/prepared identity are stable except across a real notes edit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notesKey]);
 
   // --- coil: one continuous wire helix ---------------------------------------
   // Drawn nickel-plated wire — the pad's jewelry. Die-drawing scores hairlines

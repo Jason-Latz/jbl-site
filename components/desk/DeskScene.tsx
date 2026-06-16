@@ -49,6 +49,11 @@ const Notepad = memo(NotepadBase);
 const RecordCrate = memo(RecordCrateBase);
 const Turntable = memo(TurntableBase);
 
+// A guestbook note as drawn on the pad: only the public fields ever reach the
+// canvas (id is a cache-key string, never painted; createdAt/ip_hash are
+// dropped upstream in DeskHero).
+export type DeskNote = { id: string; body: string; author: string | null };
+
 export type DeskSceneProps = {
   turntablePlaying: boolean;
   armDown: boolean;
@@ -57,6 +62,8 @@ export type DeskSceneProps = {
   onFocus: (id: FocusId) => void;
   labelArtUrl: string | null;
   coverArtUrls: string[];
+  // Approved guestbook notes (newest first); rendered as handwriting on the pad.
+  notes: DeskNote[];
   // Live world-vs-Jason game state for the 3D board (null until loaded;
   // the board falls back to the start position).
   chessFen: string | null;
@@ -420,6 +427,7 @@ function SceneContents({
   coverArtUrls,
   chessFen,
   chessLastMove,
+  notes,
   onReady
 }: DeskSceneProps) {
   const controlsRef = useRef<OrbitControlsImpl>(null!);
@@ -462,7 +470,7 @@ function SceneContents({
         <Chessboard fen={chessFen} lastMove={chessLastMove} />
       </Placed>
       <Placed name="notepad" focusId="notes" onFocus={onFocus}>
-        <Notepad />
+        <Notepad notes={notes} />
       </Placed>
       <Placed name="crate">
         <RecordCrate coverArtUrls={coverArtUrls} />
