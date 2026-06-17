@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, memo, useEffect, useMemo, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import {
   AccumulativeShadows,
@@ -426,15 +427,19 @@ function Placed({
   name,
   focusId,
   onFocus,
+  href,
   children
 }: {
   name: keyof typeof PLACEMENT;
   focusId?: FocusId;
   onFocus?: (id: FocusId) => void;
+  href?: string;
   children: React.ReactNode;
 }) {
+  const router = useRouter();
   const placement = PLACEMENT[name];
-  const clickable = Boolean(focusId && onFocus);
+  // Either opens a focus panel (focusId) or crosses to a real route (href).
+  const clickable = Boolean((focusId && onFocus) || href);
   return (
     <group
       position={placement.position}
@@ -443,6 +448,10 @@ function Placed({
         clickable
           ? (event: ThreeEvent<MouseEvent>) => {
               event.stopPropagation();
+              if (href) {
+                router.push(href);
+                return;
+              }
               onFocus!(focusId!);
             }
           : undefined
@@ -526,12 +535,12 @@ function SceneContents({
       <Placed name="crate">
         <RecordCrate coverArtUrls={coverArtUrls} />
       </Placed>
-      {/* Travel/photography vignette — décor for now; focus views and a
-          panel arrive once /photography splits from /travel. */}
-      <Placed name="photos">
+      {/* The photography corner: clicking the camera or the fanned prints
+          crosses to /photography (mirrors BakedDeskScene's NAV_MAP). */}
+      <Placed name="photos" href="/photography">
         <PhotoStack />
       </Placed>
-      <Placed name="filmCamera">
+      <Placed name="filmCamera" href="/photography">
         <FilmCamera />
       </Placed>
       <OrbitControls

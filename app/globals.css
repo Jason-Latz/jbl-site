@@ -2,8 +2,14 @@
   color-scheme: light;
   --bg: #f7f5f1;
   --fg: #131313;
-  --muted: #5b5b5b;
-  --accent: #1e2d3d;
+  --muted: #665d54;
+  /* Warm desk continuity: the cold navy accent gave way to a deep terracotta
+     coral from the desk's own palette — kept dark enough to pass AA both as
+     link text on the cream paper and as a button fill under white. --coral is
+     the brighter brand coral, used only decoratively (place-card rules) where
+     contrast doesn't apply. */
+  --accent: #ad4720;
+  --coral: #c75833;
   --border: #ded7cf;
   --surface: #fffdfb;
   --surface-raised: #ffffff;
@@ -14,7 +20,7 @@
   --control-hover-bg: #f2ece4;
   --control-hover-border: #c8bcae;
   --overlay: rgba(10, 12, 14, 0.72);
-  --focus-ring: #93af98;
+  --focus-ring: #cf7a4d;
   --preview-focus-ring: #d4cabd;
   --theme-toggle-bg: #f7f3ed;
   --theme-toggle-hover-bg: #efe7dc;
@@ -40,6 +46,7 @@
   --fg: #f3e8dd;
   --muted: #c8b5a3;
   --accent: #dca46a;
+  --coral: #d97757;
   --border: #4a392f;
   --surface: #231b15;
   --surface-raised: #2a211a;
@@ -893,7 +900,8 @@ button.primary:disabled {
   max-width: 720px;
 }
 
-.travel-section {
+.travel-section,
+.photography-section {
   width: 100%;
 }
 
@@ -2486,6 +2494,72 @@ button.primary:disabled {
    Admin — Jason's seat at the chessboard
    --------------------------------------------------------------------------- */
 
+/* "Your move" banner — pinned to the top of /admin, shown only when the world
+   has moved and it's Jason's turn. Links down to the board (#chessboard), which
+   sits below the article editor. A pulsing coral dot draws the eye. */
+.chess-turn-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0 0 1.75rem;
+  padding: 0.85rem 1.1rem;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--coral);
+  border-radius: 12px;
+  background: var(--surface-soft);
+  color: var(--fg);
+  font-size: 0.95rem;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.chess-turn-banner:hover {
+  background: var(--control-hover-bg);
+  border-color: var(--control-hover-border);
+}
+
+.chess-turn-banner-dot {
+  flex: none;
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 999px;
+  background: var(--coral);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--coral) 65%, transparent);
+  animation: chess-turn-pulse 1.9s ease-out infinite;
+}
+
+@keyframes chess-turn-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--coral) 55%, transparent);
+  }
+  70% {
+    box-shadow: 0 0 0 0.5rem transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+.chess-turn-banner-text {
+  flex: 1 1 auto;
+}
+
+.chess-turn-banner-text strong {
+  color: var(--accent);
+}
+
+.chess-turn-banner-cta {
+  flex: none;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chess-turn-banner-dot {
+    animation: none;
+  }
+}
+
 /* The chess admin borrows the desk panel's dark warm stage so the shared
    .desk-chess-* board styles (cream text, wood frame) read correctly on the
    light admin page too. Solid background — this sits on paper, not canvas. */
@@ -2585,4 +2659,252 @@ button.primary:disabled {
 .chess-admin-cancel:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+/* ===== Travel globe =====
+   The /travel marquee: a warm 3D globe of the places Jason has been, the
+   selected-place card overlay, and the no-WebGL / reduced-motion list fallback.
+   Uses the shared theme tokens so it flips light/dark automatically. */
+
+/* The globe canvas + its overlays. Full-bleed within the section, tall enough to
+   give the planet room; a soft radial wash behind it echoes the lamplit stage. */
+.travel-globe-wrap {
+  position: relative;
+  width: 100%;
+  margin-top: 1.75rem;
+  border-radius: 20px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background:
+    radial-gradient(
+      120% 90% at 50% 18%,
+      var(--surface-soft) 0%,
+      var(--bg) 70%
+    );
+}
+
+.travel-globe-canvas,
+.travel-globe-loading {
+  width: 100%;
+  height: min(70vh, 620px);
+  min-height: 380px;
+  touch-action: pan-y;
+}
+
+/* Loading shimmer holds the footprint until the canvas mounts. */
+.travel-globe-loading {
+  background: radial-gradient(
+    60% 60% at 50% 45%,
+    var(--surface-soft) 0%,
+    transparent 75%
+  );
+  animation: travel-globe-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes travel-globe-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .travel-globe-loading {
+    animation: none;
+  }
+}
+
+/* Hint copy, bottom-center, fades against the globe. */
+.travel-globe-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 1rem;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 0.3rem 0.85rem;
+  font-size: 0.8rem;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+/* The selected-place card — an HTML overlay, top-left over the canvas. On
+   narrow viewports it docks to the bottom edge so it never covers the planet. */
+.travel-place-panel {
+  position: absolute;
+  top: 1.25rem;
+  left: 1.25rem;
+  width: min(20rem, calc(100% - 2.5rem));
+  padding: 1.25rem 1.4rem;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--coral);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 18px 40px -22px rgba(10, 8, 5, 0.6);
+  display: grid;
+  gap: 0.4rem;
+  animation: travel-card-in 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes travel-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .travel-place-panel {
+    animation: none;
+  }
+}
+
+/* On a phone the top-left card would sit over the planet — dock it to the
+   bottom edge, full width, so the globe stays readable behind the tap. */
+@media (max-width: 640px) {
+  .travel-place-panel {
+    top: auto;
+    bottom: 0.9rem;
+    left: 0.9rem;
+    width: calc(100% - 1.8rem);
+  }
+}
+
+.travel-place-panel-close {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.65rem;
+  width: 1.75rem;
+  height: 1.75rem;
+  display: grid;
+  place-items: center;
+  font-size: 1.25rem;
+  line-height: 1;
+  color: var(--muted);
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.travel-place-panel-close:hover {
+  color: var(--fg);
+  background: var(--control-hover-bg);
+}
+
+.travel-place-panel-name {
+  margin: 0;
+  font-size: 1.3rem;
+  line-height: 1.15;
+  color: var(--fg);
+}
+
+.travel-place-panel-region {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.travel-place-panel-note {
+  margin: 0.15rem 0 0;
+  color: var(--fg);
+}
+
+.travel-place-panel-when {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.travel-place-panel-link {
+  margin-top: 0.35rem;
+  justify-self: start;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.travel-place-panel-link:hover {
+  text-decoration: underline;
+}
+
+/* Crawlable list kept in the DOM under the live globe, visually hidden. */
+.travel-globe-seo {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* The fallback / SEO list: warm place cards under the same heading. */
+.travel-fallback {
+  margin-top: 1.75rem;
+}
+
+.travel-place-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+}
+
+.travel-place-card {
+  padding: 1.25rem 1.35rem;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--coral);
+  border-radius: 14px;
+  background: var(--surface);
+  display: grid;
+  gap: 0.4rem;
+}
+
+.travel-place-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.travel-place-card-head h3 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.travel-place-region {
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.travel-place-note {
+  margin: 0;
+  color: var(--fg);
+}
+
+.travel-place-when {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
 }

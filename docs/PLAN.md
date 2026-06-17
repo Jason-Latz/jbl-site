@@ -181,7 +181,12 @@ up to the level of the record player."
       as a theme-aware glass bar, and the portrait camera reframed (fov in the
       rig) to fill a tall screen (2026-06-17, both mobile + desktop); touch orbit
       + perf tiers still TODO
-- [ ] Inner pages typography refresh to match the desk's palette
+- [x] /travel is a warm 3D globe of places Jason has been (PR `overnight/desk-stretch`,
+      2026-06-17) — Natural Earth land texture, coral markers from content/places.ts,
+      arcs, fresnel rim, drag/auto-rotate, place card → /photography, lazy + fallback.
+- [~] Inner pages typography refresh to match the desk's palette — warm-continuity
+      palette retone landed (light accent navy → terracotta coral, AA-checked,
+      2026-06-17); fuller per-page typography/layout pass still open.
 - [ ] Easter eggs (dust motes in lamp cone, mug steam, seasonal touches)
 - [ ] /music page (Jason 2026-06-11): record CRATE click → /music with his
       curated favorite records (he edits the list); record PLAYER click →
@@ -189,8 +194,10 @@ up to the level of the record player."
 - [ ] Window view upgrade: layered parallax outside the glass (skyline /
       courtyard planes at 2-3 depths). Cheap — the baked light doesn't care;
       Jason asked "is that too much?" — it isn't.
-- [ ] /photography split from /travel, then camera + photo stack get their
-      own focus views and panels (prints become his real trip photos)
+- [~] /photography split from /travel (2026-06-17): /photography is now its own
+      gallery page (mosaic), and clicking the desk camera + prints navigates there
+      (both scenes). Still open: dedicated camera/photo-stack focus views + panels,
+      and prints becoming his real trip photos.
 
 ## Stage 5 — the kiln: baked GI, CDN-hosted (SHIPPED — site LAUNCHED 2026-06-16)
 

@@ -13,6 +13,7 @@
 // fallback until this is signed off.
 
 import { Suspense, memo, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Environment, Lightformer, OrbitControls } from "@react-three/drei";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
@@ -73,6 +74,14 @@ const HIDDEN = new Set(["macbook", "chessboard", "turntable", "notepad"]);
 // body-click focus — its needle owns the only interaction (drop → records view).
 const FOCUS_MAP: Record<string, FocusId> = {
   bookRow: "reading"
+};
+
+// Baked objects that navigate to a real route instead of opening a focus panel.
+// The film camera and the fanned prints are the "photography" corner of the
+// desk — clicking either crosses to the photo gallery (mirrors DeskScene).
+const NAV_MAP: Record<string, string> = {
+  filmCamera: "/photography",
+  photos: "/photography"
 };
 
 const CAMERA_START = new THREE.Vector3(...CAMERA.start);
@@ -154,6 +163,7 @@ function BakedStatics({
   onReady?: () => void;
 }) {
   const { toggleTheme } = useDeskTheme();
+  const router = useRouter();
   const [root, setRoot] = useState<THREE.Object3D | null>(null);
 
   useEffect(() => {
@@ -210,10 +220,21 @@ function BakedStatics({
     };
   }, [onReady]);
 
-  const objectOf = (e: ThreeEvent<MouseEvent>): string =>
-    (e.object.userData?.object as string) ||
-    (e.object.parent?.userData?.object as string) ||
-    "";
+  // Resolve a clicked/hovered baked mesh to its object tag by walking UP to the
+  // nearest tagged ancestor. A baked object (e.g. the film camera) is many
+  // sub-meshes at varying depths after flatten() — a 2-level lookup found the
+  // shallow ones (the camera body, so the CLICK worked) but missed the deeper
+  // ones (the lens group), so hovering them resolved to "" and the pointer
+  // cursor never appeared.
+  const objectOf = (e: ThreeEvent<MouseEvent>): string => {
+    let o: THREE.Object3D | null = e.object;
+    while (o) {
+      const tag = o.userData?.object as string | undefined;
+      if (tag) return tag;
+      o = o.parent;
+    }
+    return "";
+  };
 
   if (!root) return null;
   return (
@@ -226,6 +247,12 @@ function BakedStatics({
           toggleTheme();
           return;
         }
+        const href = NAV_MAP[obj];
+        if (href) {
+          e.stopPropagation();
+          router.push(href);
+          return;
+        }
         const focusId = FOCUS_MAP[obj];
         if (focusId) {
           e.stopPropagation();
@@ -234,7 +261,7 @@ function BakedStatics({
       }}
       onPointerOver={(e: ThreeEvent<PointerEvent>) => {
         const obj = objectOf(e as unknown as ThreeEvent<MouseEvent>);
-        if (obj === "lamp" || FOCUS_MAP[obj]) {
+        if (obj === "lamp" || FOCUS_MAP[obj] || NAV_MAP[obj]) {
           e.stopPropagation();
           document.body.style.cursor = "pointer";
         }
