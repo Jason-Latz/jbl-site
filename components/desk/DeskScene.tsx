@@ -77,18 +77,24 @@ const CAMERA_START = new THREE.Vector3(...CAMERA.start);
 const CAMERA_REST = new THREE.Vector3(...CAMERA.rest);
 const CAMERA_TARGET = new THREE.Vector3(...CAMERA.target);
 
-// Portrait viewports can't fit the whole desk without shrinking it to a
-// miniature, so they frame the turntable cluster instead and let visitors
-// orbit to the rest. Full mobile tuning is a Stage 4 item.
-const PORTRAIT_START = new THREE.Vector3(0.3, 1.8, 2.4);
-const PORTRAIT_REST = new THREE.Vector3(-0.1, 1.15, 1.0);
-const PORTRAIT_TARGET = new THREE.Vector3(-0.14, 0.02, -0.02);
+// A tall phone screen sees only a narrow horizontal slice at the landscape
+// fov (vertical fov 40 on a ~0.46 aspect leaves ~19 of horizontal field), so
+// the wide desk can't read whole without becoming a miniature. Instead the
+// portrait rig heroes the turntable + lamp cluster — a vertical-friendly
+// subject (the lamp rises, the glow pools on the platter) — framed to FILL
+// the tall frame, with a wider fov for breathing room. Visitors can still
+// orbit to the rest of the desk at the resting view.
+const PORTRAIT_START = new THREE.Vector3(0.25, 1.35, 1.95);
+const PORTRAIT_REST = new THREE.Vector3(-0.12, 0.8, 1.12);
+const PORTRAIT_TARGET = new THREE.Vector3(-0.4, 0.18, 0.04);
+const PORTRAIT_FOV = 54;
 
 type CameraRig = {
   start: THREE.Vector3;
   rest: THREE.Vector3;
   target: THREE.Vector3;
   maxDistance: number;
+  fov: number;
 };
 
 function useCameraRig(): CameraRig {
@@ -100,14 +106,16 @@ function useCameraRig(): CameraRig {
         start: CAMERA_START,
         rest: CAMERA_REST,
         target: CAMERA_TARGET,
-        maxDistance: 1.95
+        maxDistance: 1.95,
+        fov: CAMERA.fov
       };
     }
     return {
       start: PORTRAIT_START,
       rest: PORTRAIT_REST,
       target: PORTRAIT_TARGET,
-      maxDistance: 2.5
+      maxDistance: 2.2,
+      fov: PORTRAIT_FOV
     };
   }, [size.width, size.height]);
 }
@@ -272,6 +280,13 @@ function CameraDirector({
   const firstFlightRef = useRef(true);
 
   useEffect(() => {
+    // Keep the projection fov in sync with the rig (landscape vs the wider
+    // portrait framing) on aspect flips.
+    const cam = camera as THREE.PerspectiveCamera;
+    if (cam.isPerspectiveCamera && cam.fov !== rig.fov) {
+      cam.fov = rig.fov;
+      cam.updateProjectionMatrix();
+    }
     const view = focus ? FOCUS_VIEWS[focus] : null;
     const isFirst = firstFlightRef.current;
     firstFlightRef.current = false;
