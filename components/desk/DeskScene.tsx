@@ -508,6 +508,18 @@ function SceneContents({
 export default function DeskScene(props: DeskSceneProps) {
   const { theme, toggleTheme } = useSiteTheme();
 
+  // Cold-load insurance (mirrors BakedDeskScene): the hero canvas mounts while
+  // the load curtain still holds its container at 0 height, so R3F's
+  // ResizeObserver can latch the default 300x150 and never re-measure — the
+  // scene then renders at 2:1 and gets CSS-stretched to the hero box, which
+  // reads as a squished/"wrong size" viewport. Nudge a couple of resize events
+  // after mount so it picks up the real container size.
+  useEffect(() => {
+    const fire = () => window.dispatchEvent(new Event("resize"));
+    const timers = [120, 500, 1200].map((ms) => window.setTimeout(fire, ms));
+    return () => timers.forEach((id) => window.clearTimeout(id));
+  }, []);
+
   return (
     <Canvas
       shadows
