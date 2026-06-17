@@ -13,6 +13,7 @@
 // fallback until this is signed off.
 
 import { Suspense, memo, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Environment, Lightformer, OrbitControls } from "@react-three/drei";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
@@ -73,6 +74,14 @@ const HIDDEN = new Set(["macbook", "chessboard", "turntable", "notepad"]);
 // body-click focus — its needle owns the only interaction (drop → records view).
 const FOCUS_MAP: Record<string, FocusId> = {
   bookRow: "reading"
+};
+
+// Baked objects that navigate to a real route instead of opening a focus panel.
+// The film camera and the fanned prints are the "photography" corner of the
+// desk — clicking either crosses to the photo gallery (mirrors DeskScene).
+const NAV_MAP: Record<string, string> = {
+  filmCamera: "/photography",
+  photos: "/photography"
 };
 
 const CAMERA_START = new THREE.Vector3(...CAMERA.start);
@@ -154,6 +163,7 @@ function BakedStatics({
   onReady?: () => void;
 }) {
   const { toggleTheme } = useDeskTheme();
+  const router = useRouter();
   const [root, setRoot] = useState<THREE.Object3D | null>(null);
 
   useEffect(() => {
@@ -226,6 +236,12 @@ function BakedStatics({
           toggleTheme();
           return;
         }
+        const href = NAV_MAP[obj];
+        if (href) {
+          e.stopPropagation();
+          router.push(href);
+          return;
+        }
         const focusId = FOCUS_MAP[obj];
         if (focusId) {
           e.stopPropagation();
@@ -234,7 +250,7 @@ function BakedStatics({
       }}
       onPointerOver={(e: ThreeEvent<PointerEvent>) => {
         const obj = objectOf(e as unknown as ThreeEvent<MouseEvent>);
-        if (obj === "lamp" || FOCUS_MAP[obj]) {
+        if (obj === "lamp" || FOCUS_MAP[obj] || NAV_MAP[obj]) {
           e.stopPropagation();
           document.body.style.cursor = "pointer";
         }

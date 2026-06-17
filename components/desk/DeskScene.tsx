@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, memo, useEffect, useMemo, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import {
   AccumulativeShadows,
@@ -426,15 +427,19 @@ function Placed({
   name,
   focusId,
   onFocus,
+  href,
   children
 }: {
   name: keyof typeof PLACEMENT;
   focusId?: FocusId;
   onFocus?: (id: FocusId) => void;
+  href?: string;
   children: React.ReactNode;
 }) {
+  const router = useRouter();
   const placement = PLACEMENT[name];
-  const clickable = Boolean(focusId && onFocus);
+  // Either opens a focus panel (focusId) or crosses to a real route (href).
+  const clickable = Boolean((focusId && onFocus) || href);
   return (
     <group
       position={placement.position}
@@ -443,6 +448,10 @@ function Placed({
         clickable
           ? (event: ThreeEvent<MouseEvent>) => {
               event.stopPropagation();
+              if (href) {
+                router.push(href);
+                return;
+              }
               onFocus!(focusId!);
             }
           : undefined
