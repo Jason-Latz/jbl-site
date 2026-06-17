@@ -535,12 +535,12 @@ function SceneContents({
       <Placed name="crate">
         <RecordCrate coverArtUrls={coverArtUrls} />
       </Placed>
-      {/* Travel/photography vignette — décor for now; focus views and a
-          panel arrive once /photography splits from /travel. */}
-      <Placed name="photos">
+      {/* The photography corner: clicking the camera or the fanned prints
+          crosses to /photography (mirrors BakedDeskScene's NAV_MAP). */}
+      <Placed name="photos" href="/photography">
         <PhotoStack />
       </Placed>
-      <Placed name="filmCamera">
+      <Placed name="filmCamera" href="/photography">
         <FilmCamera />
       </Placed>
       <OrbitControls
