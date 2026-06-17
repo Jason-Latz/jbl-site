@@ -31,7 +31,10 @@ Storage; the runtime fetches them from there in prod, from disk in dev.
 - **Verified:** meshopt decodes + geometry/uv1 intact (headless); prod build
   green; BOTH themes render from Supabase cross-origin, zero CORS/console
   errors; first paint 172MB → ~31MB. Full runbook in `BAKING.md` §8.
-- Homepage default still gated at `?baked=1` — the prod flip is the last step.
+- **Shipped to production.** `/` flipped to the baked scene and merged to `main`
+  (`37e8ad0`) — live on **www.jasonlatz.com**; `?baked=0` is the escape hatch to
+  the live procedural `DeskScene`. Vercel prod deploy READY; page + Supabase GLB
+  both 200 (the prior blank's 404 failure mode is gone).
 
 ### 2026-06-16 — Homepage flipped to baked; dark-mode lighting; the BAKED-GLB-LIGHT gotcha
 
