@@ -1718,7 +1718,10 @@ button.primary:disabled {
 :root:has(.desk-hero, .desk-hero-fallback) .desk-hero-fallback {
   height: 100svh;
   max-height: none;
-  min-height: 520px;
+  /* No floor: 100svh already fills the viewport, and a fixed floor (e.g.
+     520px) would overflow short landscape phones and push the HUD below the
+     fold. */
+  min-height: 0;
   margin-top: -3.5rem;
   margin-bottom: 0;
 }
@@ -1823,12 +1826,12 @@ button.primary:disabled {
   :root:has(.desk-hero, .desk-hero-fallback) .nav {
     flex-wrap: wrap;
     justify-content: center;
-    gap: 0.28rem;
+    gap: 0.15rem;
   }
 
   :root:has(.desk-hero, .desk-hero-fallback) .nav a {
-    padding: 0.3rem 0.6rem;
-    font-size: 0.82rem;
+    padding: 0.3rem 0.5rem;
+    font-size: 0.8rem;
   }
 
   :root:has(.desk-hero, .desk-hero-fallback) .theme-toggle {
@@ -1837,6 +1840,27 @@ button.primary:disabled {
     right: 0.7rem;
     width: 2.05rem;
     height: 2.05rem;
+  }
+}
+
+/* Keyboard focus ring for the tabs over the glass (the chips set no outline,
+   so default to a clear themed ring). */
+:root:has(.desk-hero, .desk-hero-fallback) .nav a:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* A focus panel must stay clear of the fixed nav. On phones it anchors to the
+   bottom (already clear); on wider screens it anchors top-right — directly
+   under the bar — so lift it above the nav in z and drop it below the bar so
+   its title + close button are never covered. */
+:root:has(.desk-hero, .desk-hero-fallback) .desk-panel {
+  z-index: 60;
+}
+
+@media (min-width: 641px) {
+  :root:has(.desk-hero, .desk-hero-fallback) .desk-panel {
+    top: 4.75rem;
   }
 }
 
