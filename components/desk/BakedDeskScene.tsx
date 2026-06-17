@@ -17,6 +17,10 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Environment, Lightformer, OrbitControls } from "@react-three/drei";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { GLTFLoader } from "three-stdlib";
+// three-stdlib's MeshoptDecoder export is the wrong shape (a bare function with
+// no decodeGltfBuffer/ready); three's own module is the canonical singleton the
+// GLTFLoader expects. The slim GLB is EXT_meshopt_compression-encoded.
+import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import * as THREE from "three";
 import type { ThreeEvent } from "@react-three/fiber";
 import {
@@ -44,7 +48,20 @@ const Chessboard = memo(ChessboardBase);
 const Notepad = memo(NotepadBase);
 const Turntable = memo(TurntableBase);
 
-const GLB_URL = "/_bake/desk-window-uv1.glb";
+// Slim baked assets (meshopt GLB + WebP lightmaps, ~31MB) are hosted on public
+// Supabase Storage under an immutable, versioned prefix. Local dev serves the
+// same slim assets from disk so reloads don't refetch 28MB. NEXT_PUBLIC_BAKE_
+// CDN_URL overrides both (set it in Vercel to repoint without a code change).
+// Bump the v1 prefix on a re-bake — see docs/BAKING.md.
+const SUPABASE_BAKE_CDN =
+  "https://qllalbklzxtsvqzszigo.supabase.co/storage/v1/object/public/bake/v1";
+const isLocalhost =
+  typeof window !== "undefined" &&
+  /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname);
+const BAKE_BASE =
+  process.env.NEXT_PUBLIC_BAKE_CDN_URL ||
+  (isLocalhost ? "/_bake/cdn" : SUPABASE_BAKE_CDN);
+const GLB_URL = `${BAKE_BASE}/desk-window-uv1.glb`;
 
 // Baked meshes hidden because a LIVE component overlays them (their baked
 // contact shadow stays painted on the desk lightmap to ground the overlay).
@@ -86,12 +103,18 @@ const LAMP_HEAD_LOCAL: [number, number, number] = [0.3446, 0.4195, 0.0088];
 const LAMP_TARGET_LOCAL: [number, number, number] = [0.5, 0, 0.12];
 
 const texLoader = new THREE.TextureLoader();
+// Supabase serves the lightmaps cross-origin with `access-control-allow-origin:
+// *`; anonymous CORS keeps the canvas untainted so preserveDrawingBuffer
+// captures still work. (Three defaults to anonymous, but be explicit.)
+texLoader.crossOrigin = "anonymous";
 const lmCache = new Map<string, THREE.Texture>();
 function lightmap(unit: string, state: "on" | "off"): THREE.Texture {
   const key = `${unit}-${state}`;
   let t = lmCache.get(key);
   if (!t) {
-    t = texLoader.load(`/_bake/lightmaps/${key}.png?v=2`);
+    // 8-bit WebP — the runtime decoded the source 16-bit PNGs to 8-bit via
+    // <img> anyway, so this is lossless vs. what shipped, at ~1/30th the bytes.
+    t = texLoader.load(`${BAKE_BASE}/lightmaps/${key}.webp`);
     t.flipY = false;
     t.channel = 1;
     t.colorSpace = THREE.LinearSRGBColorSpace;
@@ -133,7 +156,9 @@ function BakedStatics({
 
   useEffect(() => {
     let cancelled = false;
-    new GLTFLoader().load(
+    const loader = new GLTFLoader();
+    loader.setMeshoptDecoder(MeshoptDecoder);
+    loader.load(
       GLB_URL,
       (gltf) => {
         if (cancelled) return;
