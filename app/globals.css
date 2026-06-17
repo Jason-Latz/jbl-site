@@ -1700,6 +1700,67 @@ button.primary:disabled {
   }
 }
 
+/* ---------------------------------------------------------------------------
+   The Desk — immersive homepage: the 3D scene fills the whole viewport and the
+   site nav floats over it as a theme-aware glass bar (instead of a separate
+   header above a contained hero box). Scoped with :has() so ONLY the homepage
+   (the one route that renders .desk-hero / .desk-hero-fallback) gets it; every
+   other route AND :has()-less browsers keep the normal solid static header and
+   the contained hero — graceful, no JS, no per-route layout.
+   --------------------------------------------------------------------------- */
+
+/* The hero fills the viewport. With the header taken out of flow (fixed,
+   below), main rises to y=0 and the existing margin-top:-3.5rem lands the hero
+   top at the very top of the screen, so 100svh fills it edge-to-edge. svh (the
+   stable small-viewport unit) avoids the canvas resizing as the mobile URL bar
+   shows/hides. Both mobile and desktop. */
+:root:has(.desk-hero, .desk-hero-fallback) .desk-hero,
+:root:has(.desk-hero, .desk-hero-fallback) .desk-hero-fallback {
+  height: 100svh;
+  max-height: none;
+  min-height: 520px;
+  margin-top: -3.5rem;
+  margin-bottom: 0;
+}
+
+/* The nav floats over the scene as a frosted-glass bar (base = light theme,
+   the default; dark override below). Legible over both the bright/dark 3D and
+   the content that scrolls up beneath it, so it can stay pinned. */
+:root:has(.desk-hero, .desk-hero-fallback) .site-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  padding: 0.62rem 1.25rem;
+  background: rgba(247, 244, 238, 0.72);
+  -webkit-backdrop-filter: blur(16px) saturate(1.15);
+  backdrop-filter: blur(16px) saturate(1.15);
+  border-bottom: 1px solid rgba(40, 30, 20, 0.1);
+}
+
+:root[data-theme="dark"]:has(.desk-hero, .desk-hero-fallback) .site-header {
+  background: rgba(20, 15, 11, 0.55);
+  border-bottom: 1px solid rgba(255, 240, 220, 0.08);
+}
+
+/* Slim single-row bar (override the >=740px column-stacking of the static
+   header). T2 refines the typography / mobile chip treatment. */
+:root:has(.desk-hero, .desk-hero-fallback) .site-header .container {
+  display: flex;
+}
+
+:root:has(.desk-hero, .desk-hero-fallback) .site-header-top {
+  flex: 1;
+  flex-direction: row;
+  align-items: center;
+  gap: 1rem;
+}
+
+:root:has(.desk-hero, .desk-hero-fallback) .site-header-controls {
+  width: auto;
+}
+
 .desk-credit {
   position: absolute;
   right: 14px;
