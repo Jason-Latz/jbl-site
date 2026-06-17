@@ -901,7 +901,8 @@ button.primary:disabled {
   max-width: 720px;
 }
 
-.travel-section {
+.travel-section,
+.photography-section {
   width: 100%;
 }
 
