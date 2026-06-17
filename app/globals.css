@@ -1347,7 +1347,9 @@ button.primary:disabled {
   gap: 1.55rem;
 }
 
-/* The Claude mark: turns slowly inside a soft coral aura, breathing in scale. */
+/* The Claude mark: pulses in and out inside a soft coral aura — the way
+   Claude's own "thinking" mark breathes. No rotation (it's pinned at zero);
+   the glyph scales from a fixed centre and the aura glows in sympathy. */
 .site-preloader-mark {
   position: relative;
   display: grid;
@@ -1355,7 +1357,6 @@ button.primary:disabled {
   width: clamp(58px, 12vw, 76px);
   height: clamp(58px, 12vw, 76px);
   color: #d97757;
-  animation: pl-breathe 3.4s ease-in-out infinite;
 }
 
 .site-preloader-mark::before {
@@ -1372,7 +1373,7 @@ button.primary:disabled {
     rgba(217, 119, 87, 0.42) 0%,
     rgba(217, 119, 87, 0) 66%
   );
-  animation: pl-aura 3.4s ease-in-out infinite;
+  animation: pl-aura 1.5s ease-in-out infinite;
   pointer-events: none;
 }
 
@@ -1389,7 +1390,8 @@ button.primary:disabled {
   width: 100%;
   height: 100%;
   display: block;
-  animation: pl-spin 19s linear infinite;
+  transform-origin: 50% 50%;
+  animation: pl-pulse 1.5s cubic-bezier(0.42, 0, 0.58, 1) infinite;
   will-change: transform;
 }
 
@@ -1444,19 +1446,13 @@ button.primary:disabled {
   animation-delay: 0.36s;
 }
 
-@keyframes pl-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes pl-breathe {
+@keyframes pl-pulse {
   0%,
   100% {
-    transform: scale(1);
+    transform: scale(0.95);
   }
   50% {
-    transform: scale(1.05);
+    transform: scale(1.1);
   }
 }
 
