@@ -68,6 +68,47 @@ over the loading shimmer (documented). To screenshot the real scene, force the
 `resize` events. Real device-sized PNGs are captured with Playwright (installed
 `--no-save`; `reducedMotion`/`colorScheme` contexts).
 
+### 2026-06-17 — Overnight: travel globe, /photography split, camera wire, chess "your move"
+
+> Concurrent with the mobile-immersive run above (both 2026-06-17); this one is the
+> `overnight/desk-stretch` PR. The two integrate cleanly — the camera-wire touched the
+> same scene files the mobile run reworked (portrait rigs), and they rebased without code
+> conflict.
+
+Autonomous overnight run on branch `overnight/desk-stretch` (off origin/main),
+landed as a PR (Jason asked to review before it hits prod — NOT pushed to main).
+Four asks, all built + adversarially reviewed:
+
+- **`/travel` is now a 3D globe of places Jason has been.** New `components/travel/
+  TravelGlobe.tsx` (+ `TravelGlobeStage.tsx` capability gate) — a warm paper-and-ink
+  sphere: equirectangular `CanvasTexture` drawn from embedded Natural Earth land
+  (`lib/geo/land.ts`, 110m, ~76 KB), coral markers from `content/places.ts` (curated,
+  editable — Arizona/Evanston/Austin/DC/Edinburgh seeded), great-circle arcs, fresnel
+  rim, auto-rotate + drag, click → place card → /photography. Lazy-loaded (89.6 kB first
+  load, three.js in the lazy chunk), theme-aware, with a designed no-WebGL/reduced-motion
+  fallback list (also the crawlable/no-JS content). Marker↔texture longitude alignment
+  verified by eye (Edinburgh/UK, US cluster).
+- **`/photography` split from `/travel`** into its own gallery page (was a redirect);
+  added to `SiteNav`. The photo mosaic lives here now; `/travel` is the globe.
+- **Desk camera/prints → `/photography`.** `BakedDeskScene` (prod default) routes the
+  `filmCamera`/`photos` object tags via a new `NAV_MAP → router.push`; `DeskScene`'s
+  `<Placed>` gained an `href` prop. In-canvas clicks need a hand-check (R3F offsetX/Y).
+- **Chess "your move" banner** (`app/admin/ChessTurnBanner.tsx`) pinned to the top of
+  /admin, shown only when it's Jason's turn (the board sits below the big editor). The
+  existing ChessAdmin reply flow was already wired + editor-auth'd; the engine
+  (`lib/chess/server.ts`) was verified 12/12 (legal/illegal, checkmate→mover,
+  stalemate→draw, parse, public-shape strip). Signed-in move still needs a hand-check.
+
+Also: **warm-continuity palette retone** — light accent cold navy `#1e2d3d` → terracotta
+`#ad4720` (AA-checked), decorative `--coral` token; region labels use AA-safe `--accent`.
+A 4-dimension adversarial review of the diff caught 13 findings (all fixed or triaged):
+the half-wired DeskScene href, back-hemisphere markers clickable through the opaque globe
+(camera-facing test added), 4k→2k globe texture, pre-detection flash, role="dialog"→
+`<aside>`, arc degeneracy guard, dead code. Known limitation (parity with the desk scene):
+in-canvas globe markers aren't keyboard-reachable; the fallback + sr-only list carry the
+content. tsc + `npm run build` green. GOTCHA: the homepage baked scene 404s in a fresh
+worktree (slim assets are CDN-only/gitignored) — fine in prod.
+
 ### 2026-06-16 — Baked assets slimmed (172→31MB) + hosted on a CDN (Supabase Storage)
 
 The flip to baked (entry below) took production BLANK: the baked homepage's
