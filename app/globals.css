@@ -1723,29 +1723,32 @@ button.primary:disabled {
   margin-bottom: 0;
 }
 
-/* The nav floats over the scene as a frosted-glass bar (base = light theme,
-   the default; dark override below). Legible over both the bright/dark 3D and
-   the content that scrolls up beneath it, so it can stay pinned. */
+/* The nav floats over the scene as a slim frosted-glass bar (base = light
+   theme, the default; dark override below). The frosted backing keeps the
+   title + tabs legible over both the bright/dark 3D and the content that
+   scrolls up beneath it, so the bar can stay pinned. */
 :root:has(.desk-hero, .desk-hero-fallback) .site-header {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   z-index: 50;
-  padding: 0.62rem 1.25rem;
-  background: rgba(247, 244, 238, 0.72);
-  -webkit-backdrop-filter: blur(16px) saturate(1.15);
-  backdrop-filter: blur(16px) saturate(1.15);
-  border-bottom: 1px solid rgba(40, 30, 20, 0.1);
+  padding: 0.5rem 1.1rem;
+  background: rgba(247, 244, 238, 0.5);
+  -webkit-backdrop-filter: blur(20px) saturate(1.35);
+  backdrop-filter: blur(20px) saturate(1.35);
+  border-bottom: 1px solid rgba(40, 30, 20, 0.07);
+  box-shadow: 0 6px 24px rgba(28, 18, 8, 0.05);
 }
 
 :root[data-theme="dark"]:has(.desk-hero, .desk-hero-fallback) .site-header {
-  background: rgba(20, 15, 11, 0.55);
-  border-bottom: 1px solid rgba(255, 240, 220, 0.08);
+  background: rgba(18, 13, 9, 0.44);
+  border-bottom-color: rgba(255, 240, 220, 0.06);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.28);
 }
 
-/* Slim single-row bar (override the >=740px column-stacking of the static
-   header). T2 refines the typography / mobile chip treatment. */
+/* Single-row bar: title left, tabs + toggle right (override the >=740px
+   column-stacking of the static header). */
 :root:has(.desk-hero, .desk-hero-fallback) .site-header .container {
   display: flex;
 }
@@ -1754,11 +1757,87 @@ button.primary:disabled {
   flex: 1;
   flex-direction: row;
   align-items: center;
-  gap: 1rem;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+:root:has(.desk-hero, .desk-hero-fallback) .site-title {
+  font-size: 1.12rem;
+  white-space: nowrap;
 }
 
 :root:has(.desk-hero, .desk-hero-fallback) .site-header-controls {
   width: auto;
+  flex-wrap: nowrap;
+  gap: 0.35rem;
+}
+
+/* Tabs become subtle frosted chips so they read as tappable over the scene. */
+:root:has(.desk-hero, .desk-hero-fallback) .nav {
+  gap: 0.25rem;
+}
+
+:root:has(.desk-hero, .desk-hero-fallback) .nav a {
+  padding: 0.34rem 0.66rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  color: var(--fg);
+  border: 1px solid transparent;
+  transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+}
+
+:root:has(.desk-hero, .desk-hero-fallback) .nav a:hover {
+  background: rgba(40, 30, 20, 0.06);
+  border-color: rgba(40, 30, 20, 0.12);
+}
+
+:root[data-theme="dark"]:has(.desk-hero, .desk-hero-fallback) .nav a:hover {
+  background: rgba(255, 240, 220, 0.09);
+  border-color: rgba(255, 240, 220, 0.16);
+}
+
+/* Phones: the title + 5 tabs + toggle can't share one row. Pin the theme
+   toggle to the top-right corner (out of flow — the fixed header is its
+   containing block), center the title above a tidy wrapped chip row of tabs.
+   Two slim rows that stay out of the scene's way. */
+@media (max-width: 620px) {
+  :root:has(.desk-hero, .desk-hero-fallback) .site-header {
+    padding: 0.5rem 0.7rem 0.55rem;
+  }
+
+  :root:has(.desk-hero, .desk-hero-fallback) .site-header-top {
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  :root:has(.desk-hero, .desk-hero-fallback) .site-title {
+    font-size: 1.05rem;
+  }
+
+  :root:has(.desk-hero, .desk-hero-fallback) .site-header-controls {
+    width: 100%;
+    justify-content: center;
+  }
+
+  :root:has(.desk-hero, .desk-hero-fallback) .nav {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.28rem;
+  }
+
+  :root:has(.desk-hero, .desk-hero-fallback) .nav a {
+    padding: 0.3rem 0.6rem;
+    font-size: 0.82rem;
+  }
+
+  :root:has(.desk-hero, .desk-hero-fallback) .theme-toggle {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.7rem;
+    width: 2.05rem;
+    height: 2.05rem;
+  }
 }
 
 .desk-credit {
