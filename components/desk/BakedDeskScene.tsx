@@ -78,15 +78,17 @@ const FOCUS_MAP: Record<string, FocusId> = {
 const CAMERA_START = new THREE.Vector3(...CAMERA.start);
 const CAMERA_REST = new THREE.Vector3(...CAMERA.rest);
 const CAMERA_TARGET = new THREE.Vector3(...CAMERA.target);
-// Portrait (phone) framing: the narrow frustum (~0.45 m wide at the desk) can't
-// hold the whole desk, so it makes the turntable the hero — the "now playing"
-// centerpiece the HUD invites you to play, with "Drop the needle" sitting right
-// under it. Derived from the records FOCUS_VIEW (a hand-framed turntable shot)
-// pulled back ~1.5x so the record player reads with margin instead of clipping;
-// visitors orbit to the rest.
-const PORTRAIT_START = new THREE.Vector3(0.3, 1.8, 2.4);
-const PORTRAIT_REST = new THREE.Vector3(-0.55, 0.9, 1.1);
-const PORTRAIT_TARGET = new THREE.Vector3(-0.58, 0.05, 0.05);
+// Portrait (phone) framing: a tall screen sees only a narrow horizontal slice at
+// the landscape fov (40 vertical leaves ~19 horizontal on a ~0.46 aspect), so
+// the wide desk can't read whole. Hero the turntable + lamp cluster — a
+// vertical-friendly subject (the lamp rises, its glow pools on the platter) —
+// framed to FILL the tall frame, with a wider fov for breathing room. Kept in
+// sync with DeskScene's portrait rig so ?baked=0 frames identically. Visitors
+// orbit to the rest of the desk from the resting view.
+const PORTRAIT_START = new THREE.Vector3(0.25, 1.35, 1.95);
+const PORTRAIT_REST = new THREE.Vector3(-0.12, 0.8, 1.12);
+const PORTRAIT_TARGET = new THREE.Vector3(-0.4, 0.18, 0.04);
+const PORTRAIT_FOV = 54;
 
 // ——— two-state lightmap blend, driven by the real theme mix ———
 const uMix = { value: 1 };
@@ -338,15 +340,33 @@ function SceneEnvironment() {
   );
 }
 
-type CameraRig = { start: THREE.Vector3; rest: THREE.Vector3; target: THREE.Vector3; maxDistance: number };
+type CameraRig = {
+  start: THREE.Vector3;
+  rest: THREE.Vector3;
+  target: THREE.Vector3;
+  maxDistance: number;
+  fov: number;
+};
 function useCameraRig(): CameraRig {
   const { size } = useThree();
   return useMemo(() => {
     const aspect = size.width / size.height;
     if (aspect >= 0.9) {
-      return { start: CAMERA_START, rest: CAMERA_REST, target: CAMERA_TARGET, maxDistance: 1.95 };
+      return {
+        start: CAMERA_START,
+        rest: CAMERA_REST,
+        target: CAMERA_TARGET,
+        maxDistance: 1.95,
+        fov: CAMERA.fov
+      };
     }
-    return { start: PORTRAIT_START, rest: PORTRAIT_REST, target: PORTRAIT_TARGET, maxDistance: 2.5 };
+    return {
+      start: PORTRAIT_START,
+      rest: PORTRAIT_REST,
+      target: PORTRAIT_TARGET,
+      maxDistance: 2.2,
+      fov: PORTRAIT_FOV
+    };
   }, [size.width, size.height]);
 }
 
@@ -373,17 +393,57 @@ function CameraDirector({
   const flightRef = useRef<CameraFlight | null>(null);
   const currentTarget = useRef(rig.target.clone());
   const firstFlightRef = useRef(true);
+  const prevFocusRef = useRef<FocusId | null>(null);
 
   useEffect(() => {
+    // Keep the projection fov in sync with the rig (landscape vs the wider
+    // portrait framing) on aspect flips.
+    const cam = camera as THREE.PerspectiveCamera;
+    if (cam.isPerspectiveCamera && cam.fov !== rig.fov) {
+      cam.fov = rig.fov;
+      cam.updateProjectionMatrix();
+    }
+
     const view = focus ? FOCUS_VIEWS[focus] : null;
+    const to = view ? new THREE.Vector3(...view.position) : rig.rest.clone();
+    const toTarget = view ? new THREE.Vector3(...view.target) : rig.target.clone();
     const isFirst = firstFlightRef.current;
+    const focusChanged = focus !== prevFocusRef.current;
     firstFlightRef.current = false;
+    prevFocusRef.current = focus;
+
+    // A rig change that did NOT change the focus is a viewport event — the
+    // cold-load size correction (300x150 -> real, which flips landscape<->
+    // portrait via the resize-nudge) or an orientation flip. Retarget the live
+    // dolly instead of restarting it from scratch, so the intro flight isn't
+    // aborted ~120 ms in. (If we're already at rest, ease gently to the new
+    // framing.)
+    if (!isFirst && !focusChanged) {
+      if (flightRef.current) {
+        flightRef.current.to = to;
+        flightRef.current.toTarget = toTarget;
+        flightRef.current.unlockOnLand = !focus;
+      } else {
+        if (controlsRef.current) controlsRef.current.enabled = false;
+        flightRef.current = {
+          from: camera.position.clone(),
+          fromTarget: currentTarget.current.clone(),
+          to,
+          toTarget,
+          progress: 0,
+          duration: 0.8,
+          unlockOnLand: !focus
+        };
+      }
+      return;
+    }
+
     if (controlsRef.current) controlsRef.current.enabled = false;
     flightRef.current = {
       from: isFirst ? rig.start.clone() : camera.position.clone(),
       fromTarget: currentTarget.current.clone(),
-      to: view ? new THREE.Vector3(...view.position) : rig.rest.clone(),
-      toTarget: view ? new THREE.Vector3(...view.target) : rig.target.clone(),
+      to,
+      toTarget,
       progress: 0,
       duration: isFirst ? 2.3 : 1.05,
       unlockOnLand: !focus
