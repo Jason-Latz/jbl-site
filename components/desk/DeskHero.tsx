@@ -24,15 +24,16 @@ const PANEL_META: Record<FocusId, { eyebrow: string; title: string }> = {
   chess: { eyebrow: "playing", title: "The world vs. Jason" }
 };
 
-// The baked scene is opt-in via ?baked=1 while it's being proven; the live
-// DeskScene stays the default so the homepage is never at risk. Flip this to
-// default-baked once it's signed off.
+// The baked scene is the default homepage; ?baked=0 is the escape hatch to the
+// live procedural DeskScene. Safe to default now that the baked assets are
+// slimmed (172→31MB) and CDN-hosted on Supabase — the earlier flip went blank
+// only because the assets were gitignored and never deployed (now fixed).
 const DeskScene = dynamic(
   () =>
     typeof window !== "undefined" &&
-    new URLSearchParams(window.location.search).has("baked")
-      ? import("./BakedDeskScene")
-      : import("./DeskScene"),
+    new URLSearchParams(window.location.search).get("baked") === "0"
+      ? import("./DeskScene")
+      : import("./BakedDeskScene"),
   {
     ssr: false,
     loading: () => <div className="desk-hero-loading" aria-hidden="true" />
