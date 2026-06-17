@@ -1802,8 +1802,9 @@ button.primary:disabled {
 /* Phones: the title + 5 tabs + toggle can't share one row. Pin the theme
    toggle to the top-right corner (out of flow — the fixed header is its
    containing block), center the title above a tidy wrapped chip row of tabs.
-   Two slim rows that stay out of the scene's way. */
-@media (max-width: 620px) {
+   Two slim rows that stay out of the scene's way. Breakpoint matches the hero
+   and focus-panel mobile breakpoints (640px) so they all flip together. */
+@media (max-width: 640px) {
   :root:has(.desk-hero, .desk-hero-fallback) .site-header {
     padding: 0.5rem 0.7rem 0.55rem;
   }
@@ -1830,7 +1831,10 @@ button.primary:disabled {
   }
 
   :root:has(.desk-hero, .desk-hero-fallback) .nav a {
-    padding: 0.3rem 0.5rem;
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
+    padding: 0 0.5rem;
     font-size: 0.8rem;
   }
 
@@ -1843,10 +1847,11 @@ button.primary:disabled {
   }
 }
 
-/* Keyboard focus ring for the tabs over the glass (the chips set no outline,
-   so default to a clear themed ring). */
+/* Keyboard focus ring for the tabs over the glass. Coral (the site accent)
+   clears the 3:1 focus-indicator contrast (WCAG 2.4.11) against both the cream
+   and the dark glass — the sage --focus-ring did not (~2.2:1 on cream). */
 :root:has(.desk-hero, .desk-hero-fallback) .nav a:focus-visible {
-  outline: 2px solid var(--focus-ring);
+  outline: 2px solid #c75833;
   outline-offset: 2px;
 }
 
@@ -1861,6 +1866,23 @@ button.primary:disabled {
 @media (min-width: 641px) {
   :root:has(.desk-hero, .desk-hero-fallback) .desk-panel {
     top: 4.75rem;
+  }
+}
+
+/* Short / landscape screens: the no-WebGL fallback copy is bottom-anchored, and
+   at 100svh it can grow tall enough to push its title up under the fixed nav.
+   Shrink it so the block always stays clear of the bar. */
+@media (max-height: 560px) {
+  :root:has(.desk-hero-fallback) .desk-hero-fallback-title {
+    font-size: clamp(1.3rem, 4vw, 1.9rem);
+  }
+
+  :root:has(.desk-hero-fallback) .desk-hero-fallback-copy {
+    font-size: 0.92rem;
+  }
+
+  :root:has(.desk-hero-fallback) .desk-hero-fallback-inner {
+    padding-bottom: 1.5rem;
   }
 }
 
