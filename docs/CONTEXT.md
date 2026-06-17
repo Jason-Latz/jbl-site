@@ -4,12 +4,17 @@
 > Purpose: if context is lost, a fresh session reads CLAUDE.md → PLAN.md → this file
 > and knows exactly where things stand and why.
 
-## Current state (2026-06-16)
+## Current state (2026-06-17)
 
 **The preliminary site is LAUNCHED.** `/` is the baked 3D desk, live on
 **www.jasonlatz.com** (`?baked=0` falls back to the live procedural `DeskScene`).
 The baked assets (meshopt GLB + 8-bit WebP lightmaps, ~31MB) are CDN-hosted on
 public **Supabase Storage** (`bake/v1/`). Stages 1–5 shipped.
+
+**The homepage is now mobile-immersive on both scenes:** the 3D fills the
+viewport (`100svh`) and the site nav floats over it as a theme-aware glass bar
+(scoped to the homepage via `:has()`), with the portrait camera reframed (fov in
+the rig) to fill a tall phone screen. See the 2026-06-17 session entry.
 
 **Next up — Stage 4 polish** (see `docs/PLAN.md`): social OG image; mobile touch
 orbit + perf tiers; inner-page typography to match the desk palette; Spotify Web
@@ -18,6 +23,50 @@ splits; window parallax; easter eggs; plus the deferred `/admin` moderation UI
 for `desk_notes`.
 
 ## Session log
+
+### 2026-06-17 — Mobile immersive homepage: full-bleed 3D + floating glass nav
+
+Overnight autonomous run (branch `overnight/mobile-immersive`). Jason: "make
+this look cool on mobile… the viewport looks like a square… the top tabs should
+be overlaid on the 3d, not separate." Locked up-front: full-screen immersive on
+BOTH mobile + desktop; reframe the portrait camera to fill a tall screen.
+
+What landed (granular commits, each verified in the live preview):
+- **The "square" had two causes.** (1) cold-load canvas latched R3F's default
+  300×150 and got CSS-stretched to the hero box (squished) — added a
+  `[120,500,1200]ms` resize nudge on mount to the live `DeskScene`. (2) the hero
+  was a contained band (`min(62svh,540px)` on mobile) → a ~390×520 box.
+- **Full-bleed immersive hero + floating glass nav.** New CSS block in
+  `globals.css` scoped with `:root:has(.desk-hero, .desk-hero-fallback)` so ONLY
+  the homepage gets it (inner pages + `:has()`-less browsers keep the solid
+  static header — graceful, no JS, no per-route layout). The hero becomes
+  `height:100svh` (the existing `margin-top:-3.5rem` lands it at y=0 once the
+  header leaves the flow); the `.site-header` becomes `position:fixed`,
+  theme-aware **frosted glass**. Desktop = one slim row (title left, tabs+toggle
+  right, aligned to the 960px column). Phones = title centered, toggle pinned to
+  the corner, tabs as a one-row chip strip (40px tap targets, all 5 fit to 360px).
+- **Portrait camera reframed.** fov is now part of BOTH scenes' camera rigs
+  (`PORTRAIT_FOV 54`; the landscape fov 40 leaves only ~19° horizontal on a tall
+  phone) with the portrait `REST`/`TARGET` heroing the turntable + lamp cluster.
+  Applies to `DeskScene` (live, `?baked=0`) AND `BakedDeskScene` (the default).
+- **CameraDirector intro-dolly fix (both scenes):** the resize-nudge flips the
+  rig (cold-load 300×150 → real), which used to rebuild the flight from scratch
+  and abort the 2.3s intro. Now a pure viewport/rig change RETARGETS the live
+  flight instead of restarting it.
+- **Review fixes:** focus panels above the nav (z 60) + below the bar at ≥641px;
+  dropped a `min-height:520` that overflowed landscape; coral focus ring (3:1);
+  fallback copy shrinks under `max-height:560px` so it never tucks under the nav.
+
+Verified at 1280×800, 768×1024, 844×390, 390×844, 375×667, 360×740 in both
+themes against the BAKED default homepage; nav legible over scene + scrolled
+content; focus panel clear of the bar.
+
+GOTCHA (verification): the headless preview tab backgrounds rAF, so the
+frame-gated `sceneReady` never fires and the canvas wrapper stays `opacity:0`
+over the loading shimmer (documented). To screenshot the real scene, force the
+`.desk-hero > div[style*="opacity"]` wrapper to `opacity:1` and dispatch a few
+`resize` events. Real device-sized PNGs are captured with Playwright (installed
+`--no-save`; `reducedMotion`/`colorScheme` contexts).
 
 ### 2026-06-16 — Baked assets slimmed (172→31MB) + hosted on a CDN (Supabase Storage)
 

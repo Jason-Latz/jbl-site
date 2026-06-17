@@ -118,3 +118,16 @@ admin, Spotify pipeline).
 - The Spotify micro-cache + sync-throttle are per-warm-instance module singletons —
   they work in Vercel's serverless runtime but reset across Next dev recompiles, so under
   `npm run dev` every poll rebuilds/re-syncs. Looks broken in dev; correct in prod.
+- The homepage is **immersive**: the 3D fills `100svh` and the nav floats over it as a
+  theme-aware glass bar. All of it is scoped in `globals.css` with
+  `:root:has(.desk-hero, .desk-hero-fallback)` so ONLY the homepage is affected — inner
+  pages (and `:has()`-less browsers) keep the solid static header. Don't give `.desk-hero`
+  a stacking context (transform/opacity/filter/z-index): the focus panel (`.desk-panel`)
+  is lifted to `z-index:60` to sit above the fixed nav (`z 50`), which only works because
+  both share the root stacking context.
+- Portrait camera fov lives in the rig (`useCameraRig` → `PORTRAIT_FOV`, applied in
+  `CameraDirector` on aspect flips), not just on the `<Canvas camera>` — the landscape
+  fov (40) leaves only ~19° horizontal on a tall phone, so portrait widens it (54) and
+  heroes the turntable+lamp cluster. The live `DeskScene` also fires a `[120,500,1200]ms`
+  resize nudge on mount (like `BakedDeskScene`) so the canvas doesn't latch R3F's default
+  300×150 on cold load and render squished.

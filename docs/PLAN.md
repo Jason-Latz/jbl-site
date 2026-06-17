@@ -176,8 +176,11 @@ up to the level of the record player."
       (theme-aware `public/desk-poster-{light,dark}.jpg`, 2026-06-15); social OG
       image still TODO
 - [~] Mobile tuning pass (touch orbit, portrait framing, perf tiers) — portrait
-      framing reframed on the turntable hero (2026-06-15); touch orbit + perf
-      tiers still TODO
+      framing reframed on the turntable hero (2026-06-15); the homepage is now
+      full-bleed immersive (3D fills 100svh) with the nav floating over the scene
+      as a theme-aware glass bar, and the portrait camera reframed (fov in the
+      rig) to fill a tall screen (2026-06-17, both mobile + desktop); touch orbit
+      + perf tiers still TODO
 - [ ] Inner pages typography refresh to match the desk's palette
 - [ ] Easter eggs (dust motes in lamp cone, mug steam, seasonal touches)
 - [ ] /music page (Jason 2026-06-11): record CRATE click → /music with his
