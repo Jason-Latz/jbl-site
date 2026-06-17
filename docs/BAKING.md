@@ -283,3 +283,54 @@ Current rig values to start from (in `render_ab.py`, window room):
 - Loads by downloading atlases (~3–5MB), not synthesizing 52 textures.
 - Runs at 60fps on a mid phone (the whole point).
 - Texture-only edits (book art, trip photos) need NO rebake.
+
+---
+
+## 8. Ship the bake to the CDN (slim + upload) — the deploy runbook
+
+The bake writes `public/_bake/desk-window-uv1.glb` (~66MB geometry) and
+`public/_bake/lightmaps/*.png` (676 files, ~106MB, 16-bit 1024²). That whole
+tree is **gitignored** and must NOT be committed — 172MB on first paint is
+brutal, and committing binaries bloats the repo. Instead the assets are
+slimmed (~31MB total) and hosted on **public Supabase Storage** (bucket
+`bake`, immutable versioned prefix). `BakedDeskScene` fetches them from there
+in prod and from local disk in dev.
+
+> History: the baked homepage once went BLANK in prod because the assets were
+> gitignored → never deployed → the GLB 404'd. This pipeline is the fix. Vercel
+> Blob was the first plan but the account's Blob is billing-suspended; Supabase
+> Storage (already in the stack, free, CDN-served) is what we use.
+
+**After any re-bake, run (from the repo root):**
+```
+node scripts/bake/slim_glb.mjs            # GLB → public/_bake/cdn/ (meshopt, ~28MB)
+node scripts/bake/slim_lightmaps.mjs 768 90  # PNG → public/_bake/cdn/lightmaps/*.webp (~3MB)
+node scripts/bake/verify_glb.mjs          # asserts meshopt decodes + vert/uv1 totals match
+node scripts/bake/upload_supabase.mjs v2  # NEW version prefix on a re-bake (was v1)
+```
+Then bump the version the runtime points at: edit `SUPABASE_BAKE_CDN` in
+`components/desk/BakedDeskScene.tsx` (…/bake/**v1** → **v2**) — or set
+`NEXT_PUBLIC_BAKE_CDN_URL` in Vercel to repoint without a code change — and
+redeploy. The versioned prefix makes URLs immutable, so there's no stale-CDN
+cache to bust.
+
+**Sharp gotchas this pipeline cost us:**
+- **`prune()` strips the lightmap UVs.** The lightmap is attached at RUNTIME
+  (not in the glTF material), so gltf-transform's `prune()` default sees
+  `TEXCOORD_1` as unused and deletes it → ALL baked lighting breaks. `slim_glb`
+  runs `prune({ keepAttributes: true })`. `verify_glb` guards it (counts uv1).
+- **three-stdlib's `MeshoptDecoder` is the wrong shape** (a bare function, no
+  `decodeGltfBuffer`/`ready`). Import the decoder from
+  `three/examples/jsm/libs/meshopt_decoder.module.js` instead, and call
+  `loader.setMeshoptDecoder(MeshoptDecoder)` before `.load()`.
+- **WebP lightmaps are lossless vs. what shipped.** The runtime loads lightmaps
+  through `THREE.TextureLoader` → an `<img>`, which decodes 16-bit PNG to 8-bit
+  anyway. So 8-bit WebP discards nothing the GPU ever saw, at ~1/30th the bytes.
+- **`gltf-transform` meshopt needs the codec registered as an IO dependency**
+  (`registerDependencies({ 'meshopt.encoder': …, 'meshopt.decoder': … })`),
+  not just passed to `meshopt()`, or it throws `encodeFilterOct of undefined`.
+- **Supabase free plan caps object size at 50MB** — don't set a bucket
+  `fileSizeLimit` above it (createBucket fails). The 28MB GLB fits the default.
+- Public Supabase objects serve `access-control-allow-origin: *`, so the
+  cross-origin GLB/texture fetch + `preserveDrawingBuffer` canvas stay clean
+  (`texLoader.crossOrigin = "anonymous"`).

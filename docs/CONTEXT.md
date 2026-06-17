@@ -6,6 +6,33 @@
 
 ## Session log
 
+### 2026-06-16 — Baked assets slimmed (172→31MB) + hosted on a CDN (Supabase Storage)
+
+The flip to baked (entry below) took production BLANK: the baked homepage's
+172MB of assets (66MB GLB + 106MB lightmaps) are gitignored, so they were never
+deployed → the GLB 404'd. Reverted at the time (`b0a6020`). This session fixes
+the root cause — slim the assets to ~31MB and host them on public Supabase
+Storage; the runtime fetches them from there in prod, from disk in dev.
+
+- **GLB 66→28MB** via `scripts/bake/slim_glb.mjs` (gltf-transform dedup +
+  prune + meshopt/quantize; three's `MeshoptDecoder` decodes at runtime). `prune`
+  MUST run `keepAttributes:true` or it strips the runtime-attached lightmap UVs
+  (`TEXCOORD_1`) and breaks ALL baked lighting — `scripts/bake/verify_glb.mjs`
+  guards it (counts uv1, asserts geometry round-trips through the codec).
+- **Lightmaps 106→3.2MB (32×)** via `scripts/bake/slim_lightmaps.mjs`: 676
+  16-bit 1024² PNG → 8-bit 768² WebP q90. Lossless vs. what shipped — the runtime
+  already decoded the PNGs to 8-bit through an `<img>`.
+- **Host: public Supabase bucket `bake`**, immutable versioned prefix (`v1/`),
+  1-year cache, via `scripts/bake/upload_supabase.mjs` (service key from `.env`,
+  never logged; creates a NEW bucket only — no table/data writes). Vercel Blob
+  was Plan A but the account's Blob is billing-suspended.
+- **Runtime** (`BakedDeskScene`) defaults to the Supabase base off-localhost,
+  local `/_bake/cdn` on localhost; `NEXT_PUBLIC_BAKE_CDN_URL` overrides.
+- **Verified:** meshopt decodes + geometry/uv1 intact (headless); prod build
+  green; BOTH themes render from Supabase cross-origin, zero CORS/console
+  errors; first paint 172MB → ~31MB. Full runbook in `BAKING.md` §8.
+- Homepage default still gated at `?baked=1` — the prod flip is the last step.
+
 ### 2026-06-16 — Homepage flipped to baked; dark-mode lighting; the BAKED-GLB-LIGHT gotcha
 
 Shipped straight to `main` (now the production homepage).
