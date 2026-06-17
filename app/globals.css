@@ -2,8 +2,14 @@
   color-scheme: light;
   --bg: #f7f5f1;
   --fg: #131313;
-  --muted: #5b5b5b;
-  --accent: #1e2d3d;
+  --muted: #665d54;
+  /* Warm desk continuity: the cold navy accent gave way to a deep terracotta
+     coral from the desk's own palette — kept dark enough to pass AA both as
+     link text on the cream paper and as a button fill under white. The brand
+     coral + mahogany below are decorative (markers, rules, place cards). */
+  --accent: #ad4720;
+  --coral: #c75833;
+  --mahogany: #6b4a2f;
   --border: #ded7cf;
   --surface: #fffdfb;
   --surface-raised: #ffffff;
@@ -14,7 +20,7 @@
   --control-hover-bg: #f2ece4;
   --control-hover-border: #c8bcae;
   --overlay: rgba(10, 12, 14, 0.72);
-  --focus-ring: #93af98;
+  --focus-ring: #cf7a4d;
   --preview-focus-ring: #d4cabd;
   --theme-toggle-bg: #f7f3ed;
   --theme-toggle-hover-bg: #efe7dc;
@@ -40,6 +46,8 @@
   --fg: #f3e8dd;
   --muted: #c8b5a3;
   --accent: #dca46a;
+  --coral: #d97757;
+  --mahogany: #b98a5f;
   --border: #4a392f;
   --surface: #231b15;
   --surface-raised: #2a211a;
