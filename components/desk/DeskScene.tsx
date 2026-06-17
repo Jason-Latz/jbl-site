@@ -278,6 +278,7 @@ function CameraDirector({
   const flightRef = useRef<CameraFlight | null>(null);
   const currentTarget = useRef(rig.target.clone());
   const firstFlightRef = useRef(true);
+  const prevFocusRef = useRef<FocusId | null>(null);
 
   useEffect(() => {
     // Keep the projection fov in sync with the rig (landscape vs the wider
@@ -287,17 +288,52 @@ function CameraDirector({
       cam.fov = rig.fov;
       cam.updateProjectionMatrix();
     }
+
     const view = focus ? FOCUS_VIEWS[focus] : null;
+    const to = view ? new THREE.Vector3(...view.position) : rig.rest.clone();
+    const toTarget = view ? new THREE.Vector3(...view.target) : rig.target.clone();
     const isFirst = firstFlightRef.current;
+    const focusChanged = focus !== prevFocusRef.current;
     firstFlightRef.current = false;
+    prevFocusRef.current = focus;
+
+    // A rig change that did NOT change the focus is a viewport event — the
+    // cold-load size correction (300x150 -> real, which flips landscape<->
+    // portrait) or an orientation flip. Retarget the live dolly instead of
+    // restarting it from scratch, so the intro flight isn't aborted ~120 ms in
+    // on exactly the cold loads the resize-nudge exists to fix. (If we're
+    // already at rest, ease gently to the new framing.)
+    if (!isFirst && !focusChanged) {
+      if (flightRef.current) {
+        flightRef.current.to = to;
+        flightRef.current.toTarget = toTarget;
+        flightRef.current.unlockOnLand = !focus;
+      } else {
+        if (controlsRef.current) {
+          controlsRef.current.enabled = false;
+        }
+        flightRef.current = {
+          from: camera.position.clone(),
+          fromTarget: currentTarget.current.clone(),
+          to,
+          toTarget,
+          progress: 0,
+          duration: 0.8,
+          unlockOnLand: !focus
+        };
+      }
+      return;
+    }
+
+    // First mount (the intro dolly) or an actual focus change → a fresh flight.
     if (controlsRef.current) {
       controlsRef.current.enabled = false;
     }
     flightRef.current = {
       from: isFirst ? rig.start.clone() : camera.position.clone(),
       fromTarget: currentTarget.current.clone(),
-      to: view ? new THREE.Vector3(...view.position) : rig.rest.clone(),
-      toTarget: view ? new THREE.Vector3(...view.target) : rig.target.clone(),
+      to,
+      toTarget,
       progress: 0,
       // 1.05 s focus flights (was 1.25): with the panel's backdrop blur
       // gone, the shorter dolly reads snappy instead of rushed.
