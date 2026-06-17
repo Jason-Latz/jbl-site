@@ -4,6 +4,19 @@
 > Purpose: if context is lost, a fresh session reads CLAUDE.md → PLAN.md → this file
 > and knows exactly where things stand and why.
 
+## Current state (2026-06-16)
+
+**The preliminary site is LAUNCHED.** `/` is the baked 3D desk, live on
+**www.jasonlatz.com** (`?baked=0` falls back to the live procedural `DeskScene`).
+The baked assets (meshopt GLB + 8-bit WebP lightmaps, ~31MB) are CDN-hosted on
+public **Supabase Storage** (`bake/v1/`). Stages 1–5 shipped.
+
+**Next up — Stage 4 polish** (see `docs/PLAN.md`): social OG image; mobile touch
+orbit + perf tiers; inner-page typography to match the desk palette; Spotify Web
+Playback SDK (full tracks when Jason's signed in); `/music` + `/photography`
+splits; window parallax; easter eggs; plus the deferred `/admin` moderation UI
+for `desk_notes`.
+
 ## Session log
 
 ### 2026-06-16 — Baked assets slimmed (172→31MB) + hosted on a CDN (Supabase Storage)

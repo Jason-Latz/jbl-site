@@ -2,12 +2,14 @@
 
 Personal website of Jason Latz — Next.js 14 (App Router) + Supabase + plain CSS, deployed on Vercel.
 
-**Active project: "The Desk"** — rebuilding the homepage as a warm, hyper-detailed Three.js
-desk scene where every object is a doorway into part of the site. Before doing any work,
-read `docs/PLAN.md` (staged roadmap) and `docs/CONTEXT.md` (live state of the build).
-**`docs/BAKING.md` is the runbook for the lightmap bake (the current next milestone) —
-start there to run the bake.** `CODEBASE_GUIDE.md` covers the pre-existing site (Supabase
-model, admin, Spotify pipeline).
+**Active project: "The Desk"** — a warm, hyper-detailed Three.js desk scene where every
+object is a doorway into part of the site. **The preliminary site is LAUNCHED (2026-06-16):
+the baked desk is the live homepage on www.jasonlatz.com** (`?baked=0` falls back to the
+live procedural scene). Before doing any work, read `docs/PLAN.md` (staged roadmap —
+remaining work is Stage 4 polish) and `docs/CONTEXT.md` (live state of the build).
+`docs/BAKING.md` is the bake + CDN runbook (re-bake → slim → re-host on Supabase →
+redeploy; see its §8). `CODEBASE_GUIDE.md` covers the pre-existing site (Supabase model,
+admin, Spotify pipeline).
 
 ## Commands
 

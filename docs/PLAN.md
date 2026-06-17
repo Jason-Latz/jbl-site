@@ -5,6 +5,11 @@ the turntable plays what Jason is actually listening to, the bookshelf holds wha
 actually reading, the notepad is a public guestbook, the chessboard is one ongoing
 world-vs-Jason game. The desk is a navigation layer — content stays in real HTML routes.
 
+> **Status — 2026-06-16: the preliminary site is LAUNCHED.** The homepage is the
+> baked 3D desk, live on **www.jasonlatz.com** (`?baked=0` falls back to the live
+> procedural scene). Stages 1–5 are shipped. Remaining work is **Stage 4 polish**
+> (below) — none of it blocks the launch.
+
 Decisions locked with Jason (June 2026):
 
 - Direction: Concept C ("The Desk"), staged. Mockups live in the session history.
@@ -184,7 +189,7 @@ up to the level of the record player."
 - [ ] /photography split from /travel, then camera + photo stack get their
       own focus views and panels (prints become his real trip photos)
 
-## Stage 5 — the kiln: baked global illumination (IN PROGRESS 2026-06-11)
+## Stage 5 — the kiln: baked GI, CDN-hosted (SHIPPED — site LAUNCHED 2026-06-16)
 
 Direction pivot after launch. Jason's two standing qualms — fidelity below
 the record player everywhere else, and motion that never feels crisp —
@@ -219,13 +224,18 @@ A (perfected void) vs B (corner window), decided from Cycles stills.
 - [x] Live integration: RoomWindow is now the live room; middle-tilt camera.
 - [x] Composition frozen at v4 (dark walnut study, lamp aim, chess, racket,
       enclosed left wall). Ready to bake.
-- [ ] **THE LIGHTMAP BAKE — full runbook in `docs/BAKING.md`.** That doc has
-      everything: the static/dynamic split, the 6 stages (UV2 unwrap →
-      export uv1 → Cycles diffuse bake on/off → runtime mixRef blend →
-      probe+blob dynamics → strip the live stack), toolchain (watlas/
-      xatlas-three), gotchas, look-parity against the stills, and acceptance
-      criteria. START THERE.
-- [ ] Poster / OG / no-WebGL fallback renders from the kiln (free byproduct)
+- [x] **THE LIGHTMAP BAKE — DONE.** Full static set baked both themes (Cycles
+      diffuse on/off), UV1 atlas, runtime two-state `mixRef` crossfade live, the
+      real-time shadow/AO/reflector stack stripped. Pipeline + gotchas:
+      `docs/BAKING.md`.
+- [x] **Slim + CDN-host the baked assets, then flip the homepage → LAUNCH
+      (2026-06-16).** Assets cut **172→31MB** (meshopt GLB + 8-bit WebP
+      lightmaps), hosted on public **Supabase Storage** (`bake/v1/`, immutable);
+      `/` flipped to the baked desk (`?baked=0` = live-scene escape). **The
+      preliminary site is LIVE on www.jasonlatz.com.** Re-bake/re-host runbook:
+      `docs/BAKING.md` §8.
+- [~] Poster / OG / no-WebGL fallback from the kiln — fallback poster DONE;
+      social OG image still TODO.
 
 ## Performance budget
 
