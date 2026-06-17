@@ -220,10 +220,21 @@ function BakedStatics({
     };
   }, [onReady]);
 
-  const objectOf = (e: ThreeEvent<MouseEvent>): string =>
-    (e.object.userData?.object as string) ||
-    (e.object.parent?.userData?.object as string) ||
-    "";
+  // Resolve a clicked/hovered baked mesh to its object tag by walking UP to the
+  // nearest tagged ancestor. A baked object (e.g. the film camera) is many
+  // sub-meshes at varying depths after flatten() — a 2-level lookup found the
+  // shallow ones (the camera body, so the CLICK worked) but missed the deeper
+  // ones (the lens group), so hovering them resolved to "" and the pointer
+  // cursor never appeared.
+  const objectOf = (e: ThreeEvent<MouseEvent>): string => {
+    let o: THREE.Object3D | null = e.object;
+    while (o) {
+      const tag = o.userData?.object as string | undefined;
+      if (tag) return tag;
+      o = o.parent;
+    }
+    return "";
+  };
 
   if (!root) return null;
   return (
