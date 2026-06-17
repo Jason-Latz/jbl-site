@@ -2494,6 +2494,72 @@ button.primary:disabled {
    Admin — Jason's seat at the chessboard
    --------------------------------------------------------------------------- */
 
+/* "Your move" banner — pinned to the top of /admin, shown only when the world
+   has moved and it's Jason's turn. Links down to the board (#chessboard), which
+   sits below the article editor. A pulsing coral dot draws the eye. */
+.chess-turn-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0 0 1.75rem;
+  padding: 0.85rem 1.1rem;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--coral);
+  border-radius: 12px;
+  background: var(--surface-soft);
+  color: var(--fg);
+  font-size: 0.95rem;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.chess-turn-banner:hover {
+  background: var(--control-hover-bg);
+  border-color: var(--control-hover-border);
+}
+
+.chess-turn-banner-dot {
+  flex: none;
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 999px;
+  background: var(--coral);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--coral) 65%, transparent);
+  animation: chess-turn-pulse 1.9s ease-out infinite;
+}
+
+@keyframes chess-turn-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--coral) 55%, transparent);
+  }
+  70% {
+    box-shadow: 0 0 0 0.5rem transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+.chess-turn-banner-text {
+  flex: 1 1 auto;
+}
+
+.chess-turn-banner-text strong {
+  color: var(--accent);
+}
+
+.chess-turn-banner-cta {
+  flex: none;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chess-turn-banner-dot {
+    animation: none;
+  }
+}
+
 /* The chess admin borrows the desk panel's dark warm stage so the shared
    .desk-chess-* board styles (cream text, wood frame) read correctly on the
    light admin page too. Solid background — this sits on paper, not canvas. */
