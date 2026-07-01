@@ -40,6 +40,9 @@ export type SpotifyRecentTrackPayload = {
   albumName: string | null;
   trackUrl: string | null;
   albumImageUrl: string | null;
+  // Optional so a pre-existing cached blob (written before this field) still
+  // validates; absent playedAt is simply treated as "not fresh".
+  playedAt?: string | null;
 };
 
 export type SpotifyTopArtistPayload = {
