@@ -101,6 +101,9 @@ export type SpotifyRecentTrack = {
   albumName: string | null;
   trackUrl: string | null;
   albumImageUrl: string | null;
+  // ISO timestamp of when this play finished. Lets read surfaces age out a
+  // stale "last played" instead of showing it as if it were current.
+  playedAt: string | null;
 };
 
 export type SpotifyTopArtist = {
@@ -509,7 +512,8 @@ function mapRecentTracks(
       artists: mapArtists(item.track.artists),
       albumName: item.track.album?.name ?? null,
       trackUrl: item.track.external_urls?.spotify ?? null,
-      albumImageUrl: getImageUrl(item.track.album?.images)
+      albumImageUrl: getImageUrl(item.track.album?.images),
+      playedAt: item.played_at ?? null
     });
   }
 
@@ -813,12 +817,26 @@ function mapStoredRecentTracks(
       continue;
     }
 
+    const artists = mapStoredArtistNames(row.artists);
+    // White-noise/sleep-sound plays are noise here too — the live read path and
+    // top-artists already drop them, so the stored read agrees (CLAUDE.md).
+    if (
+      isWhiteNoiseListening({
+        trackName: row.track_name,
+        artists,
+        albumName: row.album_name
+      })
+    ) {
+      continue;
+    }
+
     tracks.push({
       trackName: row.track_name,
-      artists: mapStoredArtistNames(row.artists),
+      artists,
       albumName: row.album_name ?? null,
       trackUrl: row.track_url ?? null,
-      albumImageUrl: row.album_image_url ?? null
+      albumImageUrl: row.album_image_url ?? null,
+      playedAt: row.played_at ?? null
     });
   }
 
@@ -852,6 +870,19 @@ function buildTodayStatsFromStored(
       continue;
     }
 
+    const artistNames = mapStoredArtistNames(row.artists);
+    // Keep "today" honest: a 3-hour white-noise track would otherwise add ~180
+    // min and a bogus artist. The live read path already excludes these.
+    if (
+      isWhiteNoiseListening({
+        trackName: row.track_name,
+        artists: artistNames,
+        albumName: row.album_name
+      })
+    ) {
+      continue;
+    }
+
     playCount += 1;
     // Rows arrive newest-first, so the first match is the most recent play.
     if (!mostRecentPlayedAt) {
@@ -862,7 +893,7 @@ function buildTodayStatsFromStored(
       minutesListened += row.duration_ms / 60_000;
     }
 
-    for (const name of mapStoredArtistNames(row.artists)) {
+    for (const name of artistNames) {
       artistSet.add(name);
     }
   }
