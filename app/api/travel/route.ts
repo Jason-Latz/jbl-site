@@ -4,6 +4,7 @@ import {
   encodeStoragePath,
   listPhotoCatalog
 } from "@/lib/photos";
+import { findPlace } from "@/content/places";
 import { requireEditor } from "@/lib/requireEditor";
 import { createFreshRouteHandlerClient } from "@/lib/supabaseRoute";
 
@@ -279,6 +280,44 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: spotifyValidation.error }, { status: 400 });
   }
 
+  // Optional manual override of the photo's globe location. Only touched when
+  // `geoPlace` is present in the body: a gazetteer place name snaps the pin to
+  // that place's coordinates (source = manual); an empty value clears it.
+  let geoFields: Record<string, unknown> = {};
+  if ("geoPlace" in payload) {
+    const geoPlaceName = normalizeNullableText(payload.geoPlace);
+    if (geoPlaceName === null) {
+      geoFields = {
+        latitude: null,
+        longitude: null,
+        geo_place: null,
+        geo_region: null,
+        geo_country: null,
+        geo_confidence: null,
+        geo_source: null,
+        geo_estimated_at: null
+      };
+    } else {
+      const place = findPlace(geoPlaceName);
+      if (!place) {
+        return NextResponse.json(
+          { error: `Unknown place: ${geoPlaceName}` },
+          { status: 400 }
+        );
+      }
+      geoFields = {
+        latitude: place.lat,
+        longitude: place.lng,
+        geo_place: place.name,
+        geo_region: place.region ?? null,
+        geo_country: place.country ?? null,
+        geo_confidence: 1,
+        geo_source: "manual",
+        geo_estimated_at: new Date().toISOString()
+      };
+    }
+  }
+
   const { data, error } = await supabase
     .from("photos")
     .upsert(
@@ -287,12 +326,13 @@ export async function PATCH(request: Request) {
         location,
         description,
         song_title: songTitle,
-        song_url: spotifyValidation.url
+        song_url: spotifyValidation.url,
+        ...geoFields
       },
       { onConflict: "storage_path" }
     )
     .select(
-      "id, storage_path, location, description, song_title, song_url, created_at"
+      "id, storage_path, location, description, song_title, song_url, created_at, latitude, longitude, geo_place, geo_confidence, geo_source"
     )
     .single();
 
@@ -315,7 +355,12 @@ export async function PATCH(request: Request) {
       description: normalizeNullableText(data.description),
       songTitle: normalizeNullableText(data.song_title),
       songUrl: normalizeNullableText(data.song_url),
-      createdAt: data.created_at
+      createdAt: data.created_at,
+      latitude: data.latitude ?? null,
+      longitude: data.longitude ?? null,
+      geoPlace: normalizeNullableText(data.geo_place),
+      geoConfidence: data.geo_confidence ?? null,
+      geoSource: normalizeNullableText(data.geo_source)
     }
   });
 }

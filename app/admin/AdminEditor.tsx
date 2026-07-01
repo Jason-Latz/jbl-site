@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
 import type { Post } from "@/lib/postTypes";
+import { PLACES } from "@/content/places";
 import {
   buildTravelRenderUrlForRequestWidth,
   UPLOAD_WARM_WIDTHS
@@ -31,6 +32,8 @@ type PhotoApiItem = {
   songTitle: string | null;
   songUrl: string | null;
   createdAt: string | null;
+  geoPlace?: string | null;
+  geoSource?: string | null;
 };
 
 type EditablePhoto = {
@@ -42,6 +45,8 @@ type EditablePhoto = {
   songTitle: string;
   songUrl: string;
   createdAt: string | null;
+  geoPlace: string;
+  geoSource: string | null;
 };
 
 type PhotosListResponse = {
@@ -98,7 +103,9 @@ function toEditablePhoto(photo: PhotoApiItem): EditablePhoto {
     description: photo.description ?? "",
     songTitle: photo.songTitle ?? "",
     songUrl: photo.songUrl ?? "",
-    createdAt: photo.createdAt ?? null
+    createdAt: photo.createdAt ?? null,
+    geoPlace: photo.geoPlace ?? "",
+    geoSource: photo.geoSource ?? null
   };
 }
 
@@ -478,7 +485,7 @@ export default function AdminEditor() {
 
   const handlePhotoFieldChange = (
     path: string,
-    field: "location" | "description" | "songTitle" | "songUrl",
+    field: "location" | "description" | "songTitle" | "songUrl" | "geoPlace",
     value: string
   ) => {
     setPhotos((current) =>
@@ -507,7 +514,8 @@ export default function AdminEditor() {
           location: target.location,
           description: target.description,
           songTitle: target.songTitle,
-          songUrl: target.songUrl
+          songUrl: target.songUrl,
+          geoPlace: target.geoPlace
         })
       });
 
@@ -752,6 +760,36 @@ export default function AdminEditor() {
                       handlePhotoFieldChange(photo.path, "songUrl", event.target.value)
                     }
                   />
+                  <label className="photo-admin-geo-label">
+                    Globe location
+                    {photo.geoSource ? (
+                      <span className="photo-admin-geo-source">
+                        {photo.geoSource === "manual"
+                          ? "set by hand"
+                          : photo.geoSource === "exif"
+                            ? "from photo GPS"
+                            : "estimated"}
+                      </span>
+                    ) : null}
+                    <select
+                      value={photo.geoPlace}
+                      onChange={(event) =>
+                        handlePhotoFieldChange(
+                          photo.path,
+                          "geoPlace",
+                          event.target.value
+                        )
+                      }
+                    >
+                      <option value="">— Not on globe —</option>
+                      {PLACES.map((place) => (
+                        <option key={place.name} value={place.name}>
+                          {place.name}
+                          {place.region ? ` (${place.region})` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                   <button
                     className="secondary"
                     onClick={() => handleSavePhotoMetadata(photo.path)}
