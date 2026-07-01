@@ -1,18 +1,26 @@
-// Places Jason has been — the data behind the travel globe.
+// Places Jason has been — the gazetteer behind the travel globe.
 //
-// This is a CURATED list, edited by hand like content/books.ts. Each place needs
-// a name, latitude, and longitude; everything else is optional. Add a place by
-// dropping another object in the array — the globe picks it up automatically,
-// drops a coral marker at the coordinates, and threads an arc to it.
+// The canonical data lives in `content/places.json` so it is a SINGLE SOURCE OF
+// TRUTH shared by two consumers:
+//   1. this module (typed, imported by the /travel globe), and
+//   2. `scripts/geolocate/geolocate.py`, which reads the same JSON as the
+//      candidate set for the open-source vision model that estimates where each
+//      photo was taken (an estimate always snaps to a place in this list).
 //
-// Starter set seeded from Jason's bio (school, work, study abroad, home). Coords
-// are decimal degrees, N/E positive. Look a city up and paste its lat/lng.
+// Add a place by dropping another object in the JSON — the globe picks it up as
+// a context marker, and the geolocation model can start assigning photos to it.
+// Each place needs a name, lat, and lng; everything else is optional. Coords are
+// decimal degrees, N/E positive.
+
+import placesData from "./places.json";
 
 export type Place = {
   /** Short marker label, e.g. "Edinburgh". */
   name: string;
   /** Where it is, for the place card, e.g. "Scotland" or "Illinois, USA". */
   region?: string;
+  /** Country, used to prompt the geolocation model, e.g. "Italy". */
+  country?: string;
   /** Decimal latitude, north positive. */
   lat: number;
   /** Decimal longitude, east positive. */
@@ -25,45 +33,10 @@ export type Place = {
   home?: boolean;
 };
 
-export const PLACES: Place[] = [
-  {
-    name: "Arizona",
-    region: "USA",
-    lat: 34.05,
-    lng: -111.09,
-    note: "Home turf — where it all started.",
-    home: true
-  },
-  {
-    name: "Evanston",
-    region: "Illinois, USA",
-    lat: 42.0451,
-    lng: -87.6877,
-    note: "Northwestern — computer science and psychology.",
-    when: "2023–present"
-  },
-  {
-    name: "Austin",
-    region: "Texas, USA",
-    lat: 30.2672,
-    lng: -97.7431,
-    note: "Building Vulcan (Y Combinator S25).",
-    when: "2025–present"
-  },
-  {
-    name: "Washington, D.C.",
-    region: "USA",
-    lat: 38.9072,
-    lng: -77.0369,
-    note: "A summer on Capitol Hill.",
-    when: "2022"
-  },
-  {
-    name: "Edinburgh",
-    region: "Scotland",
-    lat: 55.9533,
-    lng: -3.1883,
-    note: "Studying abroad and playing collegiate tennis.",
-    when: "2025"
-  }
-];
+export const PLACES: Place[] = placesData as Place[];
+
+/** Look a place up by its exact name (the key the geolocation pipeline writes). */
+export function findPlace(name: string | null | undefined): Place | undefined {
+  if (!name) return undefined;
+  return PLACES.find((place) => place.name === name);
+}
