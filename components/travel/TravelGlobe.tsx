@@ -5,7 +5,8 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import type { ThreeEvent } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
-import { PLACES, type Place } from "@/content/places";
+import { PLACES } from "@/content/places";
+import type { GlobePlace } from "@/lib/travelGlobe";
 import { LAND_RINGS } from "@/lib/geo/land";
 import { makeCanvasTexture } from "@/lib/three/materials";
 import type { SiteTheme } from "@/components/desk/useSiteTheme";
@@ -269,10 +270,10 @@ function Marker({
   selected,
   onSelect
 }: {
-  place: Place;
+  place: GlobePlace;
   palette: GlobePalette;
   selected: boolean;
-  onSelect: (place: Place | null) => void;
+  onSelect: (key: string | null) => void;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const haloRef = useRef<THREE.Sprite>(null);
@@ -298,8 +299,11 @@ function Marker({
   // Surface normal at the marker — orients the stem outward and seats the dot
   // just above the paper.
   const normal = useMemo(() => position.clone().normalize(), [position]);
-  const stemLen = place.home ? 0.12 : 0.08;
-  const baseDot = place.home ? 0.026 : 0.02;
+  // Photo pins are the stars — tallest + biggest dot; home a touch up; context
+  // markers small and quiet so the globe still shows the whole travel story.
+  const prominent = place.hasPhotos;
+  const stemLen = prominent ? 0.135 : place.home ? 0.1 : 0.07;
+  const baseDot = prominent ? 0.03 : place.home ? 0.022 : 0.015;
 
   const halo = useMemo(() => makeHaloTexture(palette.marker), [palette.marker]);
   useEffect(() => () => halo.dispose(), [halo]);
@@ -343,7 +347,7 @@ function Marker({
     // Halo breathes; selection/hover swells and brightens it.
     if (haloRef.current) {
       const pulse = 1 + Math.sin(t * 2 + place.lng) * 0.12;
-      const base = (place.home ? 0.16 : 0.12) * pulse;
+      const base = (prominent ? 0.2 : place.home ? 0.15 : 0.1) * pulse;
       const scale = emphasis ? base * 1.45 : base;
       haloRef.current.scale.setScalar(scale);
       haloMaterial.opacity = emphasis ? 0.95 : selected ? 0.85 : 0.6;
@@ -361,7 +365,7 @@ function Marker({
       onClick={(event: ThreeEvent<MouseEvent>) => {
         if (!facesCamera(event.camera)) return;
         event.stopPropagation();
-        onSelect(place);
+        onSelect(place.key);
       }}
       onPointerOver={(event: ThreeEvent<PointerEvent>) => {
         if (!facesCamera(event.camera)) return;
@@ -428,9 +432,22 @@ function buildArcPoints(a: THREE.Vector3, b: THREE.Vector3): THREE.Vector3[] {
   return points;
 }
 
-function Arcs({ palette }: { palette: GlobePalette }) {
+function Arcs({
+  palette,
+  places
+}: {
+  palette: GlobePalette;
+  places: GlobePlace[];
+}) {
   const { lines, geometries, material } = useMemo(() => {
-    const surfacePoints = PLACES.map((p) =>
+    // Thread the journey through the places that actually have photos, in the
+    // gazetteer's (roughly chronological) order — so the arcs read as a trip,
+    // not a tangle across every context marker.
+    const order = new Map(PLACES.map((p, i) => [p.name, i]));
+    const journey = places
+      .filter((p) => p.hasPhotos)
+      .sort((a, b) => (order.get(a.name) ?? 999) - (order.get(b.name) ?? 999));
+    const surfacePoints = journey.map((p) =>
       latLngToVec3(p.lat, p.lng, GLOBE_RADIUS)
     );
     const material = new THREE.LineBasicMaterial({
@@ -449,7 +466,7 @@ function Arcs({ palette }: { palette: GlobePalette }) {
       lines.push(new THREE.Line(geometry, material));
     }
     return { lines, geometries, material };
-  }, [palette.arc]);
+  }, [palette.arc, places]);
 
   useEffect(
     () => () => {
@@ -503,46 +520,64 @@ function GlobeSphere({ palette }: { palette: GlobePalette }) {
 // place selected, and eases back to spinning afterward.
 function GlobeGroup({
   palette,
-  selected,
+  places,
+  selectedKey,
   onSelect,
   draggingRef
 }: {
   palette: GlobePalette;
-  selected: Place | null;
-  onSelect: (place: Place | null) => void;
+  places: GlobePlace[];
+  selectedKey: string | null;
+  onSelect: (key: string | null) => void;
   draggingRef: React.MutableRefObject<boolean>;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const speedRef = useRef(0);
-  // Auto-rotate runs unless the user is dragging (live ref) or a place is
-  // selected. Reading the ref in useFrame keeps drag-pause frame-accurate
-  // without a re-render.
-  const paused = selected !== null;
+  const selected = places.find((p) => p.key === selectedKey) ?? null;
+
+  // The Y-rotation that brings the selected place to the front (facing +Z).
+  const targetY = useMemo(() => {
+    if (!selected) return null;
+    const pos = latLngToVec3(selected.lat, selected.lng, GLOBE_RADIUS);
+    return -Math.atan2(pos.x, pos.z);
+  }, [selected]);
 
   useFrame((_state, delta) => {
-    if (!groupRef.current) return;
-    // Ease the spin speed toward target (0 when paused, ~0.12 rad/s when free)
-    // so pausing/resuming glides rather than snaps.
-    const target = paused || draggingRef.current ? 0 : 0.12;
-    speedRef.current = THREE.MathUtils.lerp(
-      speedRef.current,
-      target,
-      1 - Math.pow(0.001, delta)
-    );
-    groupRef.current.rotation.y += speedRef.current * delta;
+    const group = groupRef.current;
+    if (!group) return;
+    if (targetY !== null && !draggingRef.current) {
+      // Fly-to: stop the spin and rotate the picked place to the front, taking
+      // the shortest way round (signed angle wrapped into [-π, π]).
+      speedRef.current = 0;
+      const twoPi = Math.PI * 2;
+      const diff =
+        (((targetY - group.rotation.y) % twoPi) + twoPi + Math.PI) % twoPi -
+        Math.PI;
+      group.rotation.y += diff * (1 - Math.pow(0.0025, delta));
+    } else {
+      // Auto-rotate unless the user is dragging. Ease toward target so
+      // pausing/resuming glides rather than snaps.
+      const target = draggingRef.current ? 0 : 0.12;
+      speedRef.current = THREE.MathUtils.lerp(
+        speedRef.current,
+        target,
+        1 - Math.pow(0.001, delta)
+      );
+      group.rotation.y += speedRef.current * delta;
+    }
   });
 
   return (
     <group ref={groupRef}>
       <GlobeSphere palette={palette} />
       <Atmosphere palette={palette} />
-      <Arcs palette={palette} />
-      {PLACES.map((place) => (
+      <Arcs palette={palette} places={places} />
+      {places.map((place) => (
         <Marker
-          key={`${place.name}-${place.lat}-${place.lng}`}
+          key={place.key}
           place={place}
           palette={palette}
-          selected={selected?.name === place.name}
+          selected={selectedKey === place.key}
           onSelect={onSelect}
         />
       ))}
@@ -576,13 +611,15 @@ function SceneRig({ palette }: { palette: GlobePalette }) {
 
 export type TravelGlobeProps = {
   theme: SiteTheme;
-  selected: Place | null;
-  onSelect: (place: Place | null) => void;
+  places: GlobePlace[];
+  selectedKey: string | null;
+  onSelect: (key: string | null) => void;
 };
 
 export default function TravelGlobe({
   theme,
-  selected,
+  places,
+  selectedKey,
   onSelect
 }: TravelGlobeProps) {
   const palette = useMemo(() => paletteFor(theme), [theme]);
@@ -605,7 +642,8 @@ export default function TravelGlobe({
       <SceneRig palette={palette} />
       <GlobeGroup
         palette={palette}
-        selected={selected}
+        places={places}
+        selectedKey={selectedKey}
         onSelect={onSelect}
         draggingRef={draggingRef}
       />

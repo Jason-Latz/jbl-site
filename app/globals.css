@@ -1048,6 +1048,21 @@ button.primary:disabled {
   resize: vertical;
 }
 
+/* Globe-location override picker on each admin photo card. */
+.photo-admin-geo-label {
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.photo-admin-geo-source {
+  font-weight: 500;
+  font-style: italic;
+  color: var(--accent);
+}
+
 .content {
   max-width: 720px;
 }
@@ -2839,6 +2854,68 @@ button.primary:disabled {
 
 .travel-place-panel-link:hover {
   text-decoration: underline;
+}
+
+/* "Estimated location · NN% confidence" — a quiet pill so visitors know the
+   pins are machine estimates, not surveyed truth. */
+.travel-place-panel-badge {
+  margin: 0.1rem 0 0.2rem;
+  justify-self: start;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--coral) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--coral) 30%, transparent);
+  border-radius: 999px;
+}
+
+/* Thumbnail gallery inside the place panel. Scrolls if a place has many. */
+.travel-place-gallery {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.35rem;
+  margin-top: 0.2rem;
+  max-height: 13rem;
+  overflow-y: auto;
+}
+
+.travel-place-thumb {
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  overflow: hidden;
+  aspect-ratio: 1 / 1;
+  background: var(--control-hover-bg);
+  cursor: pointer;
+  transition: transform 0.16s ease, border-color 0.16s ease;
+}
+
+.travel-place-thumb:hover {
+  transform: translateY(-1px);
+  border-color: var(--coral);
+}
+
+.travel-place-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.travel-place-panel-empty {
+  margin: 0.2rem 0 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+/* Photo count under a place in the SSR/fallback list. */
+.travel-place-count {
+  margin: 0.1rem 0 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--accent);
 }
 
 /* Crawlable list kept in the DOM under the live globe, visually hidden. */
