@@ -26,6 +26,19 @@ create table if not exists public.photos (
   description text,
   song_title text,
   song_url text,
+  -- Estimated capture location for the travel globe. Filled by the geolocation
+  -- pipeline (EXIF GPS → geocoded location text → open-source vision model),
+  -- or overridden by hand in admin. latitude/longitude are decimal degrees.
+  latitude double precision,
+  longitude double precision,
+  geo_place text,
+  geo_region text,
+  geo_country text,
+  geo_confidence real,
+  geo_source text check (
+    geo_source is null or geo_source in ('exif', 'geocode', 'ai', 'manual')
+  ),
+  geo_estimated_at timestamptz,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
@@ -48,8 +61,37 @@ create table if not exists public.spotify_recent_tracks (
 alter table public.spotify_recent_tracks
   add column if not exists duration_ms integer;
 
+-- Backfill columns for databases created before the travel globe. Idempotent;
+-- powers the photo markers + place clustering on /travel. All nullable, so this
+-- is additive and safe to re-run on an existing database.
+alter table public.photos
+  add column if not exists latitude double precision,
+  add column if not exists longitude double precision,
+  add column if not exists geo_place text,
+  add column if not exists geo_region text,
+  add column if not exists geo_country text,
+  add column if not exists geo_confidence real,
+  add column if not exists geo_source text,
+  add column if not exists geo_estimated_at timestamptz;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'photos_geo_source_check'
+  ) then
+    alter table public.photos
+      add constraint photos_geo_source_check check (
+        geo_source is null or geo_source in ('exif', 'geocode', 'ai', 'manual')
+      );
+  end if;
+end $$;
+
 create index if not exists posts_published_at_idx on public.posts (published_at desc);
 create index if not exists photos_created_at_idx on public.photos (created_at desc);
+-- Fast lookup of the placed photos that feed the globe.
+create index if not exists photos_latitude_longitude_idx
+  on public.photos (latitude, longitude)
+  where latitude is not null and longitude is not null;
 create index if not exists spotify_recent_tracks_played_at_idx on public.spotify_recent_tracks (played_at desc);
 
 create or replace function public.set_updated_at()
