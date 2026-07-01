@@ -13,3 +13,6 @@ tsconfig.tsbuildinfo
 /bake/
 __pycache__/
 /public/_bake/
+
+# local geolocation image cache
+.geo-cache/

@@ -1,0 +1,10 @@
+# Local, offline geolocation pipeline for the travel globe.
+# No API keys, no per-image cost — an open-source CLIP model estimates where each
+# photo was taken. Install into a venv (Python 3.11/3.12 recommended):
+#   python3.12 -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt
+torch>=2.2
+transformers>=4.40
+pillow>=10.0
+numpy>=1.24
+supabase>=2.4
+requests>=2.31
