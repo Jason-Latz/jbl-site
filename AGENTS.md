@@ -204,3 +204,12 @@ For cron-backed third-party activity syncs:
 1. Validate the planned schedule against realistic item throughput and the upstream page-size limit before choosing a cadence.
 2. Prefer incremental paged catch-up from the last stored watermark over assuming an aggressive fixed polling interval is necessary.
 3. Factor hosting-plan schedule limits into the initial design instead of treating them as a later deployment detail.
+
+## 24) Travel Globe: Placement Pipeline Runs Offline; Verify Before Publishing
+
+For the `/travel` photo globe (see `CODEBASE_GUIDE.md` §4.5):
+
+1. `/travel` is the interactive 3D globe of geolocated photos; `/photography` is the gapless mosaic. Do not swap them.
+2. Photo locations are estimated by a **local, offline** batch (`scripts/geolocate/geolocate.py`) — no API key, no request-time ML. After uploading new travel photos, re-run the batch to place them; the globe reads cached `photos.geo_*` columns.
+3. Estimates are public-facing, so **verify placements before treating them as final** — an estimate can be wrong. Correct via the admin "Globe location" picker (writes `geo_source = 'manual'`, which a `--only-missing` re-run will not overwrite).
+4. Keep `content/places.json` the single source of truth for both the globe and the estimator's candidate set; add a place there before assigning photos to it.
