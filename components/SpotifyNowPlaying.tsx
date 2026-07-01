@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { selectLeadTrack } from "@/lib/spotifyLeadTrack";
 
 type SpotifyNowPlayingPayload = {
   trackName: string;
@@ -35,6 +36,7 @@ type SpotifyRecentTrackPayload = {
   albumName: string | null;
   trackUrl: string | null;
   albumImageUrl: string | null;
+  playedAt?: string | null;
 };
 
 type SpotifyTopArtistPayload = {
@@ -323,25 +325,27 @@ export default function SpotifyNowPlaying() {
     };
   }, [fetchSpotifyLive, isPageVisible]);
 
+  // The live track wins; otherwise only a genuinely-recent last play stands in.
+  // A stale stored track is dropped so the headline never shows an old song as
+  // if it were current. See lib/spotifyLeadTrack.ts.
+  const leadTrack = useMemo(() => selectLeadTrack(data), [data]);
+
   const trackLine = useMemo(() => {
     if (data?.nowPlaying) {
       return formatTrackLine(data.nowPlaying.trackName, data.nowPlaying.artists);
     }
 
-    const latestRecentTrack = data?.recentTracks?.[0];
-    if (latestRecentTrack) {
+    if (leadTrack) {
       return `Last played: ${formatTrackLine(
-        latestRecentTrack.trackName,
-        latestRecentTrack.artists
+        leadTrack.trackName,
+        leadTrack.artists
       )}`;
     }
 
     return isLoading
       ? "Loading Spotify listening activity..."
       : "Nothing is currently playing.";
-  }, [data, isLoading]);
-
-  const leadTrack = data?.nowPlaying ?? data?.recentTracks?.[0] ?? null;
+  }, [data, leadTrack, isLoading]);
   const leadTrackLine = leadTrack
     ? formatTrackLine(leadTrack.trackName, leadTrack.artists)
     : trackLine;
@@ -420,12 +424,8 @@ export default function SpotifyNowPlaying() {
                 <a href={data.nowPlaying.trackUrl} target="_blank" rel="noreferrer">
                   Open track ↗
                 </a>
-              ) : data?.recentTracks?.[0]?.trackUrl ? (
-                <a
-                  href={data.recentTracks[0].trackUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                >
+              ) : leadTrack?.trackUrl ? (
+                <a href={leadTrack.trackUrl} target="_blank" rel="noreferrer">
                   Open last track ↗
                 </a>
               ) : data?.recentPlaylist?.url ? (

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { TurntableAudio } from "@/lib/audio/turntable-audio";
 import { useChessGame } from "@/lib/useChessGame";
 import { useSpotifyLive } from "@/lib/useSpotifyLive";
+import { selectLeadTrack } from "@/lib/spotifyLeadTrack";
 import { type FocusId } from "./layout";
 import type { DeskNote } from "./DeskScene";
 import NowPlayingHUD, { type NeedlePhase } from "./NowPlayingHUD";
@@ -205,7 +206,10 @@ export default function DeskHero() {
     timersRef.current.push(window.setTimeout(fn, delayMs));
   }, []);
 
-  const leadTrack = data?.nowPlaying ?? data?.recentTracks?.[0] ?? null;
+  // Headline = the live track when present, else a genuinely-recent last play;
+  // a stale stored play is dropped (slot shows "Nothing playing right now")
+  // rather than masquerading as current. See lib/spotifyLeadTrack.ts.
+  const leadTrack = selectLeadTrack(data);
   const trackTitle = leadTrack?.trackName ?? null;
   const artistLine = useMemo(
     () =>

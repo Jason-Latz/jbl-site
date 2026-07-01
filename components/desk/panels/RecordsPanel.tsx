@@ -5,11 +5,8 @@
 // plus a one-shot fetch of the heavy-rotation album wall.
 
 import { useEffect, useState, type CSSProperties } from "react";
-import type {
-  SpotifyLiveResponse,
-  SpotifyNowPlayingPayload,
-  SpotifyRecentTrackPayload
-} from "@/lib/useSpotifyLive";
+import type { SpotifyLiveResponse } from "@/lib/useSpotifyLive";
+import { selectLeadTrack } from "@/lib/spotifyLeadTrack";
 import type { NeedlePhase } from "@/components/desk/NowPlayingHUD";
 
 export type RecordsPanelProps = {
@@ -126,8 +123,8 @@ export default function RecordsPanel({
     return () => controller.abort();
   }, []);
 
-  const lead: SpotifyNowPlayingPayload | SpotifyRecentTrackPayload | null =
-    spotify ? spotify.nowPlaying ?? spotify.recentTracks[0] ?? null : null;
+  // Live track wins; else only a genuinely-recent last play (lib/spotifyLeadTrack).
+  const lead = selectLeadTrack(spotify);
   const isLive = Boolean(spotify?.isPlaying && spotify.nowPlaying);
   const isBusy = phase === "dropping" || phase === "stopping";
   const previewMissing = phase === "idle" && !canPlay;
