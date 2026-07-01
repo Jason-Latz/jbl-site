@@ -533,6 +533,9 @@ function GlobeGroup({
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const speedRef = useRef(0);
+  // The selection we have already flown to — once reached, the user can orbit
+  // the globe freely without it snapping back to the pin.
+  const settledKeyRef = useRef<string | null>(null);
   const selected = places.find((p) => p.key === selectedKey) ?? null;
 
   // The Y-rotation that brings the selected place to the front (facing +Z).
@@ -545,18 +548,27 @@ function GlobeGroup({
   useFrame((_state, delta) => {
     const group = groupRef.current;
     if (!group) return;
-    if (targetY !== null && !draggingRef.current) {
+    const flying =
+      targetY !== null && settledKeyRef.current !== selectedKey && !draggingRef.current;
+    if (flying) {
       // Fly-to: stop the spin and rotate the picked place to the front, taking
-      // the shortest way round (signed angle wrapped into [-π, π]).
+      // the shortest way round (signed angle wrapped into [-π, π]). Mark the
+      // selection settled once it arrives so dragging afterward is free.
       speedRef.current = 0;
       const twoPi = Math.PI * 2;
       const diff =
         (((targetY - group.rotation.y) % twoPi) + twoPi + Math.PI) % twoPi -
         Math.PI;
       group.rotation.y += diff * (1 - Math.pow(0.0025, delta));
+      if (Math.abs(diff) < 0.01) settledKeyRef.current = selectedKey;
+    } else if (selected) {
+      // Selected and settled (or mid-drag): hold position — no auto-spin, and
+      // let OrbitControls move the camera freely.
+      speedRef.current = 0;
     } else {
-      // Auto-rotate unless the user is dragging. Ease toward target so
-      // pausing/resuming glides rather than snaps.
+      // Nothing selected: auto-rotate unless the user is dragging. Ease toward
+      // the target so pausing/resuming glides rather than snaps.
+      settledKeyRef.current = null;
       const target = draggingRef.current ? 0 : 0.12;
       speedRef.current = THREE.MathUtils.lerp(
         speedRef.current,

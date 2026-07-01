@@ -75,7 +75,11 @@ function PhotoLightbox({
         <button type="button" className="secondary photo-modal-close" onClick={onClose}>
           Close
         </button>
-        <img src={photo.url} alt={photo.alt} className="photo-modal-image" />
+        <img
+          src={buildTravelRenderUrlForDisplayWidth(photo.url, 1400)}
+          alt={photo.alt}
+          className="photo-modal-image"
+        />
         <div className="photo-modal-meta">
           <p>
             <strong>Place:</strong> {place.name}

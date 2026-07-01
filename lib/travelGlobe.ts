@@ -123,14 +123,16 @@ export const fetchGlobePlaces = cache(async (): Promise<GlobePlace[]> => {
     };
 
     // Prefer the snapped gazetteer place; otherwise synthesize a place from the
-    // photo's own estimate (e.g. EXIF far from any listed place).
+    // photo's own estimate (e.g. EXIF GPS far from any listed place) — grouped
+    // by country so stray photos share a readable pin instead of one-per-coord.
     const gazetteer = findPlace(row.geo_place);
-    const key = row.geo_place ?? `@${row.latitude.toFixed(2)},${row.longitude.toFixed(2)}`;
+    const fallbackName = row.geo_place ?? row.geo_country ?? row.geo_region ?? "Unplaced";
+    const key = row.geo_place ?? row.geo_country ?? "unplaced";
 
     let place = byKey.get(key);
     if (!place) {
       place = {
-        name: row.geo_place ?? row.geo_region ?? "Somewhere",
+        name: fallbackName,
         region: gazetteer?.region ?? row.geo_region ?? undefined,
         country: gazetteer?.country ?? row.geo_country ?? undefined,
         lat: gazetteer?.lat ?? row.latitude,
