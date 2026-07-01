@@ -72,6 +72,17 @@ admin, Spotify pipeline).
 
 ## Gotchas
 
+- **`supabase/schema.sql` is declarative — nothing auto-applies it.** Editing it
+  (or shipping code that reads/writes a new column) does NOT change the live DB. If
+  you add a column/table/RPC you MUST run it against prod (Supabase MCP
+  `apply_migration`, or `psql` via the pooler DSN). Otherwise PostgREST fails the
+  mismatched read/write with `42703 column … does not exist`, and the Spotify
+  read/sync helpers **swallow** that error — so the symptom is a silently empty
+  widget, not a crash. This froze Spotify history 2026-06-16→23 (a missing
+  `duration_ms` column; see docs/CONTEXT.md). After any schema change verify with a
+  real PostgREST read (`supabase-js .select()` of the new column), not just raw
+  SQL. `schema.sql` is itself stale vs prod (`posts` has extra columns,
+  `post_revisions` is absent) — treat the **live DB as authoritative**.
 - **Never run `npm run build` while the dev server is running** — they share `.next`
   and the build fails with phantom `PageNotFoundError`s. Stop dev, `rm -rf .next`, build.
 - Worktrees don't inherit `.env` — copy it from the main checkout
@@ -115,6 +126,17 @@ admin, Spotify pipeline).
   throttled OFF the read path (`maybeSyncHistory`, ≤1 per 3 min). Never reintroduce the
   per-poll sync — that was the rate-limit "maxing out" (docs/CONTEXT.md 2026-06-13).
   Stats stay approximate (windowed; recently-played lags real time).
+- **The `spotify_recent_tracks` store NEVER contains the currently/just-played track
+  and lags real time (recently-played is minutes-to-tens-of-minutes behind).** So
+  `recentTracks[0]` is NOT a valid now-playing fallback — using it directly was the
+  "old song shown forever after I stop" bug (docs/CONTEXT.md 2026-06-24). The headline
+  for every surface goes through `lib/spotifyLeadTrack.ts` `selectLeadTrack`: live
+  `nowPlaying` wins (covers pause too); a stored play only stands in as "last played"
+  if its `playedAt` is within `LEAD_TRACK_FRESHNESS_MS`; else "Nothing playing right
+  now". Don't reintroduce a raw `nowPlaying ?? recentTracks[0]`.
+- The white-noise filter (`isWhiteNoiseListening`) must run on EVERY read surface
+  (live + stored recent + today-stats + top-artists) — a 3h white-noise track will
+  otherwise headline as "last played" and add ~180 min to "today".
 - The Spotify micro-cache + sync-throttle are per-warm-instance module singletons —
   they work in Vercel's serverless runtime but reset across Next dev recompiles, so under
   `npm run dev` every poll rebuilds/re-syncs. Looks broken in dev; correct in prod.

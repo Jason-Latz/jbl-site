@@ -24,6 +24,77 @@ for `desk_notes`.
 
 ## Session log
 
+### 2026-06-24 — Spotify "stale track shown as if current" when playback stops (+ audit of the 06-23 fix)
+
+Symptom: while playing, the now-playing HUD/ribbon is correct; the moment playback
+**fully stops** (not pause), it keeps showing an OLD track ("Be Honest (feat. Burna
+Boy)", ~20-30 min stale) "the whole time". Ran an adversarial multi-agent audit
+(6 investigators → skeptic verifiers → synthesis) that also re-checked the 06-23 fix.
+
+Root cause: all three read surfaces resolved the headline as
+`data?.nowPlaying ?? data?.recentTracks?.[0]` (DeskHero.tsx, SpotifyNowPlaying.tsx,
+RecordsPanel.tsx). On a full stop, currently-playing returns 204 → `nowPlaying:null`,
+so the headline silently fell back to `recentTracks[0]` — the newest row in the
+durable store. That store is fed ONLY by Spotify's recently-played, which by
+construction NEVER contains the currently/just-played track and lags real time
+(observed ~83 min behind). So the fallback is *structurally guaranteed* to be a
+stale, different song presented as the headline.
+
+Fix (verified): one shared selector `lib/spotifyLeadTrack.ts` — `nowPlaying` always
+wins (so paused tracks still show); the stored play may only stand in as "last
+played" if its `playedAt` is within `LEAD_TRACK_FRESHNESS_MS` (10 min); otherwise
+the slot honestly shows "Nothing playing right now". Threaded `playedAt` through the
+`SpotifyRecentTrack` type + mappers (the column was already SELECTed). No new Spotify
+calls — the rate-limit budget is untouched. Also fixed a related drift: the
+white-noise filter ran on the live read path + top-artists but NOT on the stored
+recent-tracks read or stored today-stats, so "White Noise 3 Hour Long" could headline
+as "last played" and add ~180 min to "today"; now filtered on the stored surfaces too.
+Verified: 8/8 selector unit cases, `npm run build` clean, dev `/api/spotify/live`
+emits `playedAt` + no white-noise, and the live HUD shows "Nothing playing right now"
+for a stale 83-min recent vs "last played" for a fresh 3-min one.
+
+**Correcting the 06-23 claim** (audit finding): "the on-visit sync + daily cron keep
+it current" was misleading. The store is eventually-consistent on a minutes-to-hours
+scale and NEVER reflects the live/just-played track — it can't be a correct now/last
+headline (hence this fix). The 06-23 `duration_ms` fix itself WAS correct/necessary
+(the read SELECT errored on the missing column → empty list); the sync mechanism does
+work when triggered (observed it writing rows this session). What was wrong was using
+`recentTracks[0]` as a real-time headline at all.
+
+### 2026-06-23 — Spotify history was empty: a `schema.sql` migration never applied to prod
+
+Symptom: now-playing worked, but "Last 10" showed *"No recent spins on record"*
+and the weekly artists showed *"The week is young…"*. The `spotify_recent_tracks`
+table was frozen at the launch date (last play 2026-06-16; today 2026-06-23).
+
+Root cause: commit `6c3b442` ("Store track duration in Spotify play history")
+added a `duration_ms` field to BOTH the upsert (`mapTracksForStorage`) and the
+recent-tracks SELECT (`fetchRecentStoredTracks`) in `lib/spotify.ts`, and added
+the column to `supabase/schema.sql` — **but the migration was never run against
+the live Supabase DB.** PostgREST then failed every read/write with
+`42703 column spotify_recent_tracks.duration_ms does not exist`; both
+`fetchRecentStoredTracks` and `syncSpotifyRecentTracks` swallow the error, so the
+table silently stopped accepting writes and recent-reads silently returned empty.
+Now-playing was unaffected because it's the one read path that never touches
+Supabase. This is the **`schema.sql`-not-applied** failure class — `schema.sql`
+is declarative; nothing auto-runs it.
+
+Fix (operational, no code change — the code already matched `schema.sql`):
+1. Applied the missing column to prod:
+   `alter table public.spotify_recent_tracks add column if not exists duration_ms integer;`
+2. Backfilled the 50 most recent plays Spotify still exposes (its recently-played
+   API only retains ~50 — the 2026-06-16→22 gap is gone upstream, unrecoverable).
+3. Verified end-to-end on **live prod** `/api/spotify/live`: recentTracks=10,
+   topArtistsThisWeek=4 (white-noise stripped by `toTopArtists`), today=16 plays /
+   414.8 min (non-zero minutes ⇒ prod's PostgREST sees `duration_ms`). On-visit
+   sync + the daily 12:00-UTC cron keep it fresh going forward.
+
+Drift audit (schema.sql ↔ live DB): `duration_ms` was the only runtime-breaking
+drift. The reverse also exists but is harmless at runtime — `posts` has extra
+live columns not in `schema.sql` (`content_format`, `scheduled_for`, `tags`,
+`social_*`, `preview_token*`) and `post_revisions` isn't in `schema.sql` at all.
+`schema.sql` is stale as a source of truth; treat the live DB as authoritative.
+
 ### 2026-06-17 — Mobile immersive homepage: full-bleed 3D + floating glass nav
 
 Overnight autonomous run (branch `overnight/mobile-immersive`). Jason: "make
