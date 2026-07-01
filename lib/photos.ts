@@ -14,6 +14,12 @@ export type PhotoCatalogItem = {
   songTitle: string | null;
   songUrl: string | null;
   createdAt: string | null;
+  // Estimated capture location for the travel globe (see lib/travelGlobe.ts).
+  latitude: number | null;
+  longitude: number | null;
+  geoPlace: string | null;
+  geoConfidence: number | null;
+  geoSource: string | null;
 };
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -115,6 +121,11 @@ type MetadataRow = {
   song_title: string | null;
   song_url: string | null;
   created_at: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  geo_place: string | null;
+  geo_confidence: number | null;
+  geo_source: string | null;
 };
 
 function normalizeStorageListLimit(limit: number) {
@@ -183,7 +194,7 @@ export async function listPhotoCatalog(
     const { data: metadataRows } = await supabase
       .from("photos")
       .select(
-        "id, storage_path, location, description, song_title, song_url, created_at"
+        "id, storage_path, location, description, song_title, song_url, created_at, latitude, longitude, geo_place, geo_confidence, geo_source"
       )
       .in("storage_path", paths);
 
@@ -205,7 +216,12 @@ export async function listPhotoCatalog(
       description: normalizeText(metadata?.description),
       songTitle: normalizeText(metadata?.song_title),
       songUrl: normalizeText(metadata?.song_url),
-      createdAt: metadata?.created_at ?? entry.createdAt ?? null
+      createdAt: metadata?.created_at ?? entry.createdAt ?? null,
+      latitude: metadata?.latitude ?? null,
+      longitude: metadata?.longitude ?? null,
+      geoPlace: normalizeText(metadata?.geo_place),
+      geoConfidence: metadata?.geo_confidence ?? null,
+      geoSource: normalizeText(metadata?.geo_source)
     };
   });
 
