@@ -6,7 +6,7 @@ This document explains how the site is structured, how data and auth flow throug
 
 This is a **Next.js 14 App Router** project for a personal website with:
 
-- Public pages: home, writings archive, travel mosaic, individual writing pages, and experience
+- Public pages: home, writings archive, an interactive 3D travel globe of geolocated photos, a photography mosaic, individual writing pages, and experience
 - A single-line home activity ribbon that shows compact Spotify now-playing + Duolingo streak summaries with expandable details
 - A protected admin editor at `/admin`
 - Supabase-backed storage for posts, travel media, and editor permissions
@@ -32,9 +32,9 @@ app/
   page.tsx                 # Home page
   globals.css              # Global styles and component utility classes
   experience/page.tsx      # Static experience timeline
-  travel/page.tsx          # Public travel mosaic page
+  travel/page.tsx          # Public travel page: interactive 3D globe of geolocated photos
   travel/quality-lab/page.tsx # Side-by-side quality comparison page for travel images
-  photography/page.tsx     # Legacy redirect from /photography -> /travel
+  photography/page.tsx     # Public photography page: the gapless justified mosaic
   writings/page.tsx        # Published writings list page
   writings/[slug]/page.tsx # Single published post page
   admin/page.tsx           # Admin page wrapper
@@ -57,16 +57,27 @@ components/
   SiteFooter.tsx           # Footer copyright + social links
   SpotifyNowPlaying.tsx    # Home-page Spotify ribbon panel polling /api/spotify/live
   DuolingoStreak.tsx       # Home-page Duolingo ribbon panel polling /api/duolingo/streak
-  PhotoMosaic.tsx          # Client-side gapless mosaic + click-to-view metadata modal
+  PhotoMosaic.tsx          # Client-side gapless mosaic (/photography) + click-to-view metadata modal
   TravelBackgroundWarmup.tsx # Cross-page idle warmup for first travel image variants
+  travel/TravelGlobeStage.tsx # Client wrapper: WebGL capability gate, place selection, gallery panel + lightbox
+  travel/TravelGlobe.tsx   # react-three-fiber globe: land texture, photo/context markers, arcs, fly-to
+
+content/
+  places.json              # Gazetteer: places visited (name/region/country/lat/lng) — single source of truth
+  places.ts                # Typed PLACES + findPlace(), imports places.json
 
 lib/
   spotify.ts               # Spotify OAuth token refresh + data aggregation
   posts.ts                 # Supabase public-read helpers for published content
-  photos.ts                # Shared photo catalog helper (storage objects + metadata)
+  photos.ts                # Shared photo catalog helper (storage objects + metadata, incl. geo fields)
+  travelGlobe.ts           # Server: fetchGlobePlaces() — placed photos grouped by gazetteer place
   travel-image.ts          # Shared travel render URL + warmup constants/helpers
   requireEditor.ts         # Shared authorization check for API routes
   date.ts                  # Date formatting helper
+
+scripts/
+  geolocate/geolocate.py   # Local offline photo-geolocation batch (EXIF + StreetCLIP) -> writes geo cols
+  geolocate/requirements.txt # Python deps for the geolocation batch (venv)
 
 supabase/
   schema.sql               # Tables, trigger, indexes, RLS policies
@@ -103,13 +114,13 @@ This means every route is rendered inside the same visual shell by default.
 
 - `/` (`app/page.tsx`): hero content, single-line collapsible Spotify + Duolingo activity ribbon, dynamic “latest writing” card sourced from a dedicated single-row published-post query, and a “now” card. The home page also uses ISR (`revalidate = 60`) so newly published posts are not pinned to an old static render.
 - `/experience` (`app/experience/page.tsx`): static, resume-style sections (education, professional experience, projects, technical skills, activities) rendered as cards.
-- `/travel` (`app/travel/page.tsx`): server-rendered gallery route that hydrates a client-side gapless mosaic (`PhotoMosaic`) built from storage images plus metadata from `public.photos`; the mosaic renders an initial top batch, appends additional photos as the user scrolls, uses justified row packing (not fixed columns) so photos rewrap for best fit, calibrates `100%` zoom to the denser look that was previously around `200%`, and serves width-only transformed tile images at roughly `q92` so aspect ratio is preserved without crop.
+- `/travel` (`app/travel/page.tsx`): server-rendered route that fetches `public.photos` grouped by their estimated place (`lib/travelGlobe.ts`) and hydrates the interactive 3D globe (`components/travel/TravelGlobeStage` → `TravelGlobe`, react-three-fiber). Each place with photos is a glowing pin; clicking one flies the globe to it and opens a gallery panel (thumbnails → lightbox) showing the photos shot there, with an "estimated location · NN% confidence" badge. `?place=<name>` deep-links a selection. A server-rendered place list is kept in the DOM (visually hidden) for crawlers, and is the designed fallback for no-WebGL / reduced-motion / no-JS visitors. See §4.7 for how photos get placed.
 - `/travel/quality-lab` (`app/travel/quality-lab/page.tsx`): visual tuning route that renders the same sampled photos side-by-side as `Preferred (q92)`, `Fallback (q90)`, and `Original` to compare sharpness versus payload strategy.
-- `/photography` (`app/photography/page.tsx`): legacy compatibility route that redirects to `/travel`.
+- `/photography` (`app/photography/page.tsx`): the gapless justified mosaic (`PhotoMosaic`) built from storage images plus metadata from `public.photos`; renders an initial top batch, appends more as the user scrolls, uses justified row packing (not fixed columns) so photos rewrap for best fit, and serves width-only transformed tiles at roughly `q92` so aspect ratio is preserved without crop. Clicking a tile opens a lightbox with location/description/song metadata.
 - `/writings` (`app/writings/page.tsx`): server component fetching published posts from Supabase via `lib/posts.ts`.
 - `/writings/[slug]` (`app/writings/[slug]/page.tsx`): server component fetching one published post by slug; returns `notFound()` if missing.
 
-`/`, `/travel`, and both writings routes set `export const revalidate = 60`, so page data is ISR-cached for up to 60 seconds.
+`/` and both writings routes set `export const revalidate = 60`; `/travel` sets `revalidate = 3600` (newly geolocated photos appear within the hour without a redeploy). Page data is ISR-cached accordingly.
 
 For perceived travel-load speed, non-travel routes run a one-time, session-scoped background warmup:
 
@@ -205,6 +216,31 @@ Admin UI behavior:
 9. Dashboard route loads photo catalog rows through `GET /api/travel`, allows per-photo metadata saves through `PATCH /api/travel`, and supports per-photo deletion through `DELETE /api/travel`.
 10. On `401/403` API responses, editor clients sign out or route away instead of silently showing empty data.
 11. Sign-out clears local editor/session state.
+12. Each admin photo card has a **Globe location** `<select>` (populated from `content/places.json`). Choosing a
+    place `PATCH`es `/api/travel` with `geoPlace`, which snaps that photo to the place's coordinates and marks
+    `geo_source = 'manual'`; choosing "Not on globe" clears the pin. This is the one-click way to correct an
+    estimated placement.
+
+### 4.5 Travel globe geolocation pipeline
+
+The `/travel` globe plots each photo at an **estimated capture location**. Locations are produced by a local,
+offline, no-API-key pipeline and cached on `public.photos` (§5.1); the site never runs ML at request time.
+
+- **Gazetteer — `content/places.json` (+ `content/places.ts`)**: the single source of truth for the places
+  Jason has visited (name, region, country, lat/lng). Imported by the globe (typed `PLACES`) AND read by the
+  Python batch. It is both the globe's context markers and the candidate set the estimator snaps to.
+- **Batch — `scripts/geolocate/geolocate.py`** (venv; `requirements.txt`; Python 3.11/3.12 recommended):
+  for every photo in the `photos` bucket it (1) uses EXIF GPS if present (`geo_source = 'exif'`), else
+  (2) runs an open-source CLIP geolocation model (`geolocal/StreetCLIP`, falls back to
+  `openai/clip-vit-large-patch14`) zero-shot against the gazetteer place prompts and picks the best match
+  (`geo_source = 'ai'`, with a softmax confidence). Writes `latitude, longitude, geo_place, geo_region,
+  geo_country, geo_confidence, geo_source, geo_estimated_at` via the service role. Idempotent; supports
+  `--dry-run`, `--only-missing`, `--report PATH`. Re-run it after uploading new photos.
+- **Read path — `lib/travelGlobe.ts`**: server-only `fetchGlobePlaces()` selects placed photos, groups them by
+  `geo_place` onto the gazetteer, and returns `GlobePlace[]` (places with photos first). Consumed by
+  `app/travel/page.tsx`.
+- **Correcting a placement**: use the admin Globe-location picker (§4.4.12), or re-run the batch. Manual picks
+  (`geo_source = 'manual'`) are authoritative and are not overwritten by an `--only-missing` batch run.
 
 ## 5) Data layer and Supabase model
 
@@ -239,9 +275,14 @@ Trigger: `set_updated_at` updates `updated_at` automatically before updates.
 - `description` (optional)
 - `song_title` (optional)
 - `song_url` (optional Spotify link)
+- Travel-globe estimated location (all optional; see §4.7): `latitude`, `longitude` (decimal degrees),
+  `geo_place` (gazetteer place name from `content/places.json`), `geo_region`, `geo_country`,
+  `geo_confidence` (0..1), `geo_source` (`exif` | `geocode` | `ai` | `manual`, `check` constraint
+  `photos_geo_source_check`), `geo_estimated_at`
 - `created_at`, `updated_at`
 
-Index: `photos_created_at_idx` on `created_at DESC`.
+Indexes: `photos_created_at_idx` on `created_at DESC`; partial `photos_latitude_longitude_idx` on
+`(latitude, longitude)` where both are non-null (the placed photos that feed the globe).
 
 Trigger: `set_updated_at` updates `updated_at` automatically before updates.
 
