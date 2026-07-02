@@ -2985,3 +2985,224 @@ button.primary:disabled {
   font-size: 0.85rem;
   color: var(--muted);
 }
+
+/* Summer Blog: the unlisted weekly-writing tracker (/summer-blog). */
+.summer-blog-terms {
+  margin-top: 1.5rem;
+}
+
+.summer-blog-terms h2 {
+  font-size: 1.2rem;
+  margin-bottom: 0.25rem;
+}
+
+.summer-blog-terms ol {
+  margin: 0;
+  padding-left: 1.2rem;
+  display: grid;
+  gap: 0.4rem;
+  color: var(--muted);
+}
+
+.summer-blog-board {
+  margin-top: 2rem;
+  display: grid;
+  gap: 1.25rem;
+}
+
+.summer-blog-unlock {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.summer-blog-unlock-status {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.summer-blog-unlock-form {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.summer-blog-unlock-label {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.summer-blog-input {
+  width: auto;
+  flex: 1 1 12rem;
+  border-radius: 10px;
+  padding: 0.55rem 0.75rem;
+  font-size: 0.9rem;
+}
+
+.summer-blog-btn {
+  background: var(--accent);
+  color: var(--on-accent);
+  border: none;
+  border-radius: 10px;
+  padding: 0.55rem 1.05rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.summer-blog-btn:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.summer-blog-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.summer-blog-btn-quiet {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.summer-blog-btn-quiet:hover:not(:disabled) {
+  background: var(--control-hover-bg);
+  border-color: var(--control-hover-border);
+  color: var(--fg);
+}
+
+.summer-blog-btn-quiet:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.summer-blog-message {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--danger-fg);
+}
+
+.summer-blog-weeks {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.summer-blog-week {
+  gap: 1rem;
+}
+
+.summer-blog-week.is-current {
+  border-color: var(--coral);
+  box-shadow: inset 3px 0 0 var(--coral);
+}
+
+.summer-blog-week-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.summer-blog-week-head h3 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.summer-blog-week-meta {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.summer-blog-rows {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.summer-blog-row {
+  display: grid;
+  grid-template-columns: 5.5rem 1fr;
+  align-items: start;
+  gap: 0.75rem;
+}
+
+.summer-blog-author {
+  font-weight: 600;
+  font-size: 0.95rem;
+  padding-top: 0.35rem;
+}
+
+.summer-blog-slot {
+  min-height: 2.1rem;
+  display: flex;
+  align-items: center;
+}
+
+.summer-blog-filled {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.summer-blog-link {
+  color: var(--accent);
+  text-decoration: none;
+  word-break: break-word;
+  font-size: 0.95rem;
+}
+
+.summer-blog-link:hover {
+  text-decoration: underline;
+}
+
+.summer-blog-slot-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.summer-blog-empty {
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-style: italic;
+}
+
+.summer-blog-add {
+  background: transparent;
+  border: 1px dashed var(--border);
+  color: var(--muted);
+  border-radius: 10px;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.summer-blog-add:hover {
+  border-color: var(--coral);
+  color: var(--coral);
+}
+
+.summer-blog-slotform {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.summer-blog-slotform-actions {
+  display: flex;
+  gap: 0.4rem;
+}
