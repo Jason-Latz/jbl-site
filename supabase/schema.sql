@@ -367,3 +367,24 @@ create index if not exists chess_games_status_idx
   on public.chess_games (status, created_at desc);
 
 alter table public.chess_games enable row level security;
+
+-- Summer Blog: an unlisted weekly writing tracker. Jason, David, and Adrian each
+-- drop a URL to a public, human-written piece every week (deadline Sunday night).
+-- One row per (week_start, author). No public RLS policies — every read/write
+-- goes through the service-role route (mirrors public.desk_notes), which also
+-- enforces the shared editing passcode (SUMMER_BLOG_PASSCODE).
+create table if not exists public.summer_blog_entries (
+  id uuid primary key default gen_random_uuid(),
+  week_start date not null,
+  author text not null check (author in ('jason', 'david', 'adrian')),
+  url text not null,
+  title text check (title is null or char_length(title) <= 160),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (week_start, author)
+);
+
+create index if not exists summer_blog_entries_week_idx
+  on public.summer_blog_entries (week_start desc);
+
+alter table public.summer_blog_entries enable row level security;
