@@ -24,6 +24,43 @@ for `desk_notes`.
 
 ## Session log
 
+### 2026-07-01 — New `/summer-blog` page (unlisted weekly writing tracker)
+
+An **unlisted** page (not in the nav, `robots: noindex, nofollow`) Jason can send to
+two friends. A pinned **"Terms of the Contract"** up top; then one auto-generated
+slot per week (Mon–Sun, deadline Sunday night), newest on top, each week with three
+URL slots ordered **Jason, David, Adrian**. Viewing is open; **editing is gated by a
+shared passcode**. Mirrors the `desk_notes` pattern: RLS-locked table, all
+reads/writes through a service-role route.
+
+- **Table** `public.summer_blog_entries` (applied to prod via Supabase MCP; also in
+  `supabase/schema.sql`): `week_start date`, `author` (`jason|david|adrian`), `url`,
+  `title`, timestamps; unique `(week_start, author)`; RLS on, **no public policies**.
+- **Route** `app/api/summer-blog/route.ts`: `GET` lists all entries; `POST`
+  `{action: "unlock"|"save"|"clear", passcode, weekStart, author, url, title}` —
+  constant-time passcode check (`timingSafeEqual`), `save` upserts on
+  `(week_start, author)`, `clear` deletes. Service-role client with the no-store
+  fetch override (the Next-14 GET-cache gotcha).
+- **Helpers** `lib/summerBlog.ts`: `SEASON_START` (`2026-06-29`), `SEASON_TZ`
+  (`America/New_York`), `AUTHORS` (array order = display order), library-free
+  Mon-anchored week math (`listWeeks`, `currentWeekStart`, `formatWeekRange`,
+  `formatDeadline`), `normalizeUrl`/`prettyUrl`.
+- **UI** `app/summer-blog/page.tsx` (server shell + Terms + noindex metadata) mounts
+  `app/summer-blog/SummerBlog.tsx` (client: fetch on mount, passcode unlock kept in
+  `localStorage["summer-blog-key"]` and silently re-verified, per-slot add/edit/clear,
+  saves are not optimistic — they wait on the API). Styles: `.summer-blog-*` block
+  appended to `globals.css` (warm palette via existing CSS vars → dark mode free).
+- **Env — action needed:** `SUMMER_BLOG_PASSCODE` must be set in **Vercel** (prod).
+  Local `.env` uses placeholder `summer2026`. Until it's set, unlock/save are
+  rejected with 401 (Supabase creds already exist in prod, so the route is
+  "configured" — a 503 only happens when Supabase env is missing); viewing still
+  works. This is the passcode Jason texts the group; change it in Vercel.
+- **Verified:** `npm run build` passes; full browser flow via preview (unlock → add →
+  persist across reload from DB → Lock → public view shows links but no edit
+  controls), light + dark. A test row was written to prod during verification and
+  then deleted — the table ships empty. Today only "This week" exists (season starts
+  the week of 2026-06-29); a new empty week appears automatically each Monday.
+
 ### 2026-06-24 — Spotify "stale track shown as if current" when playback stops (+ audit of the 06-23 fix)
 
 Symptom: while playing, the now-playing HUD/ribbon is correct; the moment playback
