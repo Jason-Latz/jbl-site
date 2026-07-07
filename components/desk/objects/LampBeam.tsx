@@ -131,7 +131,15 @@ const BEAM_FRAG = /* glsl */ `
     float dov = dot(w0, v);
     float dou = dot(w0, uDirW);
     float denom = max(1.0 - b * b, 4e-3);
-    float s = clamp((dou - b * dov) / denom, 0.0, uLen);
+    // Closest-approach parameter along the beam axis. The old hard clamp at
+    // uLen FROZE pAxis at the pool's far point, which broke the radial-falloff
+    // slope along the line s_unclamped = uLen — read as a hard diagonal crease
+    // where the pool met the desk. Letting s run past uLen keeps pAxis (and so
+    // d, and the gaussian) tracking smoothly straight through, so the pool
+    // melts outward with no crease. The axial envelope below fades the beam
+    // out by sn ~1.15 and the desk occludes anything lower, so the extra
+    // reach never shows as light through the wood.
+    float s = clamp((dou - b * dov) / denom, 0.0, uLen * 1.6);
     vec3 pAxis = uStartW + uDirW * s;
     float t = max(dot(pAxis - cameraPosition, v), 0.0);
     vec3 pRay = cameraPosition + v * t;
