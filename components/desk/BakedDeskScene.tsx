@@ -89,15 +89,15 @@ const CAMERA_REST = new THREE.Vector3(...CAMERA.rest);
 const CAMERA_TARGET = new THREE.Vector3(...CAMERA.target);
 // Portrait (phone) framing: a tall screen sees only a narrow horizontal slice at
 // the landscape fov (40 vertical leaves ~19 horizontal on a ~0.46 aspect), so
-// the wide desk can't read whole. Hero the turntable + lamp cluster — a
-// vertical-friendly subject (the lamp rises, its glow pools on the platter) —
-// framed to FILL the tall frame, with a wider fov for breathing room. Kept in
-// sync with DeskScene's portrait rig so ?baked=0 frames identically. Visitors
-// orbit to the rest of the desk from the resting view.
-const PORTRAIT_START = new THREE.Vector3(0.25, 1.35, 1.95);
-const PORTRAIT_REST = new THREE.Vector3(-0.12, 0.8, 1.12);
-const PORTRAIT_TARGET = new THREE.Vector3(-0.4, 0.18, 0.04);
-const PORTRAIT_FOV = 54;
+// the wide desk can't read whole. Rather than hero one corner (which buried the
+// books + chess off the right edge), center the target and pull the rest camera
+// back with a wider fov so the WHOLE desk — turntable through chessboard — reads
+// in the tall frame. Kept in sync with DeskScene's portrait rig so ?baked=0
+// frames identically.
+const PORTRAIT_START = new THREE.Vector3(0.2, 1.5, 2.6);
+const PORTRAIT_REST = new THREE.Vector3(0.02, 0.98, 2.05);
+const PORTRAIT_TARGET = new THREE.Vector3(0.0, 0.13, -0.06);
+const PORTRAIT_FOV = 58;
 
 // ——— two-state lightmap blend, driven by the real theme mix ———
 const uMix = { value: 1 };
@@ -668,6 +668,10 @@ export default function BakedDeskScene(props: DeskSceneProps) {
     <Canvas
       dpr={[1, 1.5]}
       camera={{ fov: CAMERA.fov, near: 0.1, far: 20, position: CAMERA.start }}
+      // R3F sets touch-action:none on its container div by default (to stop 3D
+      // gestures from scrolling the page). We need pan-y so the user can scroll
+      // past the hero on mobile — orbit is disabled anyway on this scene.
+      style={{ touchAction: "pan-y" }}
       gl={{
         antialias: false,
         powerPreference: "high-performance",

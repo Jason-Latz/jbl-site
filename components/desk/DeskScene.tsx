@@ -81,14 +81,13 @@ const CAMERA_TARGET = new THREE.Vector3(...CAMERA.target);
 // A tall phone screen sees only a narrow horizontal slice at the landscape
 // fov (vertical fov 40 on a ~0.46 aspect leaves ~19 of horizontal field), so
 // the wide desk can't read whole without becoming a miniature. Instead the
-// portrait rig heroes the turntable + lamp cluster — a vertical-friendly
-// subject (the lamp rises, the glow pools on the platter) — framed to FILL
-// the tall frame, with a wider fov for breathing room. Visitors can still
-// orbit to the rest of the desk at the resting view.
-const PORTRAIT_START = new THREE.Vector3(0.25, 1.35, 1.95);
-const PORTRAIT_REST = new THREE.Vector3(-0.12, 0.8, 1.12);
-const PORTRAIT_TARGET = new THREE.Vector3(-0.4, 0.18, 0.04);
-const PORTRAIT_FOV = 54;
+// Portrait (phone) framing: centered target + pulled-back camera so the WHOLE
+// desk — turntable through chessboard — reads in the tall frame. Kept in sync
+// with BakedDeskScene's portrait rig so ?baked=0 frames identically.
+const PORTRAIT_START = new THREE.Vector3(0.2, 1.5, 2.6);
+const PORTRAIT_REST = new THREE.Vector3(0.02, 0.98, 2.05);
+const PORTRAIT_TARGET = new THREE.Vector3(0.0, 0.13, -0.06);
+const PORTRAIT_FOV = 58;
 
 type CameraRig = {
   start: THREE.Vector3;
