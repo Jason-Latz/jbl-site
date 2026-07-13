@@ -80,13 +80,25 @@ export default function MarkdownEditor({
 
   const applyEditorState = useCallback(
     (next: EditorState) => {
+      // A no-op command (e.g. outdent on an unindented line) leaves the value
+      // unchanged, so onChange would not trigger a re-render and the layout
+      // effect would never run. Apply the selection directly in that case,
+      // and only defer to the effect when the value actually changes.
+      if (next.value === value) {
+        const textarea = textareaRef.current;
+        if (textarea) {
+          textarea.focus();
+          textarea.setSelectionRange(next.selectionStart, next.selectionEnd);
+        }
+        return;
+      }
       pendingSelectionRef.current = {
         start: next.selectionStart,
         end: next.selectionEnd
       };
       onChange(next.value);
     },
-    [onChange]
+    [onChange, value]
   );
 
   const runCommand = useCallback(
