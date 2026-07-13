@@ -1,5 +1,6 @@
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
+import { resolvePublishedAt } from "@/lib/publishedAt";
 import { requireEditor } from "@/lib/requireEditor";
 import { createFreshRouteHandlerClient } from "@/lib/supabaseRoute";
 
@@ -81,7 +82,7 @@ export async function PATCH(
 
   const { data: existingPost, error: existingPostError } = await supabase
     .from("posts")
-    .select("slug")
+    .select("slug, published_at")
     .eq("id", params.id)
     .single();
 
@@ -110,7 +111,7 @@ export async function PATCH(
       excerpt,
       content,
       published,
-      published_at: published ? now : null
+      published_at: resolvePublishedAt(published, existingPost.published_at, now)
     })
     .eq("id", params.id)
     .select()

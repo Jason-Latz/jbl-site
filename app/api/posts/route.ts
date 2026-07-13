@@ -1,5 +1,6 @@
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
+import { resolvePublishedAt } from "@/lib/publishedAt";
 import { requireEditor } from "@/lib/requireEditor";
 import { createFreshRouteHandlerClient } from "@/lib/supabaseRoute";
 
@@ -82,7 +83,7 @@ export async function POST(request: Request) {
       excerpt,
       content,
       published,
-      published_at: published ? now : null
+      published_at: resolvePublishedAt(published, null, now)
     })
     .select()
     .single();
