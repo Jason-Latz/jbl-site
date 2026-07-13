@@ -52,6 +52,45 @@ re-enabling **only the beam** brought it back → it's the beam, not the lightma
 ramped — each `computer{screenshot}` pumps a frame, which is how the scene was
 driven to light mode for QA.)
 
+### 2026-07-13 — Writing-flow overhaul (editor + reading typography)
+
+Reworked the post writing flow end to end (branch
+`claude/writing-flow-improvements-bae144`). Four threads:
+
+- **Publish-date bug fixed.** `app/api/posts/[id]/route.ts` (and POST) wrote
+  `published_at: published ? now : null` on every save, and autosave fires
+  constantly, so editing/opening an old published post bumped its date to now and
+  reordered `/writings`. Now both routes go through `lib/publishedAt.ts`
+  `resolvePublishedAt(nextPublished, existingPublishedAt, now)`: the date is stamped
+  once, the FIRST time a post is published, and never changes after (unpublish then
+  republish keeps the original — Jason's stated preference). PATCH now also selects
+  `published_at`.
+- **Retired the lossy Visual editor.** The old Markdown↔Visual toggle round-tripped
+  through a contentEditable region + Turndown on every switch/keystroke, silently
+  destroying footnotes (no Turndown footnote handling) and mangling nested lists /
+  tables / code. Editor is now **markdown-first** with a **read-only** Preview that
+  renders through the same react-markdown + remark-gfm pipeline as the published page
+  (WYSIWYG, lossless). `turndown` + `@types/turndown` removed.
+- **Writing ergonomics.** New `app/admin/MarkdownEditor.tsx` (extracted from
+  `PostEditorPage.tsx`, which keeps auth/load/autosave/metadata) with keyboard
+  shortcuts (⌘/Ctrl+B/I/K/S), toggle-aware toolbar, Enter list-continuation
+  (auto-increment + empty-item exit), Tab indent/outdent, paste-a-URL-over-a-selection
+  linkify, and a live word/reading-time count. Pure logic lives in `lib/editor/*`
+  (`markdownCommands.ts`, `text.ts`) and is unit-tested. **Caret gotcha:** restoring
+  the selection after a command must happen in a `useLayoutEffect` (a pending-selection
+  ref applied after the value commits), NOT a requestAnimationFrame — rAF raced the
+  controlled-textarea value commit and dropped the caret to the end.
+- **Editorial-serif reading.** `.content` (shared by `/writings/[slug]` and the editor
+  preview) now sets body copy in the Newsreader serif at ~1.19rem / 1.75 line-height,
+  full `--fg` contrast (was low-contrast `--muted`), ~40rem (~66ch) measure, with tuned
+  title/headings/links/blockquote/lists/code/footnotes. Verified light + dark.
+- **Also:** removed the over-eager `looksLikeHtml`/`dangerouslySetInnerHTML` branch on
+  the reading page — every stored post is Markdown (checked prod: 5 posts, 0 HTML), and
+  the heuristic misfired on prose containing `<...>`.
+- **Tests/gate:** added `npm test` (`node --test`, zero deps on Node 25; test files
+  excluded from tsconfig). 34 tests. Gate is `npm run build` + `npm test` (no eslint
+  config exists, so `next lint` is not a usable gate).
+
 ### 2026-07-01 — New `/summer-blog` page (unlisted weekly writing tracker)
 
 An **unlisted** page (not in the nav, `robots: noindex, nofollow`) Jason can send to
