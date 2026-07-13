@@ -24,6 +24,34 @@ for `desk_notes`.
 
 ## Session log
 
+### 2026-07-13 — Lamp pool's hard desk edge fixed at the source (beam s-clamp)
+
+Jason flagged a **hard diagonal line** where the lamp pool meets the desk ("linear
+instead of gradient… a clear border"). Root cause: `LampBeam`'s closest-approach
+clamp `s = clamp(…, 0, uLen)` — once a view ray's unclamped closest-approach point
+runs past the pool's far end, `s` pins at `uLen`, `pAxis` freezes, and the radial
+gaussian's slope **breaks** along the line `s_unclamped = uLen`. That C¹ crease
+reads as a razor edge at the desk's grazing angle (straight + diagonal because the
+tilted beam axis meets the flat desk in a line). **Fix:** clamp to `uLen * 1.6`
+instead of `uLen`, so `s`/`pAxis`/`d` track smoothly through the pool end; the
+clamp now lands at `sn≈1.6` where the axial envelope has already zeroed the beam,
+and the desk mesh occludes any lit air below `y=0`. Pool now melts into the wood.
+
+**Gotcha / don't-repeat:** an earlier attempt (commit history, superseded) faded
+radiance by `smoothstep(0, 0.06, vWorld.y)` — the *bounding-cylinder fragment*
+height. For the grazing edge rays that mesh front-face sits **high** on the
+cylinder, so the fade stayed ≈1 exactly where the crease formed and did nothing.
+Fade the **shaded point `pRay`**, not `vWorld`, if you ever need a height fade —
+but here relaxing the clamp fixes it at the source, so no fade is needed.
+
+Isolation that nailed it (both runtime lights are separable in the baked scene):
+the baked **lightmap** pool is soft; with beam+spot **off** the hard line was gone;
+re-enabling **only the beam** brought it back → it's the beam, not the lightmap or
+`LampSpotKey`. Verified light + dark, baked + procedural; `npm run build` passes.
+(Dev-env note: the in-app preview froze the WebGL rAF loop, so the theme mix never
+ramped — each `computer{screenshot}` pumps a frame, which is how the scene was
+driven to light mode for QA.)
+
 ### 2026-07-01 — New `/summer-blog` page (unlisted weekly writing tracker)
 
 An **unlisted** page (not in the nav, `robots: noindex, nofollow`) Jason can send to
