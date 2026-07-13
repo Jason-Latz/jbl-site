@@ -48,18 +48,28 @@ export function wrapSelection(
     };
   }
 
-  // Markers sit just outside the selection -> unwrap them too.
-  const outerBefore = value.slice(Math.max(0, start - before.length), start);
-  const outerAfter = value.slice(end, end + after.length);
-  if (start - before.length >= 0 && outerBefore === before && outerAfter === after) {
-    return {
-      value:
-        value.slice(0, start - before.length) +
-        selected +
-        value.slice(end + after.length),
-      selectionStart: start - before.length,
-      selectionEnd: end - before.length
-    };
+  // Markers sit just outside the selection -> unwrap them too. Guard against a
+  // shorter marker matching the inner half of a longer run (e.g. italic "*"
+  // matching one "*" of a "**" bold pair), which would strip the longer marker
+  // when chaining, say, bold then italic on the same word.
+  const beforeStart = start - before.length;
+  const afterEnd = end + after.length;
+  if (
+    beforeStart >= 0 &&
+    value.slice(beforeStart, start) === before &&
+    value.slice(end, afterEnd) === after
+  ) {
+    const runsBefore =
+      beforeStart - before.length >= 0 &&
+      value.slice(beforeStart - before.length, beforeStart) === before;
+    const runsAfter = value.slice(afterEnd, afterEnd + after.length) === after;
+    if (!runsBefore && !runsAfter) {
+      return {
+        value: value.slice(0, beforeStart) + selected + value.slice(afterEnd),
+        selectionStart: beforeStart,
+        selectionEnd: end - before.length
+      };
+    }
   }
 
   // Otherwise wrap.
@@ -89,7 +99,7 @@ export function insertLink(state: EditorState): EditorState {
   const selected = value.slice(start, end);
 
   if (selected && isUrl(selected)) {
-    const insert = `[link](${selected})`;
+    const insert = `[link](${selected.trim()})`;
     const textStart = start + 1;
     return {
       value: value.slice(0, start) + insert + value.slice(end),
@@ -240,6 +250,14 @@ export function continueList(state: EditorState): ListContinuation {
   }
 
   const [, indent, marker, orderedNum, spacing, content] = match;
+
+  // Only continue the list when the caret is past the marker, not inside the
+  // indent/marker prefix (e.g. Enter pressed at column 0 should split normally,
+  // not duplicate the marker).
+  const prefixLength = indent.length + marker.length + spacing.length;
+  if (caret < lineStart + prefixLength) {
+    return { handled: false };
+  }
 
   if (content.trim() === "") {
     // Empty item: pressing Enter exits the list by clearing the marker.

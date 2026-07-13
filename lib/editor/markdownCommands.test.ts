@@ -52,6 +52,14 @@ test("wrapSelection uses the placeholder for an empty caret", () => {
   assert.equal(show(wrapSelection(parse("|"), "*", "*", "italic")), "*[italic]*");
 });
 
+test("wrapSelection nests a marker instead of stripping a longer one", () => {
+  // Bold then italic on the same word must not delete the bold.
+  const bold = wrapSelection(parse("hello [world]"), "**");
+  assert.equal(bold.value, "hello **world**");
+  const italic = wrapSelection(bold, "*", "*", "italic");
+  assert.equal(italic.value, "hello ***world***");
+});
+
 test("insertLink wraps selected text with a placeholder URL", () => {
   assert.equal(
     show(insertLink(parse("[click]"))),
@@ -64,6 +72,10 @@ test("insertLink uses a selected URL as the target", () => {
     show(insertLink(parse("[https://a.com]"))),
     "[[link]](https://a.com)"
   );
+});
+
+test("insertLink trims whitespace around a selected URL", () => {
+  assert.equal(insertLink(parse("[ https://a.com ]")).value, "[link](https://a.com)");
 });
 
 test("toggleBulletList prefixes lines and toggles them off", () => {
@@ -111,6 +123,10 @@ test("continueList preserves indentation", () => {
 
 test("continueList ignores non-list lines", () => {
   assert.equal(continueList(parse("just a line|")).handled, false);
+});
+
+test("continueList does not continue when the caret is inside the marker prefix", () => {
+  assert.equal(continueList(parse("|  - item")).handled, false);
 });
 
 test("indentSelection inserts two spaces at the caret", () => {
