@@ -735,52 +735,72 @@ img {
   border-color: var(--mode-active-bg);
 }
 
+.markdown-editor-shell {
+  display: grid;
+  gap: 0.85rem;
+}
+
 .markdown-editor {
-  min-height: 520px;
+  min-height: 60vh;
   resize: vertical;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  line-height: 1.55;
-  border-radius: 16px;
+  font-size: 0.98rem;
+  line-height: 1.7;
+  padding: 1.1rem 1.25rem;
+  border-radius: 14px;
+  background: var(--surface-raised);
+  tab-size: 2;
+}
+
+.markdown-editor:focus {
+  outline: none;
+  border-color: var(--focus-ring);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus-ring) 32%, transparent);
+}
+
+.markdown-toolbar button {
+  padding: 0.4rem 0.7rem;
+  font-size: 0.82rem;
+}
+
+.editor-statusbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.4rem 1rem;
+  margin-top: 0.1rem;
+}
+
+.editor-count {
+  font-variant-numeric: tabular-nums;
+}
+
+.editor-hint {
+  color: var(--muted);
 }
 
 .editor-preview-surface {
   border: 1px solid var(--border);
   border-radius: 16px;
   background: var(--surface-raised);
-  padding: 2rem 2.2rem;
-}
-
-.editor-preview-surface h1 {
-  margin-top: 0;
+  padding: 2.25rem 2.4rem;
+  min-height: 60vh;
 }
 
 .editor-preview-surface .content {
-  max-width: 100%;
+  margin-inline: auto;
+}
+
+.editor-preview-surface .content > h1:first-child {
+  margin-top: 0;
 }
 
 .editor-preview-excerpt {
   color: var(--muted);
-  font-size: 1rem;
+  font-size: 1.05rem;
+  font-style: italic;
   margin-bottom: 1.5rem;
-}
-
-.preview-edit-hint {
-  margin-top: -0.2rem;
-}
-
-.preview-markdown-source {
-  display: none;
-}
-
-.preview-editable-area {
-  min-height: 480px;
-  outline: none;
-  cursor: text;
-}
-
-.preview-editable-area:focus {
-  box-shadow: inset 0 0 0 2px var(--preview-focus-ring);
-  border-radius: 10px;
 }
 
 .editor-toolbar {
@@ -1063,48 +1083,96 @@ button.primary:disabled {
   color: var(--accent);
 }
 
+/* Long-form reading: editorial serif, generous measure, high contrast.
+   Shared by the published essay (/writings/[slug]) and the editor preview. */
 .content {
-  max-width: 720px;
+  max-width: 40rem;
+  font-family: var(--font-serif), Georgia, "Times New Roman", serif;
+  font-size: 1.1875rem;
+  line-height: 1.75;
+  color: var(--fg);
+}
+
+.content > h1:first-child {
+  font-size: clamp(2rem, 1.4rem + 2.6vw, 2.7rem);
+  line-height: 1.1;
+  letter-spacing: -0.018em;
+  margin: 0 0 0.35rem;
+}
+
+.content > .post-meta {
+  font-family: var(--font-sans), system-ui, sans-serif;
+  margin-bottom: 2rem;
 }
 
 .content p {
-  color: var(--muted);
+  color: var(--fg);
+  margin: 1.3rem 0;
 }
 
 .content a {
   color: var(--accent);
   text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2.5px;
+  transition: text-decoration-thickness 0.15s ease;
+}
+
+.content a:hover {
+  text-decoration-thickness: 2px;
 }
 
 .content h2,
 .content h3 {
-  margin-top: 2rem;
+  font-family: var(--font-serif), Georgia, serif;
   color: var(--fg);
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+.content h2 {
+  font-size: 1.7rem;
+  margin: 2.6rem 0 0.8rem;
+}
+
+.content h3 {
+  font-size: 1.34rem;
+  margin: 2rem 0 0.6rem;
 }
 
 .content ul,
 .content ol {
-  padding-left: 1.4rem;
+  padding-left: 1.5rem;
   color: var(--fg);
+  margin: 1.3rem 0;
 }
 
 .content li + li {
-  margin-top: 0.45rem;
+  margin-top: 0.5rem;
+}
+
+.content li::marker {
+  color: var(--muted);
 }
 
 .content blockquote {
-  margin: 1.5rem 0;
-  border-left: 3px solid var(--border);
-  padding-left: 1rem;
+  margin: 1.9rem 0;
+  border-left: 3px solid var(--accent);
+  padding: 0.15rem 0 0.15rem 1.3rem;
+  color: var(--muted);
+  font-style: italic;
+}
+
+.content blockquote p {
   color: var(--muted);
 }
 
 .content code {
   background: var(--surface-muted);
-  padding: 0.1rem 0.35rem;
+  padding: 0.12rem 0.36rem;
   border-radius: 6px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 0.9em;
+  font-size: 0.82em;
 }
 
 .content pre {
@@ -1112,18 +1180,24 @@ button.primary:disabled {
   background: var(--surface-muted);
   border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 0.9rem 1rem;
+  padding: 1rem 1.15rem;
+  margin: 1.6rem 0;
+  font-size: 0.92rem;
+  line-height: 1.6;
 }
 
 .content pre code {
   background: transparent;
   padding: 0;
+  font-size: inherit;
 }
 
 .content table {
   width: 100%;
   border-collapse: collapse;
-  margin: 1.4rem 0;
+  margin: 1.6rem 0;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: 0.95rem;
 }
 
 .content th,
@@ -1136,17 +1210,28 @@ button.primary:disabled {
 .content hr {
   border: 0;
   border-top: 1px solid var(--border);
-  margin: 1.8rem 0;
+  margin: 2.6rem 0;
 }
 
 .content .footnotes {
-  margin-top: 2rem;
+  margin-top: 2.75rem;
   border-top: 1px solid var(--border);
-  padding-top: 1rem;
+  padding-top: 1.2rem;
+  font-size: 0.98rem;
+  color: var(--muted);
+}
+
+.content .footnotes h2 {
+  font-size: 1rem;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 0.6rem;
 }
 
 .content .footnotes p {
-  margin: 0;
+  margin: 0.3rem 0;
 }
 
 @media (max-width: 740px) {
