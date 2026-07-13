@@ -5,9 +5,25 @@ import type { Session } from "@supabase/supabase-js";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ClipboardEvent, KeyboardEvent } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import TurndownService from "turndown";
+import {
+  continueList,
+  indentSelection,
+  insertCodeBlock,
+  insertFootnote,
+  insertInlineCode,
+  insertLink,
+  linkifyPaste,
+  toggleBulletList,
+  toggleHeading,
+  toggleNumberedList,
+  toggleQuote,
+  wrapSelection,
+  type EditorState
+} from "@/lib/editor/markdownCommands";
+import { describeLength } from "@/lib/editor/text";
 
 type Post = {
   id: string;
@@ -37,23 +53,8 @@ const slugify = (value: string) =>
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-");
 
-function getNextFootnoteIndex(markdown: string) {
-  const matches = [...markdown.matchAll(/\[\^(\d+)\]/g)];
-  const max = matches.reduce((largest, match) => {
-    const parsed = Number(match[1]);
-    if (Number.isNaN(parsed)) {
-      return largest;
-    }
-
-    return Math.max(largest, parsed);
-  }, 0);
-
-  return max + 1;
-}
-
 const getPayloadSignature = (payload: SavePayload) => JSON.stringify(payload);
 const AUTOSAVE_DELAY_MS = 1500;
-const PREVIEW_SYNC_DELAY_MS = 180;
 
 export default function PostEditorPage({
   postId
@@ -63,18 +64,7 @@ export default function PostEditorPage({
   const router = useRouter();
   const supabase = useMemo(() => createClientComponentClient(), []);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const previewEditableRef = useRef<HTMLDivElement | null>(null);
-  const previewMarkdownSourceRef = useRef<HTMLDivElement | null>(null);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const previewSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const turndown = useMemo(
-    () =>
-      new TurndownService({
-        headingStyle: "atx",
-        codeBlockStyle: "fenced"
-      }),
-    []
-  );
 
   const [session, setSession] = useState<Session | null>(null);
   const [authMessage, setAuthMessage] = useState("");
@@ -94,8 +84,6 @@ export default function PostEditorPage({
   const [content, setContent] = useState("");
   const [slugEdited, setSlugEdited] = useState(false);
   const [editorMode, setEditorMode] = useState<"write" | "preview">("write");
-  const [visualDirty, setVisualDirty] = useState(false);
-  const [visualHtml, setVisualHtml] = useState("");
   const [savedSignature, setSavedSignature] = useState<string | null>(null);
 
   useEffect(() => {
@@ -165,7 +153,6 @@ export default function PostEditorPage({
         const nextContent = data.post.content ?? "";
         setContent(nextContent);
         setSlugEdited(true);
-        setVisualDirty(false);
         const loadedPayload: SavePayload = {
           title: data.post.title.trim(),
           slug: data.post.slug.trim(),
@@ -202,10 +189,6 @@ export default function PostEditorPage({
       clearTimeout(autosaveTimerRef.current);
       autosaveTimerRef.current = null;
     }
-    if (previewSyncTimerRef.current) {
-      clearTimeout(previewSyncTimerRef.current);
-      previewSyncTimerRef.current = null;
-    }
     await supabase.auth.signOut();
     setStatusMessage("");
     setAutosaveMessage("");
@@ -234,107 +217,6 @@ export default function PostEditorPage({
     () => getPayloadSignature(buildPayload()),
     [buildPayload]
   );
-
-  const insertAroundSelection = (
-    before: string,
-    after = "",
-    placeholder = "text"
-  ) => {
-    const textarea = textareaRef.current;
-    if (!textarea) {
-      setContent((current) => `${current}${before}${placeholder}${after}`);
-      return;
-    }
-
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const selected = content.slice(start, end) || placeholder;
-
-    const nextContent =
-      content.slice(0, start) + before + selected + after + content.slice(end);
-
-    setContent(nextContent);
-
-    requestAnimationFrame(() => {
-      textarea.focus();
-      const selectionStart = start + before.length;
-      const selectionEnd = selectionStart + selected.length;
-      textarea.setSelectionRange(selectionStart, selectionEnd);
-    });
-  };
-
-  const insertLinePrefix = (prefix: string, placeholder: string) => {
-    const textarea = textareaRef.current;
-    if (!textarea) {
-      setContent((current) => `${current}\n${prefix}${placeholder}`);
-      return;
-    }
-
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const selected = content.slice(start, end) || placeholder;
-
-    const lines = selected.split("\n").map((line) => `${prefix}${line}`);
-    const replacement = lines.join("\n");
-
-    const nextContent = content.slice(0, start) + replacement + content.slice(end);
-    setContent(nextContent);
-
-    requestAnimationFrame(() => {
-      textarea.focus();
-      const cursor = start + replacement.length;
-      textarea.setSelectionRange(cursor, cursor);
-    });
-  };
-
-  const insertFootnote = () => {
-    const index = getNextFootnoteIndex(content);
-    const reference = `[^${index}]`;
-    const definition = `\n\n[^${index}]: Footnote text.`;
-
-    const textarea = textareaRef.current;
-    if (!textarea) {
-      setContent((current) => `${current}${reference}${definition}`);
-      return;
-    }
-
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const selected = content.slice(start, end);
-    const withReference = selected ? `${selected}${reference}` : `note${reference}`;
-
-    const nextContent =
-      content.slice(0, start) + withReference + content.slice(end) + definition;
-
-    setContent(nextContent);
-
-    requestAnimationFrame(() => {
-      textarea.focus();
-      const definitionStart = nextContent.lastIndexOf("Footnote text.");
-      const definitionEnd = definitionStart + "Footnote text.".length;
-      textarea.setSelectionRange(definitionStart, definitionEnd);
-    });
-  };
-
-  useEffect(() => {
-    if (editorMode !== "preview" || visualDirty) {
-      return;
-    }
-
-    const sourceHtml = previewMarkdownSourceRef.current?.innerHTML ?? "";
-    setVisualHtml(sourceHtml);
-  }, [content, editorMode, visualDirty]);
-
-  const syncPreviewEditsToMarkdown = useCallback(() => {
-    const editable = previewEditableRef.current;
-    if (!editable) {
-      return content;
-    }
-
-    const nextMarkdown = turndown.turndown(editable.innerHTML).trim();
-    setContent((current) => (current === nextMarkdown ? current : nextMarkdown));
-    return nextMarkdown;
-  }, [content, turndown]);
 
   const persistPost = useCallback(
     async ({
@@ -427,10 +309,6 @@ export default function PostEditorPage({
         clearTimeout(autosaveTimerRef.current);
         autosaveTimerRef.current = null;
       }
-      if (previewSyncTimerRef.current) {
-        clearTimeout(previewSyncTimerRef.current);
-        previewSyncTimerRef.current = null;
-      }
     };
   }, []);
 
@@ -476,20 +354,100 @@ export default function PostEditorPage({
     session
   ]);
 
-  const handleSave = async () => {
-    let nextContent = content;
-    if (previewSyncTimerRef.current) {
-      clearTimeout(previewSyncTimerRef.current);
-      previewSyncTimerRef.current = null;
-    }
+  const handleSave = useCallback(() => {
+    void persistPost({ source: "manual" });
+  }, [persistPost]);
 
-    if (editorMode === "preview") {
-      nextContent = syncPreviewEditsToMarkdown();
-      setVisualDirty(false);
+  const readEditorState = useCallback((): EditorState => {
+    const textarea = textareaRef.current;
+    if (!textarea) {
+      return {
+        value: content,
+        selectionStart: content.length,
+        selectionEnd: content.length
+      };
     }
+    return {
+      value: content,
+      selectionStart: textarea.selectionStart,
+      selectionEnd: textarea.selectionEnd
+    };
+  }, [content]);
 
-    await persistPost({ source: "manual", contentOverride: nextContent });
-  };
+  const applyEditorState = useCallback((next: EditorState) => {
+    setContent(next.value);
+    requestAnimationFrame(() => {
+      const textarea = textareaRef.current;
+      if (textarea) {
+        textarea.focus();
+        textarea.setSelectionRange(next.selectionStart, next.selectionEnd);
+      }
+    });
+  }, []);
+
+  const runCommand = useCallback(
+    (command: (state: EditorState) => EditorState) => {
+      applyEditorState(command(readEditorState()));
+    },
+    [applyEditorState, readEditorState]
+  );
+
+  const handleKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLTextAreaElement>) => {
+      const mod = event.metaKey || event.ctrlKey;
+
+      if (mod && !event.altKey) {
+        const key = event.key.toLowerCase();
+        if (key === "b") {
+          event.preventDefault();
+          runCommand((state) => wrapSelection(state, "**", "**", "bold"));
+          return;
+        }
+        if (key === "i") {
+          event.preventDefault();
+          runCommand((state) => wrapSelection(state, "*", "*", "italic"));
+          return;
+        }
+        if (key === "k") {
+          event.preventDefault();
+          runCommand(insertLink);
+          return;
+        }
+        if (key === "s") {
+          event.preventDefault();
+          handleSave();
+          return;
+        }
+      }
+
+      if (event.key === "Tab") {
+        event.preventDefault();
+        runCommand((state) => indentSelection(state, event.shiftKey));
+        return;
+      }
+
+      if (event.key === "Enter" && !event.shiftKey && !mod) {
+        const result = continueList(readEditorState());
+        if (result.handled) {
+          event.preventDefault();
+          applyEditorState(result.state);
+        }
+      }
+    },
+    [applyEditorState, handleSave, readEditorState, runCommand]
+  );
+
+  const handlePaste = useCallback(
+    (event: ClipboardEvent<HTMLTextAreaElement>) => {
+      const pasted = event.clipboardData.getData("text");
+      const result = linkifyPaste(readEditorState(), pasted);
+      if (result.handled) {
+        event.preventDefault();
+        applyEditorState(result.state);
+      }
+    },
+    [applyEditorState, readEditorState]
+  );
 
   if (!session) {
     return (
@@ -592,29 +550,16 @@ export default function PostEditorPage({
           <button
             type="button"
             className={editorMode === "write" ? "mode-active" : ""}
-            onClick={() => {
-              if (previewSyncTimerRef.current) {
-                clearTimeout(previewSyncTimerRef.current);
-                previewSyncTimerRef.current = null;
-              }
-              if (editorMode === "preview") {
-                syncPreviewEditsToMarkdown();
-              }
-              setVisualDirty(false);
-              setEditorMode("write");
-            }}
+            onClick={() => setEditorMode("write")}
           >
-            Markdown
+            Write
           </button>
           <button
             type="button"
             className={editorMode === "preview" ? "mode-active" : ""}
-            onClick={() => {
-              setVisualDirty(false);
-              setEditorMode("preview");
-            }}
+            onClick={() => setEditorMode("preview")}
           >
-            Visual
+            Preview
           </button>
         </div>
 
@@ -624,74 +569,80 @@ export default function PostEditorPage({
               <button
                 className="secondary"
                 type="button"
-                onClick={() => insertAroundSelection("**", "**", "bold")}
+                title="Bold (⌘B)"
+                onClick={() => runCommand((s) => wrapSelection(s, "**", "**", "bold"))}
               >
                 Bold
               </button>
               <button
                 className="secondary"
                 type="button"
-                onClick={() => insertAroundSelection("*", "*", "italic")}
+                title="Italic (⌘I)"
+                onClick={() => runCommand((s) => wrapSelection(s, "*", "*", "italic"))}
               >
                 Italic
               </button>
               <button
                 className="secondary"
                 type="button"
-                onClick={() => insertLinePrefix("## ", "Heading")}
+                title="Heading"
+                onClick={() => runCommand(toggleHeading)}
               >
                 H2
               </button>
               <button
                 className="secondary"
                 type="button"
-                onClick={() => insertLinePrefix("> ", "Quote")}
+                title="Quote"
+                onClick={() => runCommand(toggleQuote)}
               >
                 Quote
               </button>
               <button
                 className="secondary"
                 type="button"
-                onClick={() =>
-                  insertAroundSelection("[", "](https://example.com)", "link")
-                }
+                title="Link (⌘K)"
+                onClick={() => runCommand(insertLink)}
               >
                 Link
               </button>
               <button
                 className="secondary"
                 type="button"
-                onClick={() => insertAroundSelection("`", "`", "code")}
+                title="Inline code"
+                onClick={() => runCommand(insertInlineCode)}
               >
                 Inline code
               </button>
               <button
                 className="secondary"
                 type="button"
-                onClick={() =>
-                  insertAroundSelection("\n```\n", "\n```\n", "code block")
-                }
+                title="Code block"
+                onClick={() => runCommand(insertCodeBlock)}
               >
                 Code block
               </button>
               <button
                 className="secondary"
                 type="button"
-                onClick={() => insertLinePrefix("- ", "List item")}
+                title="Bulleted list"
+                onClick={() => runCommand(toggleBulletList)}
               >
                 Bulleted list
               </button>
               <button
                 className="secondary"
                 type="button"
-                onClick={() => insertLinePrefix("1. ", "List item")}
+                title="Numbered list"
+                onClick={() => runCommand(toggleNumberedList)}
               >
                 Numbered list
               </button>
               <button
                 className="secondary"
                 type="button"
-                onClick={insertFootnote}
+                title="Footnote"
+                onClick={() => runCommand(insertFootnote)}
               >
                 Footnote
               </button>
@@ -703,55 +654,30 @@ export default function PostEditorPage({
               placeholder="Write your article in Markdown..."
               value={content}
               onChange={(event) => setContent(event.target.value)}
+              onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
+              spellCheck
             />
           </>
         ) : (
-          <article className="editor-preview-surface">
-            <h1>{title || "Untitled article"}</h1>
-            <p className="post-meta">{published ? "Published" : "Draft"}</p>
-            {excerpt && <p className="editor-preview-excerpt">{excerpt}</p>}
-            <p className="post-meta preview-edit-hint">
-              Edit directly here. Changes sync back to markdown automatically.
-            </p>
-            <div className="preview-markdown-source" aria-hidden ref={previewMarkdownSourceRef}>
+          <div className="editor-preview-surface">
+            <article className="content">
+              <h1>{title || "Untitled article"}</h1>
+              <p className="post-meta">{published ? "Published" : "Draft"}</p>
+              {excerpt && <p className="editor-preview-excerpt">{excerpt}</p>}
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {content || " "}
+                {content.trim() ? content : "_Nothing to preview yet._"}
               </ReactMarkdown>
-            </div>
-            <div
-              ref={previewEditableRef}
-              className="content preview-editable-area"
-              contentEditable
-              suppressContentEditableWarning
-              dangerouslySetInnerHTML={{
-                __html: visualHtml || "<p>Start writing in Markdown mode.</p>"
-              }}
-              onClick={(event) => {
-                const target = event.target as HTMLElement;
-                if (target.closest("a")) {
-                  event.preventDefault();
-                }
-              }}
-              onInput={() => {
-                setVisualDirty(true);
-                if (previewSyncTimerRef.current) {
-                  clearTimeout(previewSyncTimerRef.current);
-                }
-                previewSyncTimerRef.current = setTimeout(() => {
-                  previewSyncTimerRef.current = null;
-                  syncPreviewEditsToMarkdown();
-                }, PREVIEW_SYNC_DELAY_MS);
-              }}
-              onBlur={() => {
-                if (previewSyncTimerRef.current) {
-                  clearTimeout(previewSyncTimerRef.current);
-                  previewSyncTimerRef.current = null;
-                }
-                syncPreviewEditsToMarkdown();
-              }}
-            />
-          </article>
+            </article>
+          </div>
         )}
+
+        <div className="editor-statusbar">
+          <span className="post-meta editor-count">{describeLength(content)}</span>
+          <span className="post-meta editor-hint">
+            Markdown supported · ⌘B bold · ⌘I italic · ⌘K link · ⌘S save
+          </span>
+        </div>
 
         <div className="editor-toolbar">
           <button className="primary" onClick={handleSave} disabled={saving}>
@@ -760,9 +686,6 @@ export default function PostEditorPage({
           {statusMessage && <p className="post-meta">{statusMessage}</p>}
           {postId && autosaveMessage && <p className="post-meta">{autosaveMessage}</p>}
         </div>
-        <p className="post-meta">
-          Markdown supported, including footnotes (`[^1]` with `[^1]: note`).
-        </p>
       </div>
     </div>
   );
