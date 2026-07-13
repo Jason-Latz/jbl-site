@@ -5,25 +5,7 @@ import type { Session } from "@supabase/supabase-js";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ClipboardEvent, KeyboardEvent } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import {
-  continueList,
-  indentSelection,
-  insertCodeBlock,
-  insertFootnote,
-  insertInlineCode,
-  insertLink,
-  linkifyPaste,
-  toggleBulletList,
-  toggleHeading,
-  toggleNumberedList,
-  toggleQuote,
-  wrapSelection,
-  type EditorState
-} from "@/lib/editor/markdownCommands";
-import { describeLength } from "@/lib/editor/text";
+import MarkdownEditor from "./MarkdownEditor";
 
 type Post = {
   id: string;
@@ -63,7 +45,6 @@ export default function PostEditorPage({
 }) {
   const router = useRouter();
   const supabase = useMemo(() => createClientComponentClient(), []);
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [session, setSession] = useState<Session | null>(null);
@@ -83,7 +64,6 @@ export default function PostEditorPage({
   const [published, setPublished] = useState(false);
   const [content, setContent] = useState("");
   const [slugEdited, setSlugEdited] = useState(false);
-  const [editorMode, setEditorMode] = useState<"write" | "preview">("write");
   const [savedSignature, setSavedSignature] = useState<string | null>(null);
 
   useEffect(() => {
@@ -358,97 +338,6 @@ export default function PostEditorPage({
     void persistPost({ source: "manual" });
   }, [persistPost]);
 
-  const readEditorState = useCallback((): EditorState => {
-    const textarea = textareaRef.current;
-    if (!textarea) {
-      return {
-        value: content,
-        selectionStart: content.length,
-        selectionEnd: content.length
-      };
-    }
-    return {
-      value: content,
-      selectionStart: textarea.selectionStart,
-      selectionEnd: textarea.selectionEnd
-    };
-  }, [content]);
-
-  const applyEditorState = useCallback((next: EditorState) => {
-    setContent(next.value);
-    requestAnimationFrame(() => {
-      const textarea = textareaRef.current;
-      if (textarea) {
-        textarea.focus();
-        textarea.setSelectionRange(next.selectionStart, next.selectionEnd);
-      }
-    });
-  }, []);
-
-  const runCommand = useCallback(
-    (command: (state: EditorState) => EditorState) => {
-      applyEditorState(command(readEditorState()));
-    },
-    [applyEditorState, readEditorState]
-  );
-
-  const handleKeyDown = useCallback(
-    (event: KeyboardEvent<HTMLTextAreaElement>) => {
-      const mod = event.metaKey || event.ctrlKey;
-
-      if (mod && !event.altKey) {
-        const key = event.key.toLowerCase();
-        if (key === "b") {
-          event.preventDefault();
-          runCommand((state) => wrapSelection(state, "**", "**", "bold"));
-          return;
-        }
-        if (key === "i") {
-          event.preventDefault();
-          runCommand((state) => wrapSelection(state, "*", "*", "italic"));
-          return;
-        }
-        if (key === "k") {
-          event.preventDefault();
-          runCommand(insertLink);
-          return;
-        }
-        if (key === "s") {
-          event.preventDefault();
-          handleSave();
-          return;
-        }
-      }
-
-      if (event.key === "Tab") {
-        event.preventDefault();
-        runCommand((state) => indentSelection(state, event.shiftKey));
-        return;
-      }
-
-      if (event.key === "Enter" && !event.shiftKey && !mod) {
-        const result = continueList(readEditorState());
-        if (result.handled) {
-          event.preventDefault();
-          applyEditorState(result.state);
-        }
-      }
-    },
-    [applyEditorState, handleSave, readEditorState, runCommand]
-  );
-
-  const handlePaste = useCallback(
-    (event: ClipboardEvent<HTMLTextAreaElement>) => {
-      const pasted = event.clipboardData.getData("text");
-      const result = linkifyPaste(readEditorState(), pasted);
-      if (result.handled) {
-        event.preventDefault();
-        applyEditorState(result.state);
-      }
-    },
-    [applyEditorState, readEditorState]
-  );
-
   if (!session) {
     return (
       <div className="card auth-panel">
@@ -546,138 +435,18 @@ export default function PostEditorPage({
           </label>
         </div>
 
-        <div className="editor-toolbar editor-mode-toggle" role="tablist">
-          <button
-            type="button"
-            className={editorMode === "write" ? "mode-active" : ""}
-            onClick={() => setEditorMode("write")}
-          >
-            Write
-          </button>
-          <button
-            type="button"
-            className={editorMode === "preview" ? "mode-active" : ""}
-            onClick={() => setEditorMode("preview")}
-          >
-            Preview
-          </button>
-        </div>
-
-        {editorMode === "write" ? (
-          <>
-            <div className="editor-toolbar markdown-toolbar">
-              <button
-                className="secondary"
-                type="button"
-                title="Bold (⌘B)"
-                onClick={() => runCommand((s) => wrapSelection(s, "**", "**", "bold"))}
-              >
-                Bold
-              </button>
-              <button
-                className="secondary"
-                type="button"
-                title="Italic (⌘I)"
-                onClick={() => runCommand((s) => wrapSelection(s, "*", "*", "italic"))}
-              >
-                Italic
-              </button>
-              <button
-                className="secondary"
-                type="button"
-                title="Heading"
-                onClick={() => runCommand(toggleHeading)}
-              >
-                H2
-              </button>
-              <button
-                className="secondary"
-                type="button"
-                title="Quote"
-                onClick={() => runCommand(toggleQuote)}
-              >
-                Quote
-              </button>
-              <button
-                className="secondary"
-                type="button"
-                title="Link (⌘K)"
-                onClick={() => runCommand(insertLink)}
-              >
-                Link
-              </button>
-              <button
-                className="secondary"
-                type="button"
-                title="Inline code"
-                onClick={() => runCommand(insertInlineCode)}
-              >
-                Inline code
-              </button>
-              <button
-                className="secondary"
-                type="button"
-                title="Code block"
-                onClick={() => runCommand(insertCodeBlock)}
-              >
-                Code block
-              </button>
-              <button
-                className="secondary"
-                type="button"
-                title="Bulleted list"
-                onClick={() => runCommand(toggleBulletList)}
-              >
-                Bulleted list
-              </button>
-              <button
-                className="secondary"
-                type="button"
-                title="Numbered list"
-                onClick={() => runCommand(toggleNumberedList)}
-              >
-                Numbered list
-              </button>
-              <button
-                className="secondary"
-                type="button"
-                title="Footnote"
-                onClick={() => runCommand(insertFootnote)}
-              >
-                Footnote
-              </button>
-            </div>
-
-            <textarea
-              ref={textareaRef}
-              className="markdown-editor"
-              placeholder="Write your article in Markdown..."
-              value={content}
-              onChange={(event) => setContent(event.target.value)}
-              onKeyDown={handleKeyDown}
-              onPaste={handlePaste}
-              spellCheck
-            />
-          </>
-        ) : (
-          <div className="editor-preview-surface">
-            <article className="content">
+        <MarkdownEditor
+          value={content}
+          onChange={setContent}
+          onSave={handleSave}
+          previewHeader={
+            <>
               <h1>{title || "Untitled article"}</h1>
               <p className="post-meta">{published ? "Published" : "Draft"}</p>
               {excerpt && <p className="editor-preview-excerpt">{excerpt}</p>}
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {content.trim() ? content : "_Nothing to preview yet._"}
-              </ReactMarkdown>
-            </article>
-          </div>
-        )}
-
-        <div className="editor-statusbar">
-          <span className="post-meta editor-count">{describeLength(content)}</span>
-          <span className="post-meta editor-hint">
-            Markdown supported · ⌘B bold · ⌘I italic · ⌘K link · ⌘S save
-          </span>
-        </div>
+            </>
+          }
+        />
 
         <div className="editor-toolbar">
           <button className="primary" onClick={handleSave} disabled={saving}>
