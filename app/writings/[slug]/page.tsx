@@ -30,7 +30,6 @@ export default async function WritingPage({
   }
 
   const content = post.content ?? "";
-  const looksLikeHtml = /<\/?[a-z][\s\S]*>/i.test(content);
 
   return (
     <article className="section content">
@@ -38,11 +37,7 @@ export default async function WritingPage({
       <p className="post-meta">
         {post.published_at ? formatDate(post.published_at) : "Draft"}
       </p>
-      {looksLikeHtml ? (
-        <div dangerouslySetInnerHTML={{ __html: content }} />
-      ) : (
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
-      )}
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
     </article>
   );
 }
