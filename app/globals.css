@@ -483,6 +483,132 @@ img {
   text-underline-offset: 0.16em;
 }
 
+/* ============================================================================
+   Reading Room primitives (inner pages only; homepage never consumes these).
+   New class names + scoped selectors; no bare element rules, no base .card
+   shadow/radius change. See docs/DESIGN_SPEC.
+   ========================================================================== */
+
+/* --- eyebrow: the standing text-accent label (brown/tan), NOT the coral state marker --- */
+.eyebrow {
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: var(--text-eyebrow);
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0;
+}
+
+/* --- page-header masthead: eyebrow, big serif title, standfirst, closing rule --- */
+.page-header {
+  margin-bottom: var(--space-lg);
+  padding-bottom: var(--space-md);
+  border-bottom: 1px solid var(--hairline-strong);
+}
+.page-header h1 {
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: var(--text-h1);
+  font-weight: 500;
+  line-height: 1.06;
+  letter-spacing: -0.02em;
+  margin: 0.15rem 0 0;
+}
+.page-header .standfirst {
+  margin: 0.7rem 0 0;
+  max-width: var(--measure);
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: var(--text-lead);
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+/* Zero-TSX header floor: any inner index page that keeps its bare <h1> + first
+   .post-meta gets ~80% of the masthead lift with no page edit. Scoped to
+   .section > (only the inner index pages use it; the homepage title is .hero h1). */
+.section > h1 {
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: var(--text-h1);
+  font-weight: 500;
+  line-height: 1.06;
+  letter-spacing: -0.02em;
+  margin: 0 0 var(--space-xs);
+}
+.section > .post-meta:first-of-type {
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: var(--text-lead);
+  color: var(--muted);
+  max-width: var(--measure);
+}
+
+/* --- section-head: an in-page sub-heading with a trailing hairline --- */
+.section-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-sm);
+  margin: var(--space-xl) 0 var(--space-md);
+}
+.section-head::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--hairline);
+}
+.section-head h2 {
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: var(--text-h2);
+  font-weight: 500;
+  margin: 0;
+}
+
+/* --- card modifiers (additive; the homepage never applies these) --- */
+.card--interactive {
+  box-shadow: var(--elev-1);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+.card--interactive:hover,
+a:hover > .card--interactive {
+  transform: translateY(-2px);
+  box-shadow: var(--elev-2);
+  border-color: var(--hairline-strong);
+}
+.card--interactive:active,
+a:active > .card--interactive {
+  transform: translateY(0);
+  box-shadow: var(--elev-1);
+}
+.card--interactive:focus-visible,
+a:focus-visible > .card--interactive {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* the ONE current / selected / featured card in a view: flat material wash */
+.card--marked {
+  border-left: 3px solid var(--coral);
+  background: var(--tint-coral);
+  box-shadow: var(--elev-1);
+}
+
+/* --- tag chip (kills the run-on gray post-meta stack lines) --- */
+.tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3xs);
+  margin: var(--space-2xs) 0 0;
+}
+.tag {
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: 0.75rem;
+  letter-spacing: 0.01em;
+  padding: 0.22rem 0.6rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-pill);
+  color: var(--muted);
+  background: var(--surface-muted);
+  white-space: nowrap;
+}
+
 .duolingo-tracker {
   background: linear-gradient(
     145deg,
