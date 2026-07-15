@@ -334,6 +334,10 @@ export default function DeskHero() {
       aria-label="Jason's desk — an interactive 3D scene"
     >
       <Preloader ready={sceneReady} />
+      {/* The instant poster: rendered server-side (never gated on the
+          capability useEffect), theme-correct at first paint via CSS, and left
+          sitting under the canvas so the live scene cross-fades in over it. */}
+      <div className="desk-hero-poster" aria-hidden="true" />
       {capability === "scene" ? (
         <>
           <div className="desk-hero-loading" aria-hidden="true" />
