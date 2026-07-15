@@ -9,7 +9,6 @@ import { selectLeadTrack } from "@/lib/spotifyLeadTrack";
 import { type FocusId } from "./layout";
 import type { DeskNote } from "./DeskScene";
 import NowPlayingHUD, { type NeedlePhase } from "./NowPlayingHUD";
-import Preloader from "./Preloader";
 import ChessPanel from "./panels/ChessPanel";
 import DeskPanel from "./panels/DeskPanel";
 import NotesPanel from "./panels/NotesPanel";
@@ -305,16 +304,11 @@ export default function DeskHero() {
   }, [phase, liftNeedle, dropNeedle]);
 
   if (capability === "fallback") {
-    // Detection resolves after first paint, so the curtain may already be up
-    // (capability was "pending"). Keep it mounted and let it dissolve over the
-    // fallback rather than hard-cutting — graceful even for the reduced-motion
-    // cohort that lands here.
-    return (
-      <>
-        <Preloader ready />
-        <DeskHeroFallback />
-      </>
-    );
+    // No curtain here: the poster-first hero never raises one, so the fallback
+    // simply is its own designed poster (no-WebGL / reduced-motion). Detection
+    // resolves after first paint, swapping the pending poster for this one —
+    // the same desk image, so there's no flash.
+    return <DeskHeroFallback />;
   }
 
   const armDown = phase === "dropping" || phase === "playing";
@@ -333,40 +327,42 @@ export default function DeskHero() {
       className="desk-hero"
       aria-label="Jason's desk — an interactive 3D scene"
     >
-      <Preloader ready={sceneReady} />
       {/* The instant poster: rendered server-side (never gated on the
           capability useEffect), theme-correct at first paint via CSS, and left
           sitting under the canvas so the live scene cross-fades in over it. */}
       <div className="desk-hero-poster" aria-hidden="true" />
       {capability === "scene" ? (
-        <>
-          <div className="desk-hero-loading" aria-hidden="true" />
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              opacity: sceneReady ? 1 : 0,
-              transition: "opacity 1.15s ease"
-            }}
-          >
-            <DeskScene
-              turntablePlaying={turntablePlaying}
-              armDown={armDown}
-              onNeedleClick={handleNeedleFocus}
-              focus={focus}
-              onFocus={setFocus}
-              labelArtUrl={leadTrack?.albumImageUrl ?? null}
-              coverArtUrls={coverArtUrls}
-              chessFen={chessGame?.fen ?? null}
-              chessLastMove={chessLastMove}
-              notes={stableNotes}
-              onReady={handleSceneReady}
-            />
-          </div>
-        </>
-      ) : (
-        <div className="desk-hero-loading" aria-hidden="true" />
-      )}
+        <div
+          className="desk-hero-canvas"
+          style={{
+            position: "absolute",
+            inset: 0,
+            opacity: sceneReady ? 1 : 0,
+            transition: "opacity 1.15s ease"
+          }}
+        >
+          <DeskScene
+            turntablePlaying={turntablePlaying}
+            armDown={armDown}
+            onNeedleClick={handleNeedleFocus}
+            focus={focus}
+            onFocus={setFocus}
+            labelArtUrl={leadTrack?.albumImageUrl ?? null}
+            coverArtUrls={coverArtUrls}
+            chessFen={chessGame?.fen ?? null}
+            chessLastMove={chessLastMove}
+            notes={stableNotes}
+            onReady={handleSceneReady}
+          />
+        </div>
+      ) : null}
+      {/* The poster is the loading state; this quiet whisper sits over it until
+          the scene is presentable, then unmounts as the canvas fades in. */}
+      {!sceneReady ? (
+        <p className="desk-hero-whisper" role="status">
+          setting the desk
+        </p>
+      ) : null}
       {focus ? (
         <DeskPanel
           eyebrow={PANEL_META[focus].eyebrow}
@@ -391,7 +387,7 @@ export default function DeskHero() {
           )}
         </DeskPanel>
       ) : null}
-      {capability === "scene" ? (
+      {capability === "scene" && sceneReady ? (
         <NowPlayingHUD
           trackTitle={trackTitle}
           artistLine={artistLine}
