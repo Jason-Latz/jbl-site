@@ -25,13 +25,29 @@ const themeInitScript = `
   const key = "site-theme";
   const root = document.documentElement;
 
+  let theme = "light";
   try {
     const stored = localStorage.getItem(key);
-    const nextTheme = stored === "dark" || stored === "light" ? stored : "light";
-    root.setAttribute("data-theme", nextTheme);
+    theme = stored === "dark" || stored === "light" ? stored : "light";
   } catch {
-    root.setAttribute("data-theme", "light");
+    theme = "light";
   }
+  root.setAttribute("data-theme", theme);
+
+  // Homepage only: preload the active-theme desk poster from here, the earliest
+  // point the theme is known, so the poster-first hero has its image in hand at
+  // first paint. Guarded to "/" and to one theme so inner pages and the
+  // off-theme poster are never fetched.
+  try {
+    if (location.pathname === "/") {
+      const link = document.createElement("link");
+      link.rel = "preload";
+      link.as = "image";
+      link.href = "/desk-poster-" + theme + ".jpg";
+      link.setAttribute("fetchpriority", "high");
+      (document.head || root).appendChild(link);
+    }
+  } catch {}
 })();
 `;
 
