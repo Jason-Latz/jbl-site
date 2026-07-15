@@ -139,6 +139,15 @@ body {
   line-height: 1.6;
 }
 
+/* Contain the full-bleed margin math (.photo-stage / .desk-hero use
+   calc(50% - 50vw), which overflows by the scrollbar width). `clip` contains it
+   without creating a scroll container, so position: sticky/fixed keep working
+   (overflow-x: hidden would break them). */
+html,
+body {
+  overflow-x: clip;
+}
+
 a {
   color: inherit;
   text-decoration: none;
@@ -181,12 +190,14 @@ img {
 }
 
 .site-header .container {
-  display: grid;
-  gap: 1rem;
+  display: flex;
+  align-items: center;
 }
 
 .site-header-top {
   display: flex;
+  flex: 1;
+  min-width: 0;   /* let the mobile tab strip scroll instead of overflowing */
   align-items: center;
   justify-content: space-between;
   gap: 1.5rem;
@@ -662,6 +673,52 @@ a:focus-visible > .card--interactive {
   color: var(--muted);
   background: var(--surface-muted);
   white-space: nowrap;
+}
+
+/* --- /writings: essays as a ruled table of contents --- */
+.essay-list {
+  border-top: 1px solid var(--hairline);
+  max-width: var(--measure-wide);
+}
+.essay-item {
+  display: grid;
+  grid-template-columns: 7rem 1fr;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-sm);
+  margin: 0 calc(-1 * var(--space-sm));   /* hover bg breathes past the text */
+  border-bottom: 1px solid var(--hairline);
+  border-radius: var(--radius-control);
+  transition: background 0.18s ease;
+}
+.essay-item:hover {
+  background: var(--surface-soft);
+}
+.essay-date {
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: var(--text-meta);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+  padding-top: 0.35rem;
+}
+.essay-title {
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: clamp(1.3rem, 1.1rem + 0.7vw, 1.6rem);
+  font-weight: 500;
+  line-height: 1.18;
+  letter-spacing: -0.01em;
+  margin: 0;
+  transition: color 0.18s ease;
+}
+.essay-item:hover .essay-title {
+  color: var(--accent);
+}
+.essay-excerpt {
+  margin: 0.4rem 0 0;
+  color: var(--muted);
+  font-size: var(--text-body);
+  line-height: 1.55;
+  max-width: 42rem;
 }
 
 .duolingo-tracker {
@@ -1562,10 +1619,20 @@ button.primary:disabled {
   :root:not(:has(.desk-hero, .desk-hero-fallback)) .site-header-top {
     gap: 0.6rem;
   }
+  /* Keep the wordmark on one line; the tab strip takes the remaining width. */
+  :root:not(:has(.desk-hero, .desk-hero-fallback)) .site-title {
+    white-space: nowrap;
+    flex: 0 0 auto;
+  }
   :root:not(:has(.desk-hero, .desk-hero-fallback)) .site-header-controls {
     gap: 0.4rem;
+    flex: 1 1 auto;
+    min-width: 0;
+    flex-wrap: nowrap;
   }
   :root:not(:has(.desk-hero, .desk-hero-fallback)) .nav {
+    flex: 1 1 auto;
+    min-width: 0;
     flex-wrap: nowrap;
     overflow-x: auto;
     scrollbar-width: none;
@@ -1578,6 +1645,10 @@ button.primary:disabled {
     min-height: 44px;
     flex: 0 0 auto;
     white-space: nowrap;
+  }
+  /* Hold the toggle at its 44px target; only the tab strip may shrink/scroll. */
+  :root:not(:has(.desk-hero, .desk-hero-fallback)) .theme-toggle {
+    flex: 0 0 auto;
   }
 }
 
@@ -3585,4 +3656,44 @@ button.primary:disabled {
 .summer-blog-slotform-actions {
   display: flex;
   gap: 0.4rem;
+}
+
+/* ============================================================================
+   Reading Room mobile rules: stack the ledger grids at 640px, retune the scale
+   at 480px in one place (P3's retoken mechanism) instead of re-ruling each
+   component. Placed last so the media overrides win by source order.
+   ========================================================================== */
+@media (max-width: 640px) {
+  .essay-item,
+  .cv-entry {
+    grid-template-columns: 1fr;
+    gap: var(--space-2xs);
+  }
+  .essay-date {
+    padding-top: 0;   /* date reads as an eyebrow above the title */
+  }
+  .cv-rail {
+    display: flex;
+    flex-flow: row wrap;
+    align-items: baseline;
+    gap: 0.5rem;
+  }
+  .cv-entry.card--marked {
+    margin-left: 0;
+    padding-left: calc(var(--space-sm) - 3px);
+  }
+}
+
+@media (max-width: 480px) {
+  :root {
+    --text-h1: clamp(1.85rem, 1.4rem + 3vw, 2.2rem);
+    --text-h2: 1.3rem;
+    --gutter: 1.15rem;
+    --space-xl: 2.75rem;
+    --space-lg: 1.75rem;
+  }
+  /* Scoped so the homepage hero's -3.5rem pull is never compressed. */
+  main:not(:has(.desk-hero, .desk-hero-fallback)) {
+    padding: 1.75rem var(--gutter) 2.5rem;
+  }
 }
