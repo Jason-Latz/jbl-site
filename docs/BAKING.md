@@ -334,3 +334,33 @@ cache to bust.
 - Public Supabase objects serve `access-control-allow-origin: *`, so the
   cross-origin GLB/texture fetch + `preserveDrawingBuffer` canvas stay clean
   (`texLoader.crossOrigin = "anonymous"`).
+
+## 9. GLB texture recompression — the slim82 step (2026-07-15)
+
+The exported GLB's bytes are ~80% embedded PNG textures (the objects' own PBR
+maps), not geometry. Recompressing those textures to WebP q82 took the shipped
+GLB from 29.33MB to 6.36MB (78% smaller) with no runtime change: three-stdlib's
+GLTFLoader decodes `EXT_texture_webp` natively. The live homepage loads
+`bake/v1/desk-window-uv1-slim82.glb` (uploaded additively; the original
+`desk-window-uv1.glb` is untouched in `v1/` as the rollback).
+
+Reproduce on a future re-bake (after the §8 slim step):
+
+```bash
+# textures -> WebP q82 (gltf-transform CLI pulls sharp itself via npx)
+npx @gltf-transform/cli webp desk-<room>-uv1.glb desk-<room>-uv1-slim82.glb \
+  --slots "*"   # then verify: names/extras/TEXCOORD_1 must be unchanged
+```
+
+Verified constraints, do not skip:
+- **Pin `meshoptimizer@0.18.1` in any script that RE-ENCODES meshopt.**
+  meshoptimizer 1.x emits `EXT_meshopt_compression` that three@0.169's
+  MeshoptDecoder hangs on forever (silent, no error). The webp step above does
+  not touch geometry, so it is safe by construction.
+- Material names, node `userData.object` tags (extras), and `TEXCOORD_1` must
+  survive byte-identical: the runtime keys lightmaps off material names and
+  click routing off the tags. `gltf-transform` preserves all three; verify with
+  `npx @gltf-transform/cli inspect` + a tag-count diff before uploading.
+- Quality floor: q82 measured ~0.88/255 mean abs error across all 84 textures
+  (at the measurement noise floor). Below q75 is unverified territory.
+- A/B in the browser (both themes) before repointing `GLB_URL`.

@@ -57,9 +57,9 @@ const Chessboard = memo(ChessboardBase);
 const Notepad = memo(NotepadBase);
 const Turntable = memo(TurntableBase);
 
-// Slim baked assets (meshopt GLB + WebP lightmaps, ~31MB) are hosted on public
+// Slim baked assets (meshopt GLB + WebP lightmaps) are hosted on public
 // Supabase Storage under an immutable, versioned prefix. Local dev serves the
-// same slim assets from disk so reloads don't refetch 28MB. NEXT_PUBLIC_BAKE_
+// same slim assets from disk so reloads don't refetch them. NEXT_PUBLIC_BAKE_
 // CDN_URL overrides both (set it in Vercel to repoint without a code change).
 // Bump the v1 prefix on a re-bake — see docs/BAKING.md.
 const SUPABASE_BAKE_CDN =
@@ -70,7 +70,10 @@ const isLocalhost =
 const BAKE_BASE =
   process.env.NEXT_PUBLIC_BAKE_CDN_URL ||
   (isLocalhost ? "/_bake/cdn" : SUPABASE_BAKE_CDN);
-const GLB_URL = `${BAKE_BASE}/desk-window-uv1.glb`;
+// -slim82: same bake, embedded PNG textures recompressed to WebP q82 (29.3MB ->
+// 6.4MB; EXT_texture_webp decodes natively in three-stdlib's GLTFLoader).
+// Geometry, material names, userData tags and TEXCOORD_1 are byte-identical.
+const GLB_URL = `${BAKE_BASE}/desk-window-uv1-slim82.glb`;
 
 // Reveal backstop: if a lightmap or a shader compile stalls, don't hold the
 // poster past this. The poster is a designed view, so a generous cap is fine.
