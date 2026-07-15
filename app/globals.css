@@ -1370,11 +1370,23 @@ button.primary:disabled {
   padding: 0 0.85rem 0.75rem;
 }
 
+.photo-zoom-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.35rem 0.85rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  box-shadow: var(--elev-1);
+}
+
 .photo-zoom-slider {
   flex: 1 1 320px;
-  width: min(560px, 74vw);
+  width: min(520px, 68vw);
   min-width: 180px;
-  accent-color: var(--accent);
+  height: 44px;
+  accent-color: var(--coral);
   touch-action: pan-y;
 }
 
@@ -1443,6 +1455,7 @@ button.primary:disabled {
   max-height: 92vh;
   overflow: auto;
   gap: 1rem;
+  box-shadow: var(--elev-3);
 }
 
 .photo-modal-close {
