@@ -21,11 +21,14 @@ const TERMS = [
 export default function SummerBlogPage() {
   return (
     <section className="section summer-blog">
-      <h1>Summer Blog</h1>
-      <p className="post-meta">
-        A standing pact between Jason, David, and Adrian: one public piece of
-        writing each, every week.
-      </p>
+      <header className="page-header">
+        <p className="eyebrow">Summer Blog</p>
+        <h1>A Weekly Pact</h1>
+        <p className="standfirst">
+          A standing pact between Jason, David, and Adrian: one public piece of
+          writing each, every week.
+        </p>
+      </header>
 
       <div className="card summer-blog-terms">
         <h2>Terms of the Contract</h2>

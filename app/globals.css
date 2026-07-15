@@ -3658,9 +3658,10 @@ button.primary:disabled {
   gap: 1rem;
 }
 
-.summer-blog-week.is-current {
-  border-color: var(--coral);
-  box-shadow: inset 3px 0 0 var(--coral);
+.summer-blog-week.is-current {   /* the one current week: shared marked language */
+  border-left: 3px solid var(--coral);
+  background: var(--tint-coral);
+  box-shadow: var(--elev-1);
 }
 
 .summer-blog-week-head {
@@ -3763,6 +3764,29 @@ button.primary:disabled {
 .summer-blog-slotform-actions {
   display: flex;
   gap: 0.4rem;
+}
+
+/* /summer-blog: collapse the rigid 5.5rem 1fr rows and grow controls on phones. */
+@media (max-width: 640px) {
+  .summer-blog-row {
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
+  }
+  .summer-blog-author {
+    padding-top: 0;
+    color: var(--accent);
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .summer-blog-input {
+    flex-basis: 100%;
+  }
+  .summer-blog-btn,
+  .summer-blog-btn-quiet,
+  .summer-blog-add {
+    min-height: 44px;
+  }
 }
 
 /* ============================================================================
