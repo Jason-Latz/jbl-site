@@ -907,9 +907,59 @@ a:focus-visible > .card--interactive {
 }
 
 .site-footer {
-  padding: 2rem 1.5rem 3rem;
+  margin-top: var(--space-xl);
+  padding: var(--space-lg) var(--gutter) var(--space-xl);
+  border-top: 1px solid var(--hairline-strong);
   color: var(--muted);
-  font-size: 0.9rem;
+  font-size: var(--text-meta);
+}
+
+.site-footer .container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+
+.site-footer-mark {
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 1.15rem;
+  font-weight: 500;
+  color: var(--fg);
+}
+
+.site-footer-copy {
+  margin: 0.15rem 0 0;
+}
+
+.site-footer-social {
+  display: flex;
+  gap: 0.15rem;
+  flex-wrap: wrap;
+}
+
+.site-footer-social a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0.5rem 0.65rem;
+  border-radius: var(--radius-control);
+  color: var(--muted);
+  transition: color 0.18s ease, background 0.18s ease;
+}
+
+.site-footer-social a:hover {
+  color: var(--accent);
+  background: var(--control-hover-bg);
+}
+
+@media (max-width: 640px) {
+  .site-footer .container {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-sm);
+  }
 }
 
 .editor-shell {
