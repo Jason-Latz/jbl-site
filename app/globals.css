@@ -1345,6 +1345,94 @@ button.primary:disabled {
   background: radial-gradient(ellipse at 42% 38%, #f4ead6 0%, #e3d4ba 72%);
 }
 
+/* The instant poster: a pre-rendered still of the desk painted under the
+   canvas so the hero shows something real at first paint while the 3D streams
+   in behind it. The live canvas cross-fades in over this once the scene is
+   actually presentable (see .desk-hero canvas wrapper opacity). Theme-keyed so
+   it's correct at first paint — the inline theme script sets data-theme before
+   any CSS is applied. Rendered in the SSR'd hero markup, never gated on client
+   capability state. */
+.desk-hero-poster {
+  position: absolute;
+  inset: 0;
+  background-color: #0e0a07;
+  background-image: url(/desk-poster-dark.jpg);
+  background-size: cover;
+  background-position: center 42%;
+  background-repeat: no-repeat;
+}
+
+:root[data-theme="light"] .desk-hero-poster,
+:root:not([data-theme]) .desk-hero-poster {
+  background-color: #e3d4ba;
+  background-image: url(/desk-poster-light.jpg);
+}
+
+/* The load whisper: a small, quiet note that sits over the poster while the
+   desk streams in, then unmounts on reveal. The poster IS the loading state;
+   this is only a soft signal that something is arriving. Dark glass reads over
+   both the light and dark posters (like the HUD), so it isn't themed. */
+.desk-hero-whisper {
+  position: absolute;
+  left: 50%;
+  bottom: 26px;
+  transform: translateX(-50%);
+  z-index: 3;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.42rem 0.9rem;
+  border-radius: 999px;
+  font-family: var(--font-serif), Georgia, "Times New Roman", serif;
+  font-size: 0.92rem;
+  letter-spacing: 0.015em;
+  color: rgba(251, 243, 228, 0.92);
+  background: rgba(14, 12, 9, 0.42);
+  -webkit-backdrop-filter: blur(7px);
+  backdrop-filter: blur(7px);
+  animation: desk-whisper-in 0.6s ease both;
+}
+
+.desk-hero-whisper::before {
+  content: "";
+  width: 0.34rem;
+  height: 0.34rem;
+  border-radius: 50%;
+  background: #d97757;
+  animation: desk-whisper-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes desk-whisper-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.82);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
+
+@keyframes desk-whisper-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 6px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .desk-hero-whisper,
+  .desk-hero-whisper::before {
+    animation: none !important;
+  }
+}
+
 /* No-WebGL / reduced-motion hero: a real rendered still of the desk (the
    Cycles bake of the actual scene) behind a bottom scrim, so the degraded
    experience is a designed poster — not an apology. Theme-aware to honor the
