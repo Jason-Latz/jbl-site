@@ -72,6 +72,10 @@ const BAKE_BASE =
   (isLocalhost ? "/_bake/cdn" : SUPABASE_BAKE_CDN);
 const GLB_URL = `${BAKE_BASE}/desk-window-uv1.glb`;
 
+// Reveal backstop: if a lightmap or a shader compile stalls, don't hold the
+// poster past this. The poster is a designed view, so a generous cap is fine.
+const BAKED_READY_TIMEOUT_MS = 8000;
+
 // Baked meshes hidden because a LIVE component overlays them (their baked
 // contact shadow stays painted on the desk lightmap to ground the overlay).
 const HIDDEN = new Set(["macbook", "chessboard", "turntable", "notepad"]);
@@ -270,6 +274,16 @@ function BakedStatics({
   const ctxRef = useRef<BakeLoadCtx>({ activeKeys: [], deferred: [] });
   const deferredStartedRef = useRef(false);
 
+  // Reveal-signal bookkeeping (mirrors DeskScene's ReadySignal): compile the
+  // graph and draw a few frames before the canvas crossfades in over the
+  // poster.
+  const { gl, scene, camera } = useThree();
+  const startedAtRef = useRef(0);
+  const framesRef = useRef(0);
+  const compileStartedRef = useRef(false);
+  const compiledRef = useRef(false);
+  const firedRef = useRef(false);
+
   const runDeferred = useCallback(() => {
     if (deferredStartedRef.current) return;
     deferredStartedRef.current = true;
@@ -278,6 +292,7 @@ function BakedStatics({
   }, []);
 
   useEffect(() => {
+    startedAtRef.current = performance.now();
     let cancelled = false;
     const loader = new GLTFLoader();
     loader.setMeshoptDecoder(MeshoptDecoder);
@@ -327,19 +342,6 @@ function BakedStatics({
         });
         setRoot(gltf.scene);
         parsedRef.current = true;
-        onReady?.();
-        // Warm the off-theme set once the active scene is in hand, so a later
-        // lamp toggle crossfades to a real map. Idle so it never competes.
-        const ric = (
-          window as unknown as {
-            requestIdleCallback?: (
-              cb: () => void,
-              opts?: { timeout: number }
-            ) => void;
-          }
-        ).requestIdleCallback;
-        if (ric) ric(runDeferred, { timeout: 1500 });
-        else window.setTimeout(runDeferred, 600);
       },
       undefined,
       (err) => console.error("[baked-scene] load error", err)
@@ -347,13 +349,55 @@ function BakedStatics({
     return () => {
       cancelled = true;
     };
-  }, [onReady, runDeferred]);
+  }, []);
 
   // A mid-load lamp flip needs the other theme's maps NOW — the set we deferred
   // just became the visible one. Prioritize it (idempotent).
   useEffect(() => {
     if (parsedRef.current) runDeferred();
   }, [theme, runDeferred]);
+
+  // Reveal signal: hold the poster until the GLB has parsed, the ACTIVE theme's
+  // lightmaps have decoded, the shaders have compiled, and a few frames have
+  // drawn — then report ready and warm the off-theme set on idle. A wall-clock
+  // timeout keeps one stuck lightmap from holding the reveal hostage (the GLB
+  // itself must still parse; a total load failure keeps the poster up).
+  useFrame(() => {
+    if (firedRef.current || !parsedRef.current) return;
+    const timedOut =
+      performance.now() - startedAtRef.current > BAKED_READY_TIMEOUT_MS;
+    if (!timedOut) {
+      for (const key of ctxRef.current.activeKeys) {
+        if (!lightmapLoaded(key)) return;
+      }
+    }
+    if (!compileStartedRef.current) {
+      compileStartedRef.current = true;
+      const done = () => {
+        compiledRef.current = true;
+      };
+      try {
+        gl.compileAsync(scene, camera).then(done, done);
+      } catch {
+        done();
+      }
+    }
+    framesRef.current += 1;
+    if ((compiledRef.current || timedOut) && framesRef.current >= 3) {
+      firedRef.current = true;
+      onReady?.();
+      const ric = (
+        window as unknown as {
+          requestIdleCallback?: (
+            cb: () => void,
+            opts?: { timeout: number }
+          ) => void;
+        }
+      ).requestIdleCallback;
+      if (ric) ric(runDeferred, { timeout: 1500 });
+      else window.setTimeout(runDeferred, 600);
+    }
+  });
 
   // Resolve a clicked/hovered baked mesh to its object tag by walking UP to the
   // nearest tagged ancestor. A baked object (e.g. the film camera) is many
