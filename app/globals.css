@@ -721,6 +721,100 @@ a:focus-visible > .card--interactive {
   max-width: 42rem;
 }
 
+/* --- /experience: the CV as a ledger (hanging left rail + serif right column) --- */
+.cv-entry {
+  display: grid;
+  grid-template-columns: 13rem 1fr;
+  gap: var(--space-md);
+  padding: var(--space-md) 0;
+  border-top: 1px solid var(--hairline);
+  max-width: var(--measure-wide);
+}
+.cv-entry:last-child {
+  border-bottom: 1px solid var(--hairline);
+}
+.cv-entry.card--marked {   /* the one current role; outdent so the rail stays aligned */
+  border-top: 1px solid var(--hairline);
+  margin-left: calc(-1 * var(--space-sm));
+  padding-left: calc(var(--space-sm) - 3px);
+  border-radius: 0 var(--radius-control) var(--radius-control) 0;
+}
+
+.cv-rail {
+  display: grid;
+  gap: 0.2rem;
+  align-content: start;
+}
+.cv-org {
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 1.02rem;
+  font-weight: 500;
+  color: var(--fg);
+  line-height: 1.25;
+}
+.cv-period {
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: var(--text-meta);
+  font-weight: 500;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+.cv-location {
+  font-size: var(--text-meta);
+  color: var(--muted);
+}
+
+.cv-role {
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: var(--text-h3);
+  font-weight: 500;
+  line-height: 1.2;
+  margin: 0;
+}
+.cv-note {
+  margin: 0.35rem 0 0;
+  font-size: var(--text-meta);
+  color: var(--muted);
+}
+.cv-link {
+  display: inline-block;
+  margin-top: var(--space-2xs);
+  color: var(--accent);
+  font-size: var(--text-meta);
+  font-weight: 500;
+}
+.cv-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.16em;
+}
+.cv-highlights {
+  list-style: none;
+  margin: var(--space-xs) 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+.cv-highlights li {
+  position: relative;
+  padding-left: 1.1rem;
+  color: var(--fg);
+  line-height: 1.55;
+}
+.cv-highlights li::before {   /* neutral ledger tick, not coral */
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.62em;
+  width: 0.5rem;
+  height: 1px;
+  background: var(--hairline-strong);
+}
+
+.cv-skill-group + .cv-skill-group {
+  margin-top: var(--space-md);
+}
+
 .duolingo-tracker {
   background: linear-gradient(
     145deg,
