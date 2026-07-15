@@ -165,8 +165,19 @@ img {
   margin: 0 auto;
 }
 
+/* Inner-page header: a slim sticky paper bar. Every prop here is overridden by
+   the homepage glass-bar scope (:root:has(.desk-hero...) .site-header), so no
+   chrome reaches the glass bar. Chrome lives on .site-header, never .container
+   (a border there would leak a second hairline into the glass bar). */
 .site-header {
-  padding: 2.5rem 1.5rem 0;
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  padding: 0.75rem var(--gutter);
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--hairline);
 }
 
 .site-header .container {
@@ -238,6 +249,50 @@ img {
 .theme-toggle:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
+}
+
+/* Inner-page tabs reuse the homepage chip vocabulary, neutral until active.
+   Scoped OFF the homepage: the glass-bar scope overrides .nav a colour/padding
+   but not its box model (display/min-height) or the active background, so an
+   unscoped rule would leak a taller, coral-tinted Home tab onto the glass bar. */
+:root:not(:has(.desk-hero, .desk-hero-fallback)) .site-title {
+  font-weight: 500;
+}
+
+:root:not(:has(.desk-hero, .desk-hero-fallback)) .nav {
+  gap: 0.2rem;
+}
+
+:root:not(:has(.desk-hero, .desk-hero-fallback)) .nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0.4rem 0.72rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.9rem;
+  color: var(--muted);
+  border: 1px solid transparent;
+  line-height: 1;
+  transition: color 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+}
+
+:root:not(:has(.desk-hero, .desk-hero-fallback)) .nav a:hover {
+  color: var(--fg);
+  background: var(--control-hover-bg);
+}
+
+/* the one coral moment in the inner header */
+:root:not(:has(.desk-hero, .desk-hero-fallback)) .nav a[aria-current="page"] {
+  color: var(--accent);
+  background: var(--tint-coral);
+  border-color: var(--edge-coral);
+  font-weight: 600;
+}
+
+/* inner-page toggle -> 44px target, without touching the homepage glass-bar toggle */
+:root:not(:has(.desk-hero, .desk-hero-fallback)) .theme-toggle {
+  width: 2.75rem;
+  height: 2.75rem;
 }
 
 .hero {
@@ -1440,25 +1495,39 @@ button.primary:disabled {
     font-size: 0.88rem;
   }
 
-  .site-header-top {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.8rem;
-  }
-
-  .site-header-controls {
-    width: 100%;
-    justify-content: space-between;
-  }
-
-  .nav {
-    flex-wrap: wrap;
-    gap: 0.9rem;
-  }
-
   .post-row {
     flex-direction: column;
     align-items: flex-start;
+  }
+}
+
+/* Inner-page header on phones: keep it one ~56px row (title left, controls
+   right) instead of a two-row stack, and turn the tabs into a clean horizontal
+   scroll strip with real 44px targets. Scoped off the homepage, whose own 640px
+   scope governs its glass bar independently. */
+@media (max-width: 640px) {
+  :root:not(:has(.desk-hero, .desk-hero-fallback)) .site-header {
+    padding: 0.6rem var(--gutter);
+  }
+  :root:not(:has(.desk-hero, .desk-hero-fallback)) .site-header-top {
+    gap: 0.6rem;
+  }
+  :root:not(:has(.desk-hero, .desk-hero-fallback)) .site-header-controls {
+    gap: 0.4rem;
+  }
+  :root:not(:has(.desk-hero, .desk-hero-fallback)) .nav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  :root:not(:has(.desk-hero, .desk-hero-fallback)) .nav::-webkit-scrollbar {
+    display: none;
+  }
+  :root:not(:has(.desk-hero, .desk-hero-fallback)) .nav a {
+    min-height: 44px;
+    flex: 0 0 auto;
+    white-space: nowrap;
   }
 }
 
