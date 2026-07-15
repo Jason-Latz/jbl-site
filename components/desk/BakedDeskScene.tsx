@@ -189,11 +189,12 @@ function lightmapLoaded(key: string): boolean {
   return lmEntries.get(key)?.loaded ?? false;
 }
 
-// Filled while attaching materials during the GLB traverse: the active-theme
-// keys the reveal waits on, and the closures that load the OTHER theme's maps
-// once the scene is revealed.
+// Filled while attaching materials during the GLB traverse: the lightmapped
+// unit names the reveal gates on (the gate derives per-theme keys from these
+// at check time, so a mid-load theme flip re-targets the wait), and the
+// closures that load the OTHER theme's maps once the scene is revealed.
 type BakeLoadCtx = {
-  activeKeys: string[];
+  units: string[];
   deferred: Array<() => void>;
 };
 
@@ -212,7 +213,7 @@ function attachBakedLightmap(
 ) {
   const inactiveState = activeState === "on" ? "off" : "on";
   const activeTex = acquireLightmap(unit, activeState);
-  ctx.activeKeys.push(`${unit}-${activeState}`);
+  ctx.units.push(unit);
 
   const onUniform = { value: activeState === "on" ? activeTex : PLACEHOLDER_LM };
   const offUniform = {
@@ -271,7 +272,7 @@ function BakedStatics({
   // flips once the GLB is in hand; the deferred off-theme fetch runs at most
   // once.
   const parsedRef = useRef(false);
-  const ctxRef = useRef<BakeLoadCtx>({ activeKeys: [], deferred: [] });
+  const ctxRef = useRef<BakeLoadCtx>({ units: [], deferred: [] });
   const deferredStartedRef = useRef(false);
 
   // Reveal-signal bookkeeping (mirrors DeskScene's ReadySignal): compile the
@@ -363,18 +364,23 @@ function BakedStatics({
     if (parsedRef.current) runDeferred();
   }, [theme, runDeferred]);
 
-  // Reveal signal: hold the poster until the GLB has parsed, the ACTIVE theme's
-  // lightmaps have decoded, the shaders have compiled, and a few frames have
-  // drawn — then report ready and warm the off-theme set on idle. A wall-clock
-  // timeout keeps one stuck lightmap from holding the reveal hostage (the GLB
-  // itself must still parse; a total load failure keeps the poster up).
+  // Reveal signal: hold the poster until the GLB has parsed, the lightmaps of
+  // the theme CURRENTLY on screen have decoded, the shaders have compiled, and
+  // a few frames have drawn — then report ready and warm the off-theme set on
+  // idle. The gate keys are derived from themeRef at check time (not a
+  // parse-time snapshot) so a mid-load lamp flip makes the reveal wait for the
+  // set the visitor will actually see, not the one that was active at parse.
+  // A wall-clock timeout (anchored at parse) keeps one stuck lightmap from
+  // holding the reveal hostage; the GLB itself must still parse, so a total
+  // load failure keeps the poster up.
   useFrame(() => {
     if (firedRef.current || !parsedRef.current) return;
     const timedOut =
       performance.now() - startedAtRef.current > BAKED_READY_TIMEOUT_MS;
     if (!timedOut) {
-      for (const key of ctxRef.current.activeKeys) {
-        if (!lightmapLoaded(key)) return;
+      const visibleState = themeRef.current === "dark" ? "off" : "on";
+      for (const unit of ctxRef.current.units) {
+        if (!lightmapLoaded(`${unit}-${visibleState}`)) return;
       }
     }
     if (!compileStartedRef.current) {
