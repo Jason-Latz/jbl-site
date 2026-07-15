@@ -292,7 +292,6 @@ function BakedStatics({
   }, []);
 
   useEffect(() => {
-    startedAtRef.current = performance.now();
     let cancelled = false;
     const loader = new GLTFLoader();
     loader.setMeshoptDecoder(MeshoptDecoder);
@@ -300,6 +299,13 @@ function BakedStatics({
       GLB_URL,
       (gltf) => {
         if (cancelled) return;
+        // The reveal backstop clock starts HERE, at parse — not at mount. The
+        // 29MB GLB alone can take >8s on a cold connection; a mount-anchored
+        // clock would already be expired when the gate first runs, skipping
+        // both the lightmap wait and the compile wait and reproducing the
+        // half-lit reveal this gate exists to prevent. Anchored at parse, the
+        // timeout measures only the lightmap+compile phase it's meant to cap.
+        startedAtRef.current = performance.now();
         // Active state = the map the current theme actually shows: lamp-on
         // ("on") in light, moonlit ("off") in dark.
         const activeState = themeRef.current === "dark" ? "off" : "on";
