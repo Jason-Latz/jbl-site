@@ -12,7 +12,15 @@
 // Dynamic objects layer back on top later. The live DeskScene remains the
 // fallback until this is signed off.
 
-import { Suspense, memo, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Suspense,
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from "react";
 import { useRouter } from "next/navigation";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Environment, Lightformer, OrbitControls } from "@react-three/drei";
@@ -118,41 +126,125 @@ const texLoader = new THREE.TextureLoader();
 // *`; anonymous CORS keeps the canvas untainted so preserveDrawingBuffer
 // captures still work. (Three defaults to anonymous, but be explicit.)
 texLoader.crossOrigin = "anonymous";
-const lmCache = new Map<string, THREE.Texture>();
-function lightmap(unit: string, state: "on" | "off"): THREE.Texture {
-  const key = `${unit}-${state}`;
-  let t = lmCache.get(key);
-  if (!t) {
-    // 8-bit WebP — the runtime decoded the source 16-bit PNGs to 8-bit via
-    // <img> anyway, so this is lossless vs. what shipped, at ~1/30th the bytes.
-    t = texLoader.load(`${BAKE_BASE}/lightmaps/${key}.webp`);
-    t.flipY = false;
-    t.channel = 1;
-    t.colorSpace = THREE.LinearSRGBColorSpace;
-    lmCache.set(key, t);
-  }
+
+// A 1x1 stand-in for a lightmap slot whose real map hasn't loaded yet. On uv1
+// (channel 1) like the real maps so it drives the same vLightMapUv varying;
+// black is harmless because the placeholder slot always sits at zero mix weight
+// for the active theme (the off slot at mix=1, the on slot at mix=0).
+const PLACEHOLDER_LM = (() => {
+  const t = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1);
+  t.channel = 1;
+  t.colorSpace = THREE.LinearSRGBColorSpace;
+  t.needsUpdate = true;
   return t;
+})();
+
+// Per-key lightmap cache with load tracking. `loaded` flips once the WebP has
+// decoded; `waiters` fire on load — used both to gate the reveal on the active
+// set and to swap a deferred off-theme map into an already-patched material.
+// Module-level, so it survives dev remounts.
+type LightmapEntry = {
+  tex: THREE.Texture;
+  loaded: boolean;
+  waiters: Array<() => void>;
+};
+const lmEntries = new Map<string, LightmapEntry>();
+
+function acquireLightmap(
+  unit: string,
+  state: "on" | "off",
+  onLoad?: () => void
+): THREE.Texture {
+  const key = `${unit}-${state}`;
+  const existing = lmEntries.get(key);
+  if (existing) {
+    if (existing.loaded) onLoad?.();
+    else if (onLoad) existing.waiters.push(onLoad);
+    return existing.tex;
+  }
+  const entry: LightmapEntry = {
+    tex: undefined as unknown as THREE.Texture,
+    loaded: false,
+    waiters: onLoad ? [onLoad] : []
+  };
+  // 8-bit WebP — the runtime decoded the source 16-bit PNGs to 8-bit via <img>
+  // anyway, so this is lossless vs. what shipped, at ~1/30th the bytes.
+  entry.tex = texLoader.load(`${BAKE_BASE}/lightmaps/${key}.webp`, () => {
+    entry.loaded = true;
+    const waiters = entry.waiters.splice(0);
+    for (const fn of waiters) fn();
+  });
+  entry.tex.flipY = false;
+  entry.tex.channel = 1;
+  entry.tex.colorSpace = THREE.LinearSRGBColorSpace;
+  lmEntries.set(key, entry);
+  return entry.tex;
 }
 
-function attachBakedLightmap(mat: THREE.MeshStandardMaterial, unit: string) {
-  mat.lightMap = lightmap(unit, "on");
+function lightmapLoaded(key: string): boolean {
+  return lmEntries.get(key)?.loaded ?? false;
+}
+
+// Filled while attaching materials during the GLB traverse: the active-theme
+// keys the reveal waits on, and the closures that load the OTHER theme's maps
+// once the scene is revealed.
+type BakeLoadCtx = {
+  activeKeys: string[];
+  deferred: Array<() => void>;
+};
+
+// Both lightmap slots read from custom uniforms so either map can be swapped in
+// later by mutating a uniform's `.value` (a bare reassignment of
+// material.lightMap isn't reliably re-read each frame). `lightMap` is still set
+// (to the active map or the placeholder) only to enable the lightmap chunk and
+// put vLightMapUv on uv1; the actual sampling reads lightMapOn / lightMapOff.
+// Only the ACTIVE theme's map is fetched up front; the other is deferred to
+// after the reveal (ctx.deferred), which roughly halves the blocking requests.
+function attachBakedLightmap(
+  mat: THREE.MeshStandardMaterial,
+  unit: string,
+  activeState: "on" | "off",
+  ctx: BakeLoadCtx
+) {
+  const inactiveState = activeState === "on" ? "off" : "on";
+  const activeTex = acquireLightmap(unit, activeState);
+  ctx.activeKeys.push(`${unit}-${activeState}`);
+
+  const onUniform = { value: activeState === "on" ? activeTex : PLACEHOLDER_LM };
+  const offUniform = {
+    value: activeState === "off" ? activeTex : PLACEHOLDER_LM
+  };
+
+  mat.lightMap = activeState === "on" ? activeTex : PLACEHOLDER_LM;
   mat.lightMapIntensity = Math.PI;
-  const lmOff = lightmap(unit, "off");
   mat.onBeforeCompile = (shader) => {
-    shader.uniforms.lightMapOff = { value: lmOff };
+    shader.uniforms.lightMapOn = onUniform;
+    shader.uniforms.lightMapOff = offUniform;
     shader.uniforms.uMix = uMix;
     shader.uniforms.uOffBoost = uOffBoost;
     shader.fragmentShader = shader.fragmentShader
       .replace(
         /void main\(\)\s*\{/,
-        "uniform sampler2D lightMapOff;\nuniform float uMix;\nuniform float uOffBoost;\nvoid main() {"
+        "uniform sampler2D lightMapOn;\nuniform sampler2D lightMapOff;\nuniform float uMix;\nuniform float uOffBoost;\nvoid main() {"
       )
       .replace(
         "vec4 lightMapTexel = texture2D( lightMap, vLightMapUv );",
-        "vec4 lightMapTexel = mix( texture2D( lightMapOff, vLightMapUv ) * uOffBoost, texture2D( lightMap, vLightMapUv ), uMix );"
+        "vec4 lightMapTexel = mix( texture2D( lightMapOff, vLightMapUv ) * uOffBoost, texture2D( lightMapOn, vLightMapUv ), uMix );"
       );
   };
   mat.needsUpdate = true;
+
+  // Deferred: after the reveal, load the other theme's map and drop it into the
+  // matching uniform so a later lamp toggle crossfades to a real map, not the
+  // placeholder. Idempotent — acquireLightmap caches.
+  ctx.deferred.push(() => {
+    acquireLightmap(unit, inactiveState, () => {
+      const tex = lmEntries.get(`${unit}-${inactiveState}`)?.tex;
+      if (!tex) return;
+      if (inactiveState === "on") onUniform.value = tex;
+      else offUniform.value = tex;
+    });
+  });
 }
 
 function BakedStatics({
@@ -162,9 +254,28 @@ function BakedStatics({
   onFocus: (id: FocusId) => void;
   onReady?: () => void;
 }) {
-  const { toggleTheme } = useDeskTheme();
+  const { theme, toggleTheme } = useDeskTheme();
   const router = useRouter();
   const [root, setRoot] = useState<THREE.Object3D | null>(null);
+
+  // The theme at parse time decides which lightmap set is "active" (fetched
+  // before the reveal). A ref keeps it current without re-running the GLB load.
+  const themeRef = useRef(theme);
+  themeRef.current = theme;
+
+  // Shared load bookkeeping. `ctx` is filled during the traverse; `parsed`
+  // flips once the GLB is in hand; the deferred off-theme fetch runs at most
+  // once.
+  const parsedRef = useRef(false);
+  const ctxRef = useRef<BakeLoadCtx>({ activeKeys: [], deferred: [] });
+  const deferredStartedRef = useRef(false);
+
+  const runDeferred = useCallback(() => {
+    if (deferredStartedRef.current) return;
+    deferredStartedRef.current = true;
+    const jobs = ctxRef.current.deferred.splice(0);
+    for (const job of jobs) job();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -174,6 +285,10 @@ function BakedStatics({
       GLB_URL,
       (gltf) => {
         if (cancelled) return;
+        // Active state = the map the current theme actually shows: lamp-on
+        // ("on") in light, moonlit ("off") in dark.
+        const activeState = themeRef.current === "dark" ? "off" : "on";
+        const ctx = ctxRef.current;
         gltf.scene.traverse((o) => {
           // Hide every baked mesh whose object has a live overlay (frozen shut
           // macbook, frozen-position chessboard) — mirror objectOf()'s
@@ -205,12 +320,26 @@ function BakedStatics({
             const emissiveLit =
               !!std.emissiveMap ||
               (std.emissive && std.emissive.r + std.emissive.g + std.emissive.b > 0.25);
-            if (!emissiveLit && unit) attachBakedLightmap(std, unit);
+            if (!emissiveLit && unit)
+              attachBakedLightmap(std, unit, activeState, ctx);
             std.envMapIntensity = 0.35;
           }
         });
         setRoot(gltf.scene);
+        parsedRef.current = true;
         onReady?.();
+        // Warm the off-theme set once the active scene is in hand, so a later
+        // lamp toggle crossfades to a real map. Idle so it never competes.
+        const ric = (
+          window as unknown as {
+            requestIdleCallback?: (
+              cb: () => void,
+              opts?: { timeout: number }
+            ) => void;
+          }
+        ).requestIdleCallback;
+        if (ric) ric(runDeferred, { timeout: 1500 });
+        else window.setTimeout(runDeferred, 600);
       },
       undefined,
       (err) => console.error("[baked-scene] load error", err)
@@ -218,7 +347,13 @@ function BakedStatics({
     return () => {
       cancelled = true;
     };
-  }, [onReady]);
+  }, [onReady, runDeferred]);
+
+  // A mid-load lamp flip needs the other theme's maps NOW — the set we deferred
+  // just became the visible one. Prioritize it (idempotent).
+  useEffect(() => {
+    if (parsedRef.current) runDeferred();
+  }, [theme, runDeferred]);
 
   // Resolve a clicked/hovered baked mesh to its object tag by walking UP to the
   // nearest tagged ancestor. A baked object (e.g. the film camera) is many
