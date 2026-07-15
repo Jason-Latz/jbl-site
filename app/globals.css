@@ -591,8 +591,10 @@ img {
 
 /* Zero-TSX header floor: any inner index page that keeps its bare <h1> + first
    .post-meta gets ~80% of the masthead lift with no page edit. Scoped to
-   .section > (only the inner index pages use it; the homepage title is .hero h1). */
-.section > h1 {
+   .section:not(.content) > so it never reaches the reading page, whose
+   <article className="section content"> also carries h1 + .post-meta as direct
+   children (the homepage title is .hero h1, outside .section entirely). */
+.section:not(.content) > h1 {
   font-family: var(--font-serif), Georgia, serif;
   font-size: var(--text-h1);
   font-weight: 500;
@@ -600,7 +602,7 @@ img {
   letter-spacing: -0.02em;
   margin: 0 0 var(--space-xs);
 }
-.section > .post-meta:first-of-type {
+.section:not(.content) > .post-meta:first-of-type {
   font-family: var(--font-serif), Georgia, serif;
   font-size: var(--text-lead);
   color: var(--muted);
