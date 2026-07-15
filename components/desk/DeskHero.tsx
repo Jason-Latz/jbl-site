@@ -338,7 +338,11 @@ export default function DeskHero() {
             position: "absolute",
             inset: 0,
             opacity: sceneReady ? 1 : 0,
-            transition: "opacity 1.15s ease"
+            transition: "opacity 1.15s ease",
+            // An opacity-0 element still hit-tests: without this, invisible
+            // desk objects were clickable through the poster mid-load (a blind
+            // tap could silently toggle the theme via the unseen lamp).
+            pointerEvents: sceneReady ? "auto" : "none"
           }}
         >
           <DeskScene
