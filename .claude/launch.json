@@ -2,10 +2,10 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "desk-dev",
+      "name": "dev3200",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--", "--port", "3120"],
-      "port": 3120
+      "runtimeArgs": ["run", "dev", "--", "--port", "3200"],
+      "port": 3200
     }
   ]
 }

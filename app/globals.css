@@ -38,6 +38,48 @@
   --activity-duolingo-start: #fffdfb;
   --activity-duolingo-end: #eef8da;
   --max-width: 960px;
+
+  /* ---- Reading Room design system (additive; see docs/DESIGN_SPEC) ---- */
+  /* radius scale (consolidates the 10/12/14/16 drift) */
+  --radius-chip: 7px;      /* inline code, tags, micro-controls */
+  --radius-control: 10px;  /* inputs, buttons, thumbnails */
+  --radius-card: 16px;     /* THE card (equals the current base .card; no homepage shift) */
+  --radius-pill: 999px;
+
+  /* spacing rhythm (0.25rem base) */
+  --space-3xs: 0.25rem;
+  --space-2xs: 0.5rem;
+  --space-xs:  0.75rem;
+  --space-sm:  1rem;
+  --space-md:  1.5rem;
+  --space-lg:  2.5rem;
+  --space-xl:  4rem;
+  --gutter:    1.5rem;
+  --measure:       40rem;   /* reading measure, shared with .content */
+  --measure-wide:  52rem;   /* CV + card grids */
+
+  /* type scale (fluid, serif-display led; h1 capped UNDER the 2.7rem reading h1) */
+  --text-eyebrow: 0.75rem;
+  --text-meta:    0.85rem;
+  --text-body:    1rem;
+  --text-lead:    1.0625rem;
+  --text-h3:      1.25rem;
+  --text-h2:      clamp(1.4rem, 1.15rem + 1vw, 1.7rem);
+  --text-h1:      clamp(2.05rem, 1.55rem + 2.2vw, 2.6rem);
+
+  /* elevation: warm-brown tint, never gray */
+  --shadow-warm: 28 20 12;
+  --elev-1: 0 1px 2px rgb(var(--shadow-warm) / 0.05),
+            0 2px 8px -4px rgb(var(--shadow-warm) / 0.09);
+  --elev-2: 0 4px 12px -4px rgb(var(--shadow-warm) / 0.13),
+            0 14px 30px -18px rgb(var(--shadow-warm) / 0.18);
+  --elev-3: 0 18px 40px -22px rgb(var(--shadow-warm) / 0.5);
+
+  /* editorial lines + earned coral */
+  --hairline:        var(--border);   /* standard rule */
+  --hairline-strong: #cdc4b8;         /* header/footer/section rules, CV ticks */
+  --edge-coral:  color-mix(in srgb, var(--coral) 60%, var(--border)); /* softened state edge */
+  --tint-coral:  color-mix(in srgb, var(--coral) 7%,  var(--surface)); /* marked-card wash */
 }
 
 :root[data-theme="dark"] {
@@ -74,6 +116,14 @@
   --activity-spotify-end: #3f3525;
   --activity-duolingo-start: #322814;
   --activity-duolingo-end: #4a3b20;
+
+  /* ---- Reading Room: dark overrides (elevation flips warm tint -> void) ---- */
+  --hairline-strong: #5a473a;
+  --elev-1: 0 1px 2px rgb(0 0 0 / 0.35),  0 2px 10px -4px rgb(0 0 0 / 0.45);
+  --elev-2: 0 6px 16px -6px rgb(0 0 0 / 0.5),  0 18px 36px -18px rgb(0 0 0 / 0.62);
+  --elev-3: 0 18px 40px -22px rgb(0 0 0 / 0.78);
+  --edge-coral: color-mix(in srgb, var(--coral) 70%, var(--border));
+  --tint-coral: color-mix(in srgb, var(--coral) 14%, var(--surface));
 }
 
 * {
