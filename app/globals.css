@@ -1717,11 +1717,14 @@ button.primary:disabled {
   }
 }
 
-/* Inner-page header on phones: keep it one ~56px row (title left, controls
-   right) instead of a two-row stack, and turn the tabs into a clean horizontal
-   scroll strip with real 44px targets. Scoped off the homepage, whose own 640px
-   scope governs its glass bar independently. */
-@media (max-width: 640px) {
+/* Inner-page header on small viewports: keep it one ~56px row (title left,
+   controls right) instead of a two-row stack, and turn the tabs into a clean
+   horizontal scroll strip with real 44px targets. Runs up to 840px because the
+   pill row plus wordmark plus toggle can exceed the usable width well above
+   phone sizes (641-840px would otherwise hard-clip against the body's
+   overflow-x: clip with no scroll recovery). Scoped off the homepage, whose
+   own 640px scope governs its glass bar independently. */
+@media (max-width: 840px) {
   :root:not(:has(.desk-hero, .desk-hero-fallback)) .site-header {
     padding: 0.6rem var(--gutter);
   }
@@ -1746,6 +1749,18 @@ button.primary:disabled {
     overflow-x: auto;
     scrollbar-width: none;
     -webkit-overflow-scrolling: touch;
+    /* Soft right-edge dim as a there-is-more cue for the scrollable strip;
+       kept partial so the last tab stays readable once scrolled into view. */
+    -webkit-mask-image: linear-gradient(
+      to right,
+      black calc(100% - 26px),
+      rgba(0, 0, 0, 0.35)
+    );
+    mask-image: linear-gradient(
+      to right,
+      black calc(100% - 26px),
+      rgba(0, 0, 0, 0.35)
+    );
   }
   :root:not(:has(.desk-hero, .desk-hero-fallback)) .nav::-webkit-scrollbar {
     display: none;
