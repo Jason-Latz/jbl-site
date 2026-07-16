@@ -119,84 +119,148 @@ const activities = [
 export default function ExperiencePage() {
   return (
     <section className="section">
-      <h1>Experience</h1>
-      <p className="post-meta">
-        Resume-backed snapshot of education, work, projects, and technical focus.
-      </p>
+      <header className="page-header">
+        <p className="eyebrow">Curriculum Vitae</p>
+        <h1>Experience</h1>
+        <p className="standfirst">
+          A resume-backed snapshot of education, work, projects, and technical
+          focus.
+        </p>
+      </header>
 
-      <div className="section">
-        <h2>Education</h2>
-        <div className="card">
-          <h3>
-            {education.school} · {education.location}
-          </h3>
-          <p className="post-meta">{education.period}</p>
-          <p>
-            {education.degree} | GPA {education.gpa}
-          </p>
+      <section className="section">
+        <div className="section-head">
+          <h2>Education</h2>
         </div>
-      </div>
+        <article className="cv-entry">
+          <div className="cv-rail">
+            <span className="cv-org">{education.school}</span>
+            <span className="cv-period">{education.period}</span>
+            <span className="cv-location">{education.location}</span>
+          </div>
+          <div>
+            <h3 className="cv-role">{education.degree}</h3>
+            <p className="cv-note">GPA {education.gpa}</p>
+          </div>
+        </article>
+      </section>
 
-      <div className="section post-list">
-        <h2>Professional Experience</h2>
+      <section className="section">
+        <div className="section-head">
+          <h2>Professional Experience</h2>
+        </div>
         {experience.map((item) => (
-          <div key={`${item.role}-${item.organization}`} className="card">
-            <h3>
-              {item.role} · {item.organization}
-            </h3>
-            <p className="post-meta">
-              {item.location} · {item.period}
-            </p>
-            <p className="post-meta">{item.stack}</p>
-            {item.highlights.map((highlight) => (
-              <p key={highlight}>{highlight}</p>
-            ))}
-          </div>
+          <article
+            key={`${item.role}-${item.organization}`}
+            className={
+              item.period.includes("Present")
+                ? "cv-entry card--marked"
+                : "cv-entry"
+            }
+          >
+            <div className="cv-rail">
+              <span className="cv-org">{item.organization}</span>
+              <span className="cv-period">{item.period}</span>
+              <span className="cv-location">{item.location}</span>
+            </div>
+            <div>
+              <h3 className="cv-role">{item.role}</h3>
+              <div className="tag-row">
+                {item.stack.split(", ").map((skill) => (
+                  <span key={skill} className="tag">
+                    {skill}
+                  </span>
+                ))}
+              </div>
+              <ul className="cv-highlights">
+                {item.highlights.map((highlight) => (
+                  <li key={highlight}>{highlight}</li>
+                ))}
+              </ul>
+            </div>
+          </article>
         ))}
-      </div>
+      </section>
 
-      <div className="section post-list">
-        <h2>Projects</h2>
-        {projects.map((project) => (
-          <div key={project.name} className="card">
-            <h3>{project.name}</h3>
-            <p className="post-meta">{project.period}</p>
-            <p className="post-meta">{project.stack}</p>
-            {project.highlights.map((highlight) => (
-              <p key={highlight}>{highlight}</p>
-            ))}
-            {project.link ? (
-              <p className="post-meta">
-                <a href={project.link} target="_blank" rel="noreferrer">
-                  View on GitHub
-                </a>
-              </p>
-            ) : null}
-          </div>
-        ))}
-      </div>
-
-      <div className="section post-list">
-        <h2>Technical Skills</h2>
-        <div className="card">
-          <p>
-            <strong>Programming & Libraries:</strong> {technicalSkills.programming}
-          </p>
-          <p>
-            <strong>Tools & Platforms:</strong> {technicalSkills.tools}
-          </p>
+      <section className="section">
+        <div className="section-head">
+          <h2>Projects</h2>
         </div>
-      </div>
-
-      <div className="section post-list">
-        <h2>Activities</h2>
-        {activities.map((activity) => (
-          <div key={activity.name} className="card">
-            <h3>{activity.name}</h3>
-            <p className="post-meta">{activity.period}</p>
-          </div>
+        {projects.map((project) => (
+          <article key={project.name} className="cv-entry">
+            <div className="cv-rail">
+              <span className="cv-period">{project.period}</span>
+            </div>
+            <div>
+              <h3 className="cv-role">{project.name}</h3>
+              <div className="tag-row">
+                {project.stack.split(", ").map((skill) => (
+                  <span key={skill} className="tag">
+                    {skill}
+                  </span>
+                ))}
+              </div>
+              <ul className="cv-highlights">
+                {project.highlights.map((highlight) => (
+                  <li key={highlight}>{highlight}</li>
+                ))}
+              </ul>
+              {project.link ? (
+                <a
+                  className="cv-link"
+                  href={project.link}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  View on GitHub ↗
+                </a>
+              ) : null}
+            </div>
+          </article>
         ))}
-      </div>
+      </section>
+
+      <section className="section">
+        <div className="section-head">
+          <h2>Technical Skills</h2>
+        </div>
+        <div className="cv-skill-group">
+          <p className="eyebrow">Programming and Libraries</p>
+          <div className="tag-row">
+            {technicalSkills.programming.split(", ").map((skill) => (
+              <span key={skill} className="tag">
+                {skill}
+              </span>
+            ))}
+          </div>
+        </div>
+        <div className="cv-skill-group">
+          <p className="eyebrow">Tools and Platforms</p>
+          <div className="tag-row">
+            {technicalSkills.tools.split(", ").map((skill) => (
+              <span key={skill} className="tag">
+                {skill}
+              </span>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="section">
+        <div className="section-head">
+          <h2>Activities</h2>
+        </div>
+        {activities.map((activity) => (
+          <article key={activity.name} className="cv-entry">
+            <div className="cv-rail">
+              <span className="cv-period">{activity.period}</span>
+            </div>
+            <div>
+              <h3 className="cv-role">{activity.name}</h3>
+            </div>
+          </article>
+        ))}
+      </section>
     </section>
   );
 }

@@ -8,10 +8,11 @@ export default async function PhotographyPage() {
 
   return (
     <section className="section photography-section">
-      <h1>Photography</h1>
-      <p className="post-meta">
-        Frames from the road, and the occasional still life.
-      </p>
+      <header className="page-header">
+        <p className="eyebrow">Photography</p>
+        <h1>Frames from the Road</h1>
+        <p className="standfirst">And the occasional still life.</p>
+      </header>
 
       {photos.length === 0 ? (
         <div className="card section">

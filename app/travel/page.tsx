@@ -47,12 +47,15 @@ export default async function TravelPage() {
 
   return (
     <section className="section travel-section">
-      <h1>Travel</h1>
-      <p className="post-meta">
-        {photoTotal > 0
-          ? `${photoTotal} photos, placed by machine — spin the globe, tap a glowing pin.`
-          : "The places I’ve set the lamp down for a while — spin the globe."}
-      </p>
+      <header className="page-header">
+        <p className="eyebrow">Travel</p>
+        <h1>Places I&apos;ve Been</h1>
+        <p className="standfirst">
+          {photoTotal > 0
+            ? `${photoTotal} photos, placed by machine. Spin the globe, tap a glowing pin.`
+            : "The places I’ve set the lamp down for a while. Spin the globe."}
+        </p>
+      </header>
 
       <TravelGlobeStage places={places}>
         <PlaceList places={places} />

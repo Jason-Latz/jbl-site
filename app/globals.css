@@ -38,6 +38,48 @@
   --activity-duolingo-start: #fffdfb;
   --activity-duolingo-end: #eef8da;
   --max-width: 960px;
+
+  /* ---- Reading Room design system (additive; see docs/DESIGN_SPEC) ---- */
+  /* radius scale (consolidates the 10/12/14/16 drift) */
+  --radius-chip: 7px;      /* inline code, tags, micro-controls */
+  --radius-control: 10px;  /* inputs, buttons, thumbnails */
+  --radius-card: 16px;     /* THE card (equals the current base .card; no homepage shift) */
+  --radius-pill: 999px;
+
+  /* spacing rhythm (0.25rem base) */
+  --space-3xs: 0.25rem;
+  --space-2xs: 0.5rem;
+  --space-xs:  0.75rem;
+  --space-sm:  1rem;
+  --space-md:  1.5rem;
+  --space-lg:  2.5rem;
+  --space-xl:  4rem;
+  --gutter:    1.5rem;
+  --measure:       40rem;   /* reading measure, shared with .content */
+  --measure-wide:  52rem;   /* CV + card grids */
+
+  /* type scale (fluid, serif-display led; h1 capped UNDER the 2.7rem reading h1) */
+  --text-eyebrow: 0.75rem;
+  --text-meta:    0.85rem;
+  --text-body:    1rem;
+  --text-lead:    1.0625rem;
+  --text-h3:      1.25rem;
+  --text-h2:      clamp(1.4rem, 1.15rem + 1vw, 1.7rem);
+  --text-h1:      clamp(2.05rem, 1.55rem + 2.2vw, 2.6rem);
+
+  /* elevation: warm-brown tint, never gray */
+  --shadow-warm: 28 20 12;
+  --elev-1: 0 1px 2px rgb(var(--shadow-warm) / 0.05),
+            0 2px 8px -4px rgb(var(--shadow-warm) / 0.09);
+  --elev-2: 0 4px 12px -4px rgb(var(--shadow-warm) / 0.13),
+            0 14px 30px -18px rgb(var(--shadow-warm) / 0.18);
+  --elev-3: 0 18px 40px -22px rgb(var(--shadow-warm) / 0.5);
+
+  /* editorial lines + earned coral */
+  --hairline:        var(--border);   /* standard rule */
+  --hairline-strong: #cdc4b8;         /* header/footer/section rules, CV ticks */
+  --edge-coral:  color-mix(in srgb, var(--coral) 60%, var(--border)); /* softened state edge */
+  --tint-coral:  color-mix(in srgb, var(--coral) 7%,  var(--surface)); /* marked-card wash */
 }
 
 :root[data-theme="dark"] {
@@ -74,6 +116,14 @@
   --activity-spotify-end: #3f3525;
   --activity-duolingo-start: #322814;
   --activity-duolingo-end: #4a3b20;
+
+  /* ---- Reading Room: dark overrides (elevation flips warm tint -> void) ---- */
+  --hairline-strong: #5a473a;
+  --elev-1: 0 1px 2px rgb(0 0 0 / 0.35),  0 2px 10px -4px rgb(0 0 0 / 0.45);
+  --elev-2: 0 6px 16px -6px rgb(0 0 0 / 0.5),  0 18px 36px -18px rgb(0 0 0 / 0.62);
+  --elev-3: 0 18px 40px -22px rgb(0 0 0 / 0.78);
+  --edge-coral: color-mix(in srgb, var(--coral) 70%, var(--border));
+  --tint-coral: color-mix(in srgb, var(--coral) 14%, var(--surface));
 }
 
 * {
@@ -87,6 +137,15 @@ body {
   color: var(--fg);
   font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
   line-height: 1.6;
+}
+
+/* Contain the full-bleed margin math (.photo-stage / .desk-hero use
+   calc(50% - 50vw), which overflows by the scrollbar width). `clip` contains it
+   without creating a scroll container, so position: sticky/fixed keep working
+   (overflow-x: hidden would break them). */
+html,
+body {
+  overflow-x: clip;
 }
 
 a {
@@ -115,17 +174,30 @@ img {
   margin: 0 auto;
 }
 
+/* Inner-page header: a slim sticky paper bar. Every prop here is overridden by
+   the homepage glass-bar scope (:root:has(.desk-hero...) .site-header), so no
+   chrome reaches the glass bar. Chrome lives on .site-header, never .container
+   (a border there would leak a second hairline into the glass bar). */
 .site-header {
-  padding: 2.5rem 1.5rem 0;
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  padding: 0.75rem var(--gutter);
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--hairline);
 }
 
 .site-header .container {
-  display: grid;
-  gap: 1rem;
+  display: flex;
+  align-items: center;
 }
 
 .site-header-top {
   display: flex;
+  flex: 1;
+  min-width: 0;   /* let the mobile tab strip scroll instead of overflowing */
   align-items: center;
   justify-content: space-between;
   gap: 1.5rem;
@@ -188,6 +260,50 @@ img {
 .theme-toggle:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
+}
+
+/* Inner-page tabs reuse the homepage chip vocabulary, neutral until active.
+   Scoped OFF the homepage: the glass-bar scope overrides .nav a colour/padding
+   but not its box model (display/min-height) or the active background, so an
+   unscoped rule would leak a taller, coral-tinted Home tab onto the glass bar. */
+:root:not(:has(.desk-hero, .desk-hero-fallback)) .site-title {
+  font-weight: 500;
+}
+
+:root:not(:has(.desk-hero, .desk-hero-fallback)) .nav {
+  gap: 0.2rem;
+}
+
+:root:not(:has(.desk-hero, .desk-hero-fallback)) .nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0.4rem 0.72rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.9rem;
+  color: var(--muted);
+  border: 1px solid transparent;
+  line-height: 1;
+  transition: color 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+}
+
+:root:not(:has(.desk-hero, .desk-hero-fallback)) .nav a:hover {
+  color: var(--fg);
+  background: var(--control-hover-bg);
+}
+
+/* the one coral moment in the inner header */
+:root:not(:has(.desk-hero, .desk-hero-fallback)) .nav a[aria-current="page"] {
+  color: var(--accent);
+  background: var(--tint-coral);
+  border-color: var(--edge-coral);
+  font-weight: 600;
+}
+
+/* inner-page toggle -> 44px target, without touching the homepage glass-bar toggle */
+:root:not(:has(.desk-hero, .desk-hero-fallback)) .theme-toggle {
+  width: 2.75rem;
+  height: 2.75rem;
 }
 
 .hero {
@@ -433,6 +549,274 @@ img {
   text-underline-offset: 0.16em;
 }
 
+/* ============================================================================
+   Reading Room primitives (inner pages only; homepage never consumes these).
+   New class names + scoped selectors; no bare element rules, no base .card
+   shadow/radius change. See docs/DESIGN_SPEC.
+   ========================================================================== */
+
+/* --- eyebrow: the standing text-accent label (brown/tan), NOT the coral state marker --- */
+.eyebrow {
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: var(--text-eyebrow);
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0;
+}
+
+/* --- page-header masthead: eyebrow, big serif title, standfirst, closing rule --- */
+.page-header {
+  margin-bottom: var(--space-lg);
+  padding-bottom: var(--space-md);
+  border-bottom: 1px solid var(--hairline-strong);
+}
+.page-header h1 {
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: var(--text-h1);
+  font-weight: 500;
+  line-height: 1.06;
+  letter-spacing: -0.02em;
+  margin: 0.15rem 0 0;
+}
+.page-header .standfirst {
+  margin: 0.7rem 0 0;
+  max-width: var(--measure);
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: var(--text-lead);
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+/* Zero-TSX header floor: any inner index page that keeps its bare <h1> + first
+   .post-meta gets ~80% of the masthead lift with no page edit. Scoped to
+   .section:not(.content) > so it never reaches the reading page, whose
+   <article className="section content"> also carries h1 + .post-meta as direct
+   children (the homepage title is .hero h1, outside .section entirely). */
+.section:not(.content) > h1 {
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: var(--text-h1);
+  font-weight: 500;
+  line-height: 1.06;
+  letter-spacing: -0.02em;
+  margin: 0 0 var(--space-xs);
+}
+.section:not(.content) > .post-meta:first-of-type {
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: var(--text-lead);
+  color: var(--muted);
+  max-width: var(--measure);
+}
+
+/* --- section-head: an in-page sub-heading with a trailing hairline --- */
+.section-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-sm);
+  margin: var(--space-xl) 0 var(--space-md);
+}
+.section-head::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--hairline);
+}
+.section-head h2 {
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: var(--text-h2);
+  font-weight: 500;
+  margin: 0;
+}
+
+/* --- card modifiers (additive; the homepage never applies these) --- */
+.card--interactive {
+  box-shadow: var(--elev-1);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+.card--interactive:hover,
+a:hover > .card--interactive {
+  transform: translateY(-2px);
+  box-shadow: var(--elev-2);
+  border-color: var(--hairline-strong);
+}
+.card--interactive:active,
+a:active > .card--interactive {
+  transform: translateY(0);
+  box-shadow: var(--elev-1);
+}
+.card--interactive:focus-visible,
+a:focus-visible > .card--interactive {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* the ONE current / selected / featured card in a view: flat material wash */
+.card--marked {
+  border-left: 3px solid var(--coral);
+  background: var(--tint-coral);
+  box-shadow: var(--elev-1);
+}
+
+/* --- tag chip (kills the run-on gray post-meta stack lines) --- */
+.tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3xs);
+  margin: var(--space-2xs) 0 0;
+}
+.tag {
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: 0.75rem;
+  letter-spacing: 0.01em;
+  padding: 0.22rem 0.6rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-pill);
+  color: var(--muted);
+  background: var(--surface-muted);
+  white-space: nowrap;
+}
+
+/* --- /writings: essays as a ruled table of contents --- */
+.essay-list {
+  border-top: 1px solid var(--hairline);
+  max-width: var(--measure-wide);
+}
+.essay-item {
+  display: grid;
+  grid-template-columns: 7rem 1fr;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-sm);
+  margin: 0 calc(-1 * var(--space-sm));   /* hover bg breathes past the text */
+  border-bottom: 1px solid var(--hairline);
+  border-radius: var(--radius-control);
+  transition: background 0.18s ease;
+}
+.essay-item:hover {
+  background: var(--surface-soft);
+}
+.essay-date {
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: var(--text-meta);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+  padding-top: 0.35rem;
+}
+.essay-title {
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: clamp(1.3rem, 1.1rem + 0.7vw, 1.6rem);
+  font-weight: 500;
+  line-height: 1.18;
+  letter-spacing: -0.01em;
+  margin: 0;
+  transition: color 0.18s ease;
+}
+.essay-item:hover .essay-title {
+  color: var(--accent);
+}
+.essay-excerpt {
+  margin: 0.4rem 0 0;
+  color: var(--muted);
+  font-size: var(--text-body);
+  line-height: 1.55;
+  max-width: 42rem;
+}
+
+/* --- /experience: the CV as a ledger (hanging left rail + serif right column) --- */
+.cv-entry {
+  display: grid;
+  grid-template-columns: 13rem 1fr;
+  gap: var(--space-md);
+  padding: var(--space-md) 0;
+  border-top: 1px solid var(--hairline);
+  max-width: var(--measure-wide);
+}
+.cv-entry:last-child {
+  border-bottom: 1px solid var(--hairline);
+}
+.cv-entry.card--marked {   /* the one current role; outdent so the rail stays aligned */
+  border-top: 1px solid var(--hairline);
+  margin-left: calc(-1 * var(--space-sm));
+  padding-left: calc(var(--space-sm) - 3px);
+  border-radius: 0 var(--radius-control) var(--radius-control) 0;
+}
+
+.cv-rail {
+  display: grid;
+  gap: 0.2rem;
+  align-content: start;
+}
+.cv-org {
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 1.02rem;
+  font-weight: 500;
+  color: var(--fg);
+  line-height: 1.25;
+}
+.cv-period {
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: var(--text-meta);
+  font-weight: 500;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+.cv-location {
+  font-size: var(--text-meta);
+  color: var(--muted);
+}
+
+.cv-role {
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: var(--text-h3);
+  font-weight: 500;
+  line-height: 1.2;
+  margin: 0;
+}
+.cv-note {
+  margin: 0.35rem 0 0;
+  font-size: var(--text-meta);
+  color: var(--muted);
+}
+.cv-link {
+  display: inline-block;
+  margin-top: var(--space-2xs);
+  color: var(--accent);
+  font-size: var(--text-meta);
+  font-weight: 500;
+}
+.cv-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.16em;
+}
+.cv-highlights {
+  list-style: none;
+  margin: var(--space-xs) 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+.cv-highlights li {
+  position: relative;
+  padding-left: 1.1rem;
+  color: var(--fg);
+  line-height: 1.55;
+}
+.cv-highlights li::before {   /* neutral ledger tick, not coral */
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.62em;
+  width: 0.5rem;
+  height: 1px;
+  background: var(--hairline-strong);
+}
+
+.cv-skill-group + .cv-skill-group {
+  margin-top: var(--space-md);
+}
+
 .duolingo-tracker {
   background: linear-gradient(
     145deg,
@@ -676,9 +1060,59 @@ img {
 }
 
 .site-footer {
-  padding: 2rem 1.5rem 3rem;
+  margin-top: var(--space-xl);
+  padding: var(--space-lg) var(--gutter) var(--space-xl);
+  border-top: 1px solid var(--hairline-strong);
   color: var(--muted);
-  font-size: 0.9rem;
+  font-size: var(--text-meta);
+}
+
+.site-footer .container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+
+.site-footer-mark {
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 1.15rem;
+  font-weight: 500;
+  color: var(--fg);
+}
+
+.site-footer-copy {
+  margin: 0.15rem 0 0;
+}
+
+.site-footer-social {
+  display: flex;
+  gap: 0.15rem;
+  flex-wrap: wrap;
+}
+
+.site-footer-social a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0.5rem 0.65rem;
+  border-radius: var(--radius-control);
+  color: var(--muted);
+  transition: color 0.18s ease, background 0.18s ease;
+}
+
+.site-footer-social a:hover {
+  color: var(--accent);
+  background: var(--control-hover-bg);
+}
+
+@media (max-width: 640px) {
+  .site-footer .container {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-sm);
+  }
 }
 
 .editor-shell {
@@ -938,11 +1372,23 @@ button.primary:disabled {
   padding: 0 0.85rem 0.75rem;
 }
 
+.photo-zoom-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.35rem 0.85rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  box-shadow: var(--elev-1);
+}
+
 .photo-zoom-slider {
   flex: 1 1 320px;
-  width: min(560px, 74vw);
+  width: min(520px, 68vw);
   min-width: 180px;
-  accent-color: var(--accent);
+  height: 44px;
+  accent-color: var(--coral);
   touch-action: pan-y;
 }
 
@@ -1011,6 +1457,7 @@ button.primary:disabled {
   max-height: 92vh;
   overflow: auto;
   gap: 1rem;
+  box-shadow: var(--elev-3);
 }
 
 .photo-modal-close {
@@ -1264,25 +1711,53 @@ button.primary:disabled {
     font-size: 0.88rem;
   }
 
-  .site-header-top {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.8rem;
-  }
-
-  .site-header-controls {
-    width: 100%;
-    justify-content: space-between;
-  }
-
-  .nav {
-    flex-wrap: wrap;
-    gap: 0.9rem;
-  }
-
   .post-row {
     flex-direction: column;
     align-items: flex-start;
+  }
+}
+
+/* Inner-page header on phones: keep it one ~56px row (title left, controls
+   right) instead of a two-row stack, and turn the tabs into a clean horizontal
+   scroll strip with real 44px targets. Scoped off the homepage, whose own 640px
+   scope governs its glass bar independently. */
+@media (max-width: 640px) {
+  :root:not(:has(.desk-hero, .desk-hero-fallback)) .site-header {
+    padding: 0.6rem var(--gutter);
+  }
+  :root:not(:has(.desk-hero, .desk-hero-fallback)) .site-header-top {
+    gap: 0.6rem;
+  }
+  /* Keep the wordmark on one line; the tab strip takes the remaining width. */
+  :root:not(:has(.desk-hero, .desk-hero-fallback)) .site-title {
+    white-space: nowrap;
+    flex: 0 0 auto;
+  }
+  :root:not(:has(.desk-hero, .desk-hero-fallback)) .site-header-controls {
+    gap: 0.4rem;
+    flex: 1 1 auto;
+    min-width: 0;
+    flex-wrap: nowrap;
+  }
+  :root:not(:has(.desk-hero, .desk-hero-fallback)) .nav {
+    flex: 1 1 auto;
+    min-width: 0;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  :root:not(:has(.desk-hero, .desk-hero-fallback)) .nav::-webkit-scrollbar {
+    display: none;
+  }
+  :root:not(:has(.desk-hero, .desk-hero-fallback)) .nav a {
+    min-height: 44px;
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+  /* Hold the toggle at its 44px target; only the tab strip may shrink/scroll. */
+  :root:not(:has(.desk-hero, .desk-hero-fallback)) .theme-toggle {
+    flex: 0 0 auto;
   }
 }
 
@@ -2713,11 +3188,11 @@ button.primary:disabled {
   width: min(20rem, calc(100% - 2.5rem));
   padding: 1.25rem 1.4rem;
   border: 1px solid var(--border);
-  border-left: 3px solid var(--coral);
-  border-radius: 14px;
+  border-left: 3px solid var(--coral);   /* the one selected place: canonical coral object */
+  border-radius: var(--radius-card);
   background: color-mix(in srgb, var(--surface) 92%, transparent);
   backdrop-filter: blur(8px);
-  box-shadow: 0 18px 40px -22px rgba(10, 8, 5, 0.6);
+  box-shadow: var(--elev-3);
   display: grid;
   gap: 0.4rem;
   animation: travel-card-in 0.32s cubic-bezier(0.22, 1, 0.36, 1);
@@ -2903,9 +3378,9 @@ button.primary:disabled {
 .travel-place-card {
   padding: 1.25rem 1.35rem;
   border: 1px solid var(--border);
-  border-left: 3px solid var(--coral);
-  border-radius: 14px;
+  border-radius: var(--radius-card);
   background: var(--surface);
+  box-shadow: var(--elev-1);
   display: grid;
   gap: 0.4rem;
 }
@@ -3055,9 +3530,10 @@ button.primary:disabled {
   gap: 1rem;
 }
 
-.summer-blog-week.is-current {
-  border-color: var(--coral);
-  box-shadow: inset 3px 0 0 var(--coral);
+.summer-blog-week.is-current {   /* the one current week: shared marked language */
+  border-left: 3px solid var(--coral);
+  background: var(--tint-coral);
+  box-shadow: var(--elev-1);
 }
 
 .summer-blog-week-head {
@@ -3160,4 +3636,67 @@ button.primary:disabled {
 .summer-blog-slotform-actions {
   display: flex;
   gap: 0.4rem;
+}
+
+/* /summer-blog: collapse the rigid 5.5rem 1fr rows and grow controls on phones. */
+@media (max-width: 640px) {
+  .summer-blog-row {
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
+  }
+  .summer-blog-author {
+    padding-top: 0;
+    color: var(--accent);
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .summer-blog-input {
+    flex-basis: 100%;
+  }
+  .summer-blog-btn,
+  .summer-blog-btn-quiet,
+  .summer-blog-add {
+    min-height: 44px;
+  }
+}
+
+/* ============================================================================
+   Reading Room mobile rules: stack the ledger grids at 640px, retune the scale
+   at 480px in one place (P3's retoken mechanism) instead of re-ruling each
+   component. Placed last so the media overrides win by source order.
+   ========================================================================== */
+@media (max-width: 640px) {
+  .essay-item,
+  .cv-entry {
+    grid-template-columns: 1fr;
+    gap: var(--space-2xs);
+  }
+  .essay-date {
+    padding-top: 0;   /* date reads as an eyebrow above the title */
+  }
+  .cv-rail {
+    display: flex;
+    flex-flow: row wrap;
+    align-items: baseline;
+    gap: 0.5rem;
+  }
+  .cv-entry.card--marked {
+    margin-left: 0;
+    padding-left: calc(var(--space-sm) - 3px);
+  }
+}
+
+@media (max-width: 480px) {
+  :root {
+    --text-h1: clamp(1.85rem, 1.4rem + 3vw, 2.2rem);
+    --text-h2: 1.3rem;
+    --gutter: 1.15rem;
+    --space-xl: 2.75rem;
+    --space-lg: 1.75rem;
+  }
+  /* Scoped so the homepage hero's -3.5rem pull is never compressed. */
+  main:not(:has(.desk-hero, .desk-hero-fallback)) {
+    padding: 1.75rem var(--gutter) 2.5rem;
+  }
 }

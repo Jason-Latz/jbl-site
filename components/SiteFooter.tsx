@@ -7,21 +7,14 @@ export default function SiteFooter() {
 
   return (
     <footer className="site-footer">
-      <div
-        className="container"
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: "1rem",
-          flexWrap: "wrap"
-        }}
-      >
-        <p style={{ margin: 0 }}>© {new Date().getFullYear()} Jason Latz. All rights reserved.</p>
-        <nav
-          aria-label="Social links"
-          style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}
-        >
+      <div className="container">
+        <div>
+          <span className="site-footer-mark">Jason Latz</span>
+          <p className="site-footer-copy">
+            © {new Date().getFullYear()} Jason Latz. All rights reserved.
+          </p>
+        </div>
+        <nav className="site-footer-social" aria-label="Social links">
           {socialLinks.map((link) => (
             <a key={link.label} href={link.href} target="_blank" rel="noreferrer">
               {link.label}

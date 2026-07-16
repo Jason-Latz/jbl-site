@@ -376,17 +376,20 @@ export default function PhotoMosaic({ photos }: PhotoMosaicProps) {
     <>
       <div className="photo-stage section">
         <div className="photo-zoom-toolbar" role="group" aria-label="Travel mosaic zoom controls">
-          <input
-            id="travel-zoom-range"
-            className="photo-zoom-slider"
-            aria-label="Travel mosaic zoom"
-            type="range"
-            min={MIN_ZOOM_PERCENT}
-            max={MAX_ZOOM_PERCENT}
-            step={1}
-            value={zoomPercent}
-            onInput={(event) => onZoomChange(event.currentTarget.valueAsNumber)}
-          />
+          <div className="photo-zoom-control">
+            <span className="eyebrow">Size</span>
+            <input
+              id="travel-zoom-range"
+              className="photo-zoom-slider"
+              aria-label="Travel mosaic zoom"
+              type="range"
+              min={MIN_ZOOM_PERCENT}
+              max={MAX_ZOOM_PERCENT}
+              step={1}
+              value={zoomPercent}
+              onInput={(event) => onZoomChange(event.currentTarget.valueAsNumber)}
+            />
+          </div>
           <button
             type="button"
             className="secondary"
