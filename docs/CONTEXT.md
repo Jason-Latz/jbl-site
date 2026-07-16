@@ -14,7 +14,11 @@ public **Supabase Storage** (`bake/v1/`). Stages 1–5 shipped.
 **The homepage is now mobile-immersive on both scenes:** the 3D fills the
 viewport (`100svh`) and the site nav floats over it as a theme-aware glass bar
 (scoped to the homepage via `:has()`), with the portrait camera reframed (fov in
-the rig) to fill a tall phone screen. See the 2026-06-17 session entry.
+the rig) to fill a tall phone screen. See the 2026-06-17 session entry. The
+**2026-07-16 mobile UX pass** reframed the WHOLE desk in portrait (fov 66, both
+scenes), slimmed the mobile nav (~10%) + HUD, and added touch-only guided tap
+affordances (`DeskAffordances.tsx`) + a first-visit drag hint (`DragHint.tsx`),
+gated by `useCoarsePointer`.
 
 **Next up — Stage 4 polish** (see `docs/PLAN.md`): social OG image; mobile touch
 orbit + perf tiers; inner-page typography to match the desk palette; Spotify Web
@@ -23,6 +27,54 @@ splits; window parallax; easter eggs; plus the deferred `/admin` moderation UI
 for `desk_notes`.
 
 ## Session log
+
+### 2026-07-16 — Mobile desk UX: whole-desk framing + touch guidance + tuned chrome
+
+Adversarial pair round (branch `claude/website-perf-mobile-9ea10e`). Jason: "I
+want it to look wonderful on mobile … the viewport really obvious so it's not
+super zoomed in and easy to move around." Six granular commits, all verified
+in-browser at 390x844 / 375x812 (portrait) and 1280x800 (desktop), both themes.
+
+- **Whole-desk portrait framing (both scenes, identical constants).** The old
+  portrait rig (fov 58, rest `[0.02,0.98,2.05]`) sat too close/low: window
+  dominated, turntable clipped off the left, chess off the right, desk crammed
+  at the bottom. Key geometry insight: on a phone's ~0.46 aspect, fitting the
+  1.9m-wide desk across the narrow screen axis ALWAYS captures ~3.35m of
+  vertical world (desk depth is only 0.85m), so ~2.5m of non-desk space is
+  unavoidable — the win is biasing it toward the window (content) not the floor
+  (dead space). New rig: **fov 66, rest `[-0.02,1.42,2.42]`, target
+  `[-0.05,0.04,-0.05]`, portrait maxDistance 2.2 -> 2.95** (the ~2.8 rest orbit
+  radius exceeded the old cap, which clamped the camera inward). Turntable
+  through chess now fully in frame with margin; window is a backdrop. Kept
+  byte-identical in `DeskScene.tsx` + `BakedDeskScene.tsx` so `?baked=0` matches.
+- **Compact mobile glass nav (CSS, homepage `:has()` scope).** Was a chunky
+  two-row block (133px/16%) with "Admin" stranded on a second nav line and a
+  33px toggle (under the 40px floor). Now one centered row of tab chips
+  (0.72rem, fits all six at 375px+, `wrap` so narrower phones drop a row instead
+  of scrolling), 40x40 toggle, **~80px total (10%)**.
+- **Slim mobile HUD.** Was a ~110px wrapped stack with a 32px needle button.
+  Now a single content-sized row (~57px) with a real **44px** "Drop the needle"
+  target; also gave `.desk-hud-empty` `white-space:nowrap` (it was collapsing to
+  a 48px column and wrapping to four lines inside the flex row).
+- **Touch guidance (new, touch-only via `useCoarsePointer`).**
+  - `components/desk/DeskAffordances.tsx` — a soft coral breathing dot floats
+    over each interactive object (drei `<Html>` at its world position, so the
+    tap is a real DOM click that fires the object's action — NOT an in-canvas
+    raycast). Appears after `sceneReady`, on coarse-pointer only; the first
+    canvas touch fades + unmounts them. `buildAffordanceItems()` keeps both
+    scenes identical. Threaded a new `sceneReady` prop from DeskHero.
+  - `components/desk/DragHint.tsx` — first-visit "drag to look around" chip above
+    the HUD; coarse-only, after reveal, self-dismisses on first drag/tap or ~4s,
+    `localStorage` (`desk-drag-hint-seen`) so it shows once per device.
+- **Touch orbit — verified, no change.** Azimuth ±0.5 keeps the whole desk on
+  screen at both extremes; zoom to portrait maxDistance (2.95) still frames the
+  desk; a single drag reaches the limit so rotateSpeed 0.5 is responsive (not
+  dead). `touch-action:pan-y` (vertical scroll) untouched.
+- Desktop (fine pointer): affordances + hint absent, landscape framing + desktop
+  nav unchanged, no horizontal scroll, no console errors (a one-off DragHint
+  hooks-order warning was an HMR artifact of a temporary force-touch test edit;
+  gone on fresh load). New files: `useCoarsePointer.ts`, `DeskAffordances.tsx`,
+  `DragHint.tsx`.
 
 ### 2026-07-13 — Lamp pool's hard desk edge fixed at the source (beam s-clamp)
 

@@ -179,8 +179,11 @@ up to the level of the record player."
       framing reframed on the turntable hero (2026-06-15); the homepage is now
       full-bleed immersive (3D fills 100svh) with the nav floating over the scene
       as a theme-aware glass bar, and the portrait camera reframed (fov in the
-      rig) to fill a tall screen (2026-06-17, both mobile + desktop); touch orbit
-      + perf tiers still TODO
+      rig) to fill a tall screen (2026-06-17, both mobile + desktop); mobile UX
+      pass reframed the WHOLE desk in portrait (fov 66, both scenes), compacted
+      the glass nav (10%) + HUD, added touch-only guided tap affordances + a
+      first-visit drag hint, and verified touch orbit/zoom stays bounded
+      (2026-07-16); perf tiers still TODO
 - [x] /travel is a warm 3D globe of places Jason has been (PR `overnight/desk-stretch`,
       2026-06-17) — Natural Earth land texture, coral markers from content/places.ts,
       arcs, fresnel rim, drag/auto-rotate, place card → /photography, lazy + fallback.
