@@ -2257,19 +2257,24 @@ button.primary:disabled {
    containing block), center the title above a tidy wrapped chip row of tabs.
    Two slim rows that stay out of the scene's way. Breakpoint matches the hero
    and focus-panel mobile breakpoints (640px) so they all flip together. */
+/* Phones: keep the floating bar tight and elegant — a slim title row with the
+   theme toggle pinned to the corner, above a single centered row of tab chips.
+   The nav is sized (small font + snug padding) to fit all tabs on ONE row at
+   360px+ so it never wraps to a clumsy second line; the whole bar stays well
+   under ~13% of a tall phone so the desk owns the screen. */
 @media (max-width: 640px) {
   :root:has(.desk-hero, .desk-hero-fallback) .site-header {
-    padding: 0.5rem 0.7rem 0.55rem;
+    padding: 0.34rem 0.5rem 0.4rem;
   }
 
   :root:has(.desk-hero, .desk-hero-fallback) .site-header-top {
     flex-direction: column;
     align-items: center;
-    gap: 0.4rem;
+    gap: 0.24rem;
   }
 
   :root:has(.desk-hero, .desk-hero-fallback) .site-title {
-    font-size: 1.05rem;
+    font-size: 1rem;
   }
 
   :root:has(.desk-hero, .desk-hero-fallback) .site-header-controls {
@@ -2277,26 +2282,29 @@ button.primary:disabled {
     justify-content: center;
   }
 
+  /* wrap (not nowrap): all tabs fit one row at 375px+, but a narrower phone
+     wraps to a second row rather than forcing a horizontal scroll. */
   :root:has(.desk-hero, .desk-hero-fallback) .nav {
     flex-wrap: wrap;
     justify-content: center;
-    gap: 0.15rem;
+    gap: 0.05rem 0.06rem;
   }
 
   :root:has(.desk-hero, .desk-hero-fallback) .nav a {
     display: inline-flex;
     align-items: center;
-    min-height: 40px;
-    padding: 0 0.5rem;
-    font-size: 0.8rem;
+    min-height: 38px;
+    padding: 0 0.3rem;
+    font-size: 0.72rem;
+    white-space: nowrap;
   }
 
   :root:has(.desk-hero, .desk-hero-fallback) .theme-toggle {
     position: absolute;
-    top: 0.5rem;
-    right: 0.7rem;
-    width: 2.05rem;
-    height: 2.05rem;
+    top: 0.34rem;
+    right: 0.6rem;
+    width: 2.5rem;
+    height: 2.5rem;
   }
 }
 
