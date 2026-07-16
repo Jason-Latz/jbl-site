@@ -40,10 +40,12 @@ const themeInitScript = `
   // off-theme poster are never fetched.
   try {
     if (location.pathname === "/") {
+      var portrait = window.matchMedia("(orientation: portrait)").matches;
       const link = document.createElement("link");
       link.rel = "preload";
       link.as = "image";
-      link.href = "/desk-poster-" + theme + ".jpg";
+      link.href =
+        "/desk-poster-" + (portrait ? "portrait-" : "") + theme + ".jpg";
       link.setAttribute("fetchpriority", "high");
       (document.head || root).appendChild(link);
     }

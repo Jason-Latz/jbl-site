@@ -1865,6 +1865,21 @@ button.primary:disabled {
   background-image: url(/desk-poster-light.jpg);
 }
 
+/* Portrait poster variants: captured from the live scene at the portrait rig's
+   whole-desk framing, so the poster-to-3D cross-fade on phones is a match, not
+   a composition jump (the landscape renders crop to a window-dominant view in
+   a tall frame). */
+@media (orientation: portrait) {
+  .desk-hero-poster {
+    background-image: url(/desk-poster-portrait-dark.jpg);
+    background-position: center;
+  }
+  :root[data-theme="light"] .desk-hero-poster,
+  :root:not([data-theme]) .desk-hero-poster {
+    background-image: url(/desk-poster-portrait-light.jpg);
+  }
+}
+
 /* The load whisper: a small, quiet note that sits over the poster while the
    desk streams in, then unmounts on reveal. The poster IS the loading state;
    this is only a soft signal that something is arriving. Dark glass reads over
@@ -1959,6 +1974,22 @@ button.primary:disabled {
   background-image:
     linear-gradient(180deg, rgba(18, 12, 7, 0) 36%, rgba(18, 12, 7, 0.78) 100%),
     url(/desk-poster-light.jpg);
+}
+
+/* Same portrait-framing swap for the no-WebGL / reduced-motion poster. */
+@media (orientation: portrait) {
+  .desk-hero-fallback {
+    background-image:
+      linear-gradient(180deg, rgba(8, 6, 4, 0) 40%, rgba(8, 6, 4, 0.85) 100%),
+      url(/desk-poster-portrait-dark.jpg);
+    background-position: center;
+  }
+  :root[data-theme="light"] .desk-hero-fallback,
+  :root:not([data-theme]) .desk-hero-fallback {
+    background-image:
+      linear-gradient(180deg, rgba(18, 12, 7, 0) 36%, rgba(18, 12, 7, 0.78) 100%),
+      url(/desk-poster-portrait-light.jpg);
+  }
 }
 
 .desk-hero-fallback-inner {
