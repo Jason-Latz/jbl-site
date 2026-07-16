@@ -8,6 +8,7 @@ import { useSpotifyLive } from "@/lib/useSpotifyLive";
 import { selectLeadTrack } from "@/lib/spotifyLeadTrack";
 import { type FocusId } from "./layout";
 import type { DeskNote } from "./DeskScene";
+import DragHint from "./DragHint";
 import NowPlayingHUD, { type NeedlePhase } from "./NowPlayingHUD";
 import ChessPanel from "./panels/ChessPanel";
 import DeskPanel from "./panels/DeskPanel";
@@ -403,6 +404,9 @@ export default function DeskHero() {
           statusNote={statusNote}
         />
       ) : null}
+      {/* Touch-only, first-visit nudge that the scene can be dragged. Self-gates
+          on coarse pointer + localStorage; sits above the HUD. */}
+      {capability === "scene" ? <DragHint ready={sceneReady} /> : null}
     </section>
   );
 }

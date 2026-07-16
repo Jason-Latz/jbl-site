@@ -2470,6 +2470,92 @@ button.primary:disabled {
   }
 }
 
+/* First-visit "drag to look around" nudge — a quiet chip low over the scene,
+   above the HUD. Dark glass like the HUD so it reads over either theme.
+   Touch-only + shown once (coarse-pointer + localStorage gate in JS). */
+.desk-drag-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 92px;
+  transform: translateX(-50%);
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.4rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid rgba(240, 233, 218, 0.14);
+  background: rgba(14, 12, 9, 0.6);
+  -webkit-backdrop-filter: blur(9px);
+  backdrop-filter: blur(9px);
+  color: rgba(247, 240, 227, 0.94);
+  font-size: 0.82rem;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: desk-drag-hint-in 0.5s ease both;
+}
+
+.desk-drag-hint-leaving {
+  animation: desk-drag-hint-out 0.4s ease forwards;
+}
+
+/* A small horizontal swipe glyph that drifts left-right to say "drag". */
+.desk-drag-hint-glyph {
+  position: relative;
+  width: 22px;
+  height: 12px;
+  flex: none;
+}
+
+.desk-drag-hint-glyph::before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #d97757;
+  animation: desk-drag-hint-swipe 1.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .desk-drag-hint,
+  .desk-drag-hint-glyph::before {
+    animation: none !important;
+  }
+}
+
+@keyframes desk-drag-hint-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 8px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+@keyframes desk-drag-hint-out {
+  to {
+    opacity: 0;
+    transform: translate(-50%, 6px);
+  }
+}
+
+@keyframes desk-drag-hint-swipe {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(10px);
+  }
+}
+
 /* ---------------------------------------------------------------------------
    The Desk — focus panels
    --------------------------------------------------------------------------- */
