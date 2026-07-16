@@ -2050,6 +2050,7 @@ button.primary:disabled {
 .desk-hud-empty {
   font-size: 0.86rem;
   color: rgba(240, 233, 218, 0.66);
+  white-space: nowrap;
 }
 
 .desk-hud-note {
@@ -2117,31 +2118,49 @@ button.primary:disabled {
   white-space: nowrap;
 }
 
+/* Phones: a quieter, shorter HUD. Stay a single content-sized row (dot · track ·
+   needle) instead of wrapping to a tall stacked block — the track text truncates
+   rather than pushing the button onto a second line — and keep the needle a real
+   44px tap target. Net: ~56px tall (was ~110px), lighter type, same dark glass. */
 @media (max-width: 560px) {
   .desk-hud {
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 0.45rem 0.55rem;
+    gap: 0.55rem;
     bottom: 12px;
     max-width: calc(100% - 24px);
-    padding: 0.5rem 0.65rem;
-    border-radius: 18px;
+    padding: 0.34rem 0.4rem 0.34rem 0.72rem;
+    border-radius: 16px;
   }
 
   .desk-hud-track {
-    align-items: center;
-    text-align: center;
+    align-items: flex-start;
+    text-align: left;
   }
 
   .desk-hud-title,
   .desk-hud-artist,
   .desk-hud-note {
-    max-width: 26ch;
+    max-width: 46vw;
+  }
+
+  .desk-hud-empty {
+    font-size: 0.8rem;
+  }
+
+  .desk-hud-title {
+    font-size: 0.82rem;
+  }
+
+  .desk-hud-artist {
+    font-size: 0.72rem;
   }
 
   .desk-hud-needle {
-    padding: 0.36rem 0.7rem;
-    font-size: 0.74rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 0 0.9rem;
+    font-size: 0.76rem;
   }
 }
 
