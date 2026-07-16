@@ -20,13 +20,60 @@ scenes), slimmed the mobile nav (~10%) + HUD, and added touch-only guided tap
 affordances (`DeskAffordances.tsx`) + a first-visit drag hint (`DragHint.tsx`),
 gated by `useCoarsePointer`.
 
-**Next up — Stage 4 polish** (see `docs/PLAN.md`): social OG image; mobile touch
+**Next up — Stage 4 polish** (see `docs/PLAN.md`): social OG image; Spotify Web
 orbit + perf tiers; inner-page typography to match the desk palette; Spotify Web
 Playback SDK (full tracks when Jason's signed in); `/music` + `/photography`
 splits; window parallax; easter eggs; plus the deferred `/admin` moderation UI
 for `desk_notes`.
 
 ## Session log
+
+### 2026-07-16 — Overnight run: poster-first load, 78% slimmer GLB, Reading Room inner pages
+
+The /overnight run (branch `claude/website-perf-mobile-9ea10e`, ~28 commits, all
+pair-programmed and adversarially reviewed). Baseline prod Lighthouse mobile on `/`
+was **25** (FCP 11.8s, LCP 165.7s: the 29.3MB GLB behind an opaque curtain).
+
+- **Poster-first progressive load.** The homepage SSR-paints a theme-keyed poster
+  instantly (`.desk-hero-poster`, preloaded from the theme-init script with an
+  orientation-aware pick); the 3D cross-fades in only when PRESENTABLE (GLB parsed
+  + the ACTIVE theme's 13 lightmaps decoded + compileAsync + 3 frames, 8s backstop
+  anchored at parse, not mount). The old full-viewport Preloader curtain (glyph +
+  spinner verbs) is deleted (-574 lines); a small "setting the desk" whisper sits
+  over the poster. Off-theme lightmaps defer to idle (rIC with setTimeout fallback)
+  and swap into custom `lightMapOn/Off` uniforms (1x1 placeholder until then); a
+  mid-load lamp flip re-prioritizes and the reveal gate re-derives the visible set
+  per check. Hidden canvas is pointer-events:none until reveal. `/` first-load JS
+  124kB.
+- **GLB 29.33MB → 6.36MB (78%).** The GLB's bytes were ~80% embedded PNG textures;
+  recompressed to WebP q82 (gltf-transform; EXT_texture_webp decodes natively in
+  three-stdlib). Geometry/material names/userData tags/TEXCOORD_1 byte-identical,
+  verified with the production loader class; A/B'd both themes in-browser. Served
+  additively as `bake/v1/desk-window-uv1-slim82.glb` (original = rollback). Runbook
+  + the meshoptimizer-0.18.1-pin warning in docs/BAKING.md §9. GOTCHA: meshoptimizer
+  1.x output silently HANGS three@0.169's decoder.
+- **"Reading Room" inner-page design system** (10 commits, from a 3-proposal judged
+  design workflow; spec's soul: "the printed matter lying on the desk; neutral by
+  default, coral once"). Tokens (radius/space/type/elevation/edge+tint coral), the
+  eyebrow/page-header/card primitives, slim sticky paper header with active-nav
+  pills, colophon footer, and per-page rebuilds: /writings ruled TOC, /experience
+  CV ledger (data arrays byte-identical), /photography masthead + labeled zoom,
+  /travel harmonized, /summer-blog mobile collapse. All pages: no horizontal
+  scroll at 390, 44px targets, dark theme complete.
+- **Final 3-lens review** (mobile-desk / design-pass / integration): zero HIGHs;
+  fixed the MED + LOWs: inner-nav strip now engages ≤840px with a right-edge fade
+  cue (641-740px band used to hard-clip tabs against `overflow-x: clip`), HUD
+  empty line truncates, `scroll-padding-top` under the sticky header, solid
+  background fallback before `color-mix`. Portrait posters re-captured from the
+  live scene at the NEW whole-desk framing (canvas screenshot, both themes) so the
+  phone cross-fade no longer jumps composition; orientation media query + preload.
+- **Ops gotchas (repeat-worthy):** the session usage limit killed both running
+  agents mid-run (resumed at 10:34); push-every-green-step made it a non-event.
+  A stale `next-server` on a reused port serves OLD builds after `npm start`
+  EADDRINUSE — `pkill -f "next start"` does NOT match it (process name is
+  `next-server`); kill by `lsof -tiTCP:<port>`. The in-app preview pane freezes
+  rAF AND the compositor in unfronted tabs (WebGL never mounts; background-tab
+  screenshots are blank cream even with a complete DOM).
 
 ### 2026-07-16 — Mobile desk UX: whole-desk framing + touch guidance + tuned chrome
 
