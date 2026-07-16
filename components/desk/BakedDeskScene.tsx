@@ -49,6 +49,7 @@ import NotepadBase from "./objects/Notepad";
 import TurntableBase from "./objects/Turntable";
 import { lampGlowRef } from "./objects/DeskLamp";
 import MoonBeam, { moonGlowRef } from "./objects/MoonBeam";
+import DeskAffordances, { buildAffordanceItems } from "./DeskAffordances";
 import type { DeskSceneProps } from "./DeskScene";
 
 // Memoized like DeskScene's: a theme/poll re-render must not re-reconcile these
@@ -722,10 +723,26 @@ function SceneContents({
   chessFen,
   chessLastMove,
   notes,
-  onReady
+  onReady,
+  sceneReady
 }: DeskSceneProps) {
   const controlsRef = useRef<OrbitControlsImpl>(null!);
   const rig = useCameraRig();
+  const router = useRouter();
+  const { toggleTheme } = useDeskTheme();
+  const affordanceItems = useMemo(
+    () =>
+      buildAffordanceItems({
+        onRecords: onNeedleClick,
+        onToggleLamp: toggleTheme,
+        onWork: () => onFocus("work"),
+        onReading: () => onFocus("reading"),
+        onChess: () => onFocus("chess"),
+        onNotes: () => onFocus("notes"),
+        onPhotography: () => router.push("/photography")
+      }),
+    [onNeedleClick, toggleTheme, onFocus, router]
+  );
   return (
     <>
       <ThemeDrivers />
@@ -840,6 +857,7 @@ function SceneContents({
         minAzimuthAngle={-0.5}
         maxAzimuthAngle={0.5}
       />
+      <DeskAffordances items={affordanceItems} ready={!!sceneReady} />
       <BakedPost />
     </>
   );

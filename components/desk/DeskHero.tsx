@@ -357,6 +357,7 @@ export default function DeskHero() {
             chessLastMove={chessLastMove}
             notes={stableNotes}
             onReady={handleSceneReady}
+            sceneReady={sceneReady}
           />
         </div>
       ) : null}

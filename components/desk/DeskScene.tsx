@@ -18,6 +18,7 @@ import { markShadowsDirty, shadowsDirtyNow } from "@/lib/three/shadow-dirty";
 import { DeskThemeProvider, useDeskTheme } from "./DeskThemeContext";
 import { useSiteTheme } from "./useSiteTheme";
 import { CAMERA, FOCUS_VIEWS, PLACEMENT, type FocusId } from "./layout";
+import DeskAffordances, { buildAffordanceItems } from "./DeskAffordances";
 import DeskBase from "./Desk";
 import DeskEffects from "./Effects";
 import RoomBase from "./concepts/RoomWindow";
@@ -72,6 +73,9 @@ export type DeskSceneProps = {
   // Fires once a few frames in — i.e. after the synchronous shadow bake —
   // so the hero can fade the canvas in instead of showing the freeze.
   onReady?: () => void;
+  // True once the hero has revealed the canvas (DeskHero's sceneReady). Gates
+  // the touch tap-affordances so they appear only over a presentable scene.
+  sceneReady?: boolean;
 };
 
 const CAMERA_START = new THREE.Vector3(...CAMERA.start);
@@ -487,10 +491,26 @@ function SceneContents({
   chessFen,
   chessLastMove,
   notes,
-  onReady
+  onReady,
+  sceneReady
 }: DeskSceneProps) {
   const controlsRef = useRef<OrbitControlsImpl>(null!);
   const rig = useCameraRig();
+  const router = useRouter();
+  const { toggleTheme } = useDeskTheme();
+  const affordanceItems = useMemo(
+    () =>
+      buildAffordanceItems({
+        onRecords: onNeedleClick,
+        onToggleLamp: toggleTheme,
+        onWork: () => onFocus("work"),
+        onReading: () => onFocus("reading"),
+        onChess: () => onFocus("chess"),
+        onNotes: () => onFocus("notes"),
+        onPhotography: () => router.push("/photography")
+      }),
+    [onNeedleClick, toggleTheme, onFocus, router]
+  );
 
   return (
     <>
@@ -559,6 +579,7 @@ function SceneContents({
         minAzimuthAngle={-0.5}
         maxAzimuthAngle={0.5}
       />
+      <DeskAffordances items={affordanceItems} ready={!!sceneReady} />
       <DeskEffects />
     </>
   );

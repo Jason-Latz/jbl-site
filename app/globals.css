@@ -2396,6 +2396,81 @@ button.primary:disabled {
 }
 
 /* ---------------------------------------------------------------------------
+   The Desk — touch guidance: guided tap affordances.
+   Touch-only (mounted behind a coarse-pointer gate in JS); desktops never see
+   them. Coral, quiet, and self-retiring.
+   --------------------------------------------------------------------------- */
+
+/* Each affordance is a generous invisible hit area (a real 44px tap target that
+   proxies a tap on the object) with a small coral dot floating at its center. */
+.desk-affordance {
+  pointer-events: auto;
+  appearance: none;
+  -webkit-appearance: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  animation: desk-affordance-in 0.5s ease both;
+}
+
+.desk-affordance-dot {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 50% 45%,
+    rgba(247, 174, 138, 0.98) 0%,
+    #d97757 42%,
+    rgba(199, 88, 51, 0.55) 72%,
+    rgba(199, 88, 51, 0) 100%
+  );
+  box-shadow: 0 0 10px 2px rgba(217, 119, 87, 0.5);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .desk-affordance-dot {
+    animation: desk-affordance-breathe 2.6s ease-in-out infinite;
+  }
+}
+
+.desk-affordance-hiding {
+  animation: none;
+  opacity: 0;
+  transition: opacity 0.45s ease;
+  pointer-events: none;
+}
+
+@keyframes desk-affordance-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes desk-affordance-breathe {
+  0%,
+  100% {
+    transform: scale(0.82);
+    opacity: 0.62;
+  }
+  50% {
+    transform: scale(1.12);
+    opacity: 1;
+  }
+}
+
+/* ---------------------------------------------------------------------------
    The Desk — focus panels
    --------------------------------------------------------------------------- */
 
