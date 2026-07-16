@@ -2066,6 +2066,11 @@ button.primary:disabled {
   font-size: 0.86rem;
   color: rgba(240, 233, 218, 0.66);
   white-space: nowrap;
+  /* On very narrow phones the un-wrappable empty line must truncate instead
+     of colliding with the needle button beside it. */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .desk-hud-note {
