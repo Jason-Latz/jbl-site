@@ -84,10 +84,10 @@ const CAMERA_TARGET = new THREE.Vector3(...CAMERA.target);
 // Portrait (phone) framing: centered target + pulled-back camera so the WHOLE
 // desk — turntable through chessboard — reads in the tall frame. Kept in sync
 // with BakedDeskScene's portrait rig so ?baked=0 frames identically.
-const PORTRAIT_START = new THREE.Vector3(0.2, 1.5, 2.6);
-const PORTRAIT_REST = new THREE.Vector3(0.02, 0.98, 2.05);
-const PORTRAIT_TARGET = new THREE.Vector3(0.0, 0.13, -0.06);
-const PORTRAIT_FOV = 58;
+const PORTRAIT_START = new THREE.Vector3(0.1, 1.7, 2.85);
+const PORTRAIT_REST = new THREE.Vector3(-0.02, 1.42, 2.42);
+const PORTRAIT_TARGET = new THREE.Vector3(-0.05, 0.04, -0.05);
+const PORTRAIT_FOV = 66;
 
 type CameraRig = {
   start: THREE.Vector3;
@@ -114,7 +114,7 @@ function useCameraRig(): CameraRig {
       start: PORTRAIT_START,
       rest: PORTRAIT_REST,
       target: PORTRAIT_TARGET,
-      maxDistance: 2.2,
+      maxDistance: 2.95,
       fov: PORTRAIT_FOV
     };
   }, [size.width, size.height]);
