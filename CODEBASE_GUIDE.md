@@ -55,6 +55,8 @@ components/
   SiteNav.tsx              # Main nav links
   ThemeToggle.tsx          # Client theme switcher (light/dark with localStorage persistence)
   SiteFooter.tsx           # Footer copyright + social links
+  desk/DeskHero.tsx        # Poster-first interactive home desk shell + panels/HUD
+  desk/BakedDeskScene.tsx  # CDN-backed baked Three.js desk scene used by default
   SpotifyNowPlaying.tsx    # Home-page Spotify ribbon panel polling /api/spotify/live
   DuolingoStreak.tsx       # Home-page Duolingo ribbon panel polling /api/duolingo/streak
   PhotoMosaic.tsx          # Client-side gapless mosaic (/photography) + click-to-view metadata modal
@@ -102,17 +104,18 @@ vercel.json                # Vercel cron schedules for Spotify history sync + tr
 
 1. Loads Google fonts (`Inter`, `Newsreader`) and exposes them as CSS variables.
 2. Disables `adjustFontFallback` for `Newsreader` to avoid noisy dev-time font override warnings in Next.js.
-3. Defines base metadata (`title`, `description`) for the whole site.
+3. Defines base metadata, including the `%s | Jason Latz` title template used by inner routes.
 4. Renders global chrome: header with site title + nav, main content container, and footer with social links.
 5. Initializes the persisted light/dark theme before hydration (inline `beforeInteractive` script reading `localStorage.site-theme`, defaulting to light mode when no stored preference exists).
 6. Adds Supabase host `preconnect` + `dns-prefetch` hints when `NEXT_PUBLIC_SUPABASE_URL` is configured to reduce connection setup cost before travel image requests.
 7. Mounts `TravelBackgroundWarmup` so non-travel routes can warm likely first-view travel image variants during idle time.
+8. Keeps designed `not-found.tsx` and `error.tsx` recovery states inside the same shell instead of exposing framework-default dead ends.
 
 This means every route is rendered inside the same visual shell by default.
 
 ### 4.2 Public pages
 
-- `/` (`app/page.tsx`): hero content, single-line collapsible Spotify + Duolingo activity ribbon, dynamic “latest writing” card sourced from a dedicated single-row published-post query, and a “now” card. The home page also uses ISR (`revalidate = 60`) so newly published posts are not pinned to an old static render.
+- `/` (`app/page.tsx`): poster-first interactive 3D desk (`DeskHero` → `BakedDeskScene`), single-line collapsible Spotify + Duolingo activity ribbon, dynamic “latest writing” card sourced from a dedicated single-row published-post query, and a “now” card. The home page also uses ISR (`revalidate = 60`) so newly published posts are not pinned to an old static render. The baked scene defaults to the immutable public Supabase `bake/v1` CDN in every environment; set `NEXT_PUBLIC_BAKE_CDN_URL` only to repoint it (for example, to `/_bake/cdn` while testing freshly generated local bake artifacts).
 - `/experience` (`app/experience/page.tsx`): static, resume-style sections (education, professional experience, projects, technical skills, activities) rendered as cards.
 - `/travel` (`app/travel/page.tsx`): server-rendered route that fetches `public.photos` grouped by their estimated place (`lib/travelGlobe.ts`) and hydrates the interactive 3D globe (`components/travel/TravelGlobeStage` → `TravelGlobe`, react-three-fiber). Each place with photos is a glowing pin; clicking one flies the globe to it and opens a gallery panel (thumbnails → lightbox) showing the photos shot there, with an "estimated location · NN% confidence" badge. `?place=<name>` deep-links a selection. A server-rendered place list is kept in the DOM (visually hidden) for crawlers, and is the designed fallback for no-WebGL / reduced-motion / no-JS visitors. See §4.7 for how photos get placed.
 - `/travel/quality-lab` (`app/travel/quality-lab/page.tsx`): visual tuning route that renders the same sampled photos side-by-side as `Preferred (q92)`, `Fallback (q90)`, and `Original` to compare sharpness versus payload strategy.
@@ -205,8 +208,8 @@ Response caching is disabled (`Cache-Control: no-store`) on the Spotify route; f
 
 Admin UI behavior:
 
-1. On mount, it checks Supabase auth session.
-2. If no session, it renders a sign-in form (`signInWithPassword`).
+1. The server validates the Supabase user/profile and passes the verified editor state into the client dashboard so signed-in owners do not flash the logged-out UI.
+2. If no session, it renders a labeled, browser-autofill-compatible sign-in form (`signInWithPassword`) and does not expose chess administration until editor authentication succeeds.
 3. Dashboard route (`/admin`) loads posts from `/api/posts` with explicit `401/403` handling and a `New article` action that immediately creates a draft post, then routes to `/admin/[id]`.
 4. Compose routes (`/admin/new`, `/admin/[id]`) provide metadata fields, markdown body editing, toolbar shortcuts (bold/italic/headings/lists/links/code), and a single-pane `Markdown/Visual` toggle.
 5. Markdown supports GFM features, including footnotes (`[^1]` and `[^1]: ...`).
@@ -689,6 +692,7 @@ Optional env vars:
 - `NEXT_PUBLIC_DUOLINGO_STREAK_ICON_PENDING` (custom icon URL for "streak not completed today")
 - `SUPABASE_SERVICE_ROLE_KEY` (server-only key used by `/api/spotify/live` to persist recent plays and compute exact weekly top artists; without it, weekly artist ranking falls back to recent-play window data only)
 - `CRON_SECRET` (required in Vercel production if enabling the protected `/api/spotify/sync` and `/api/travel/prewarm` cron routes)
+- `NEXT_PUBLIC_BAKE_CDN_URL` (optional baked-desk asset base override; defaults to the public versioned Supabase CDN in local development and production)
 
 Setup sequence:
 
@@ -787,8 +791,8 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 2. Updating a published post resets `published_at`, which changes archive ordering and apparent publish date.
 3. No delete/unpublish history or versioning.
 4. No tests currently in repo (unit/integration/e2e).
-5. No explicit loading/error boundaries for public route fetch failures.
-6. Site metadata is generic placeholders (`Your Name`) and should be customized.
+5. Public routes do not yet have route-specific `loading.tsx` skeletons; the app does have designed root error and not-found recovery states.
+6. Page metadata now has route-specific titles/descriptions for the primary public pages, but it does not yet include a configured production `metadataBase`, canonical URLs, or custom Open Graph imagery.
 7. Spotify "today" stats are approximate because `/me/player/recently-played` returns only the latest 50 tracks.
 8. Spotify now-playing and recent-play endpoints depend on account/app permissions and may return `502` via `/api/spotify/live` when OAuth scope or account constraints are not satisfied.
 9. Weekly top artists become fully accurate only after `public.spotify_recent_tracks` has accumulated at least a week of play data; new deployments start with partial week history.
@@ -838,6 +842,8 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 ## 16) File-by-file quick reference
 
 - `app/layout.tsx`: global app shell and typography setup, plus Supabase preconnect/dns-prefetch hints and background travel warmup mount.
+- `app/not-found.tsx`: designed 404 recovery with links back home and to writings.
+- `app/error.tsx`: client error boundary with retry and home recovery actions.
 - `app/page.tsx`: landing content + shared one-line activity ribbon.
   - latest writing card is dynamically populated from a dedicated newest-post query instead of loading the full archive
 - `app/travel/page.tsx`: travel route shell that loads photo catalog and renders `PhotoMosaic`.
@@ -863,6 +869,8 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 - `components/ThemeToggle.tsx`: client-side light/dark theme switcher in the site header (persists selection and respects system preference when no explicit selection exists).
 - `components/SiteFooter.tsx`: footer with dynamic copyright year and external links to LinkedIn, GitHub, and Instagram.
 - `components/SiteNav.tsx`: primary navigation (includes `/travel` link).
+- `components/desk/DeskHero.tsx`: poster-first desk capability gate, interactive panel state, and live-data orchestration.
+- `components/desk/BakedDeskScene.tsx`: default baked Three.js scene; reads the versioned public bake CDN unless `NEXT_PUBLIC_BAKE_CDN_URL` overrides it.
 - `components/PhotoMosaic.tsx`: justified row packer with progressive top-down batch loading, width-only `q92` transformed tile URLs (`resize=contain`) with quantized width buckets and per-tile original-URL fallback on transform errors, draggable 25%-200% zoom + reset (no on-screen percent labels) that reflows rows (with `100%` mapped to the denser former `200%` look and deferred layout recompute), and click-to-open metadata modal on `/travel`.
 - `components/TravelBackgroundWarmup.tsx`: one-time-per-session idle warmup runner for non-travel routes that preloads likely first-view travel transformed variants.
 - `lib/posts.ts`: public content fetch functions.
@@ -913,6 +921,7 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 6. During March 3, 2026 travel rollout validation, `/travel` also returned HTTP `200` with ISR enabled.
 7. Current article body format is markdown-first; legacy HTML bodies still render via fallback in `app/writings/[slug]/page.tsx`.
 8. If dev logs show `Failed to find font override values for font Newsreader`, ensure `app/layout.tsx` keeps `adjustFontFallback: false` on the `Newsreader(...)` config.
+9. `public/_bake` is intentionally gitignored. A clean checkout uses the public Supabase baked-desk CDN by default; set `NEXT_PUBLIC_BAKE_CDN_URL=/_bake/cdn` only when that local asset tree actually exists.
 
 ## 20) Agent checklist (quick start)
 
