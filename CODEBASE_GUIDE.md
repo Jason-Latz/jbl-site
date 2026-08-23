@@ -16,7 +16,7 @@ The site is intentionally minimal and server-rendered where possible.
 
 ## 2) Tech stack
 
-- Framework: `next@14.2.5` (App Router)
+- Framework: `next@14.2.35` (App Router)
 - Language: TypeScript (`strict: true`)
 - UI: React 18 + plain CSS (`app/globals.css`)
 - DB/Auth: Supabase (`@supabase/supabase-js`, `@supabase/auth-helpers-nextjs`)
@@ -797,6 +797,7 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 8. Spotify now-playing and recent-play endpoints depend on account/app permissions and may return `502` via `/api/spotify/live` when OAuth scope or account constraints are not satisfied.
 9. Weekly top artists become fully accurate only after `public.spotify_recent_tracks` has accumulated at least a week of play data; new deployments start with partial week history.
 10. Travel mosaic now supports metadata and admin-side delete actions, but ordering is still based on storage object creation time and there is no manual ordering UI yet.
+11. `npm audit --omit=dev` still reports two high-severity advisories in the Next.js/PostCSS dependency chain. The critical Next.js finding and fixable transitive findings were removed by upgrading to `next@14.2.35` and applying non-breaking audit fixes; npm's remaining offered remediation is a breaking upgrade to Next.js 16, which must be planned together with the React/React Three Fiber stack rather than forced into a presentation pass.
 
 ## 15) End-to-end request flow examples
 
