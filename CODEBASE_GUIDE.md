@@ -646,7 +646,7 @@ If env vars are missing, helpers safely return empty/null data rather than throw
 ## 10) Rendering and caching model
 
 - Most public pages are server components.
-- Home, writings, and travel pages use ISR (`revalidate = 60`).
+- Home, writings, and photography use ISR (`revalidate = 60`); the travel globe revalidates hourly (`revalidate = 3600`).
 - Public post reads in `lib/posts.ts` are not wrapped in React `cache()`, so route-level ISR and `revalidatePath(...)` control freshness.
 - Home-page Spotify data is client-polled and backed by a dynamic no-store API route.
 - Admin routes are dynamic/interactive:
@@ -790,7 +790,7 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 1. `dangerouslySetInnerHTML` renders stored HTML directly on post pages. There is no explicit sanitization in code, so trust currently relies on editor-only access.
 2. Updating a published post resets `published_at`, which changes archive ordering and apparent publish date.
 3. No delete/unpublish history or versioning.
-4. No tests currently in repo (unit/integration/e2e).
+4. Unit tests cover editor text/markdown commands and publish-date behavior, but there are no integration or end-to-end test suites yet.
 5. Public routes do not yet have route-specific `loading.tsx` skeletons; the app does have designed root error and not-found recovery states.
 6. Page metadata now has route-specific titles/descriptions for the primary public pages, but it does not yet include a configured production `metadataBase`, canonical URLs, or custom Open Graph imagery.
 7. Spotify "today" stats are approximate because `/me/player/recently-played` returns only the latest 50 tracks.
@@ -831,7 +831,7 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 6. After upload success, admin triggers deep client-side warmup for uploaded photos using `UPLOAD_WARM_WIDTHS` (`320..2200` step `96`) so first visitors are more likely to hit warm transformed variants.
 7. Dashboard loads editable photo cards via `GET /api/travel`; metadata saves use `PATCH /api/travel`; photo deletions use `DELETE /api/travel`.
 8. Storage and table policies re-validate editor permission on write operations.
-9. `/travel` reads merged storage + metadata rows via `lib/photos.ts`; `PhotoMosaic` mounts only the first batch of photos at first paint and appends the next batches via an intersection sentinel so network fetches happen progressively during scroll.
+9. `/photography` reads merged storage + metadata rows via `lib/photos.ts`; `PhotoMosaic` mounts only the first batch of photos at first paint and appends the next batches via an intersection sentinel so network fetches happen progressively during scroll.
 10. `PhotoMosaic` computes justified rows from per-photo aspect ratios so visible photos rewrap for best fit as viewport or zoom changes, and chooses row breaks that keep visual scale close to the selected zoom value.
 11. Mosaic tiles use width-only transformed URLs (`q92` target, `resize=contain`) to keep captured aspect ratios while reducing transfer/decode cost; requested widths are quantized into fixed buckets so small zoom drags reuse cached image variants.
 12. If a transformed tile request fails, `PhotoMosaic` falls back that tile to its original public object URL so zoom-level edge cases do not show a broken image icon.
@@ -846,9 +846,9 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 - `app/error.tsx`: client error boundary with retry and home recovery actions.
 - `app/page.tsx`: landing content + shared one-line activity ribbon.
   - latest writing card is dynamically populated from a dedicated newest-post query instead of loading the full archive
-- `app/travel/page.tsx`: travel route shell that loads photo catalog and renders `PhotoMosaic`.
+- `app/travel/page.tsx`: interactive 3D globe shell backed by cached geolocated photo groupings.
 - `app/travel/quality-lab/page.tsx`: side-by-side travel image quality comparison route for evaluating `q92`, `q90`, and original delivery against the same photos.
-- `app/photography/page.tsx`: legacy redirect shim from `/photography` to `/travel`.
+- `app/photography/page.tsx`: public gapless justified photo mosaic with zoom controls and metadata details.
 - `app/writings/page.tsx`: archive list page for published posts.
 - `app/writings/[slug]/page.tsx`: individual published post renderer + metadata.
 - `app/experience/page.tsx`: static resume-style profile sections for education, work, projects, skills, and activities.
@@ -871,7 +871,7 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 - `components/SiteNav.tsx`: primary navigation (includes `/travel` link).
 - `components/desk/DeskHero.tsx`: poster-first desk capability gate, interactive panel state, and live-data orchestration.
 - `components/desk/BakedDeskScene.tsx`: default baked Three.js scene; reads the versioned public bake CDN unless `NEXT_PUBLIC_BAKE_CDN_URL` overrides it.
-- `components/PhotoMosaic.tsx`: justified row packer with progressive top-down batch loading, width-only `q92` transformed tile URLs (`resize=contain`) with quantized width buckets and per-tile original-URL fallback on transform errors, draggable 25%-200% zoom + reset (no on-screen percent labels) that reflows rows (with `100%` mapped to the denser former `200%` look and deferred layout recompute), and click-to-open metadata modal on `/travel`.
+- `components/PhotoMosaic.tsx`: justified row packer with progressive top-down batch loading, width-only `q92` transformed tile URLs (`resize=contain`) with quantized width buckets and per-tile original-URL fallback on transform errors, draggable 25%-200% zoom + reset (no on-screen percent labels) that reflows rows (with `100%` mapped to the denser former `200%` look and deferred layout recompute), human-readable photo labels, and a focus-managed metadata modal on `/photography`.
 - `components/TravelBackgroundWarmup.tsx`: one-time-per-session idle warmup runner for non-travel routes that preloads likely first-view travel transformed variants.
 - `lib/posts.ts`: public content fetch functions.
   - reuses one public Supabase client per server runtime for public post reads
