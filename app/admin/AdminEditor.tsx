@@ -1,7 +1,6 @@
 "use client";
 
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import type { Session } from "@supabase/supabase-js";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -109,10 +108,17 @@ function toEditablePhoto(photo: PhotoApiItem): EditablePhoto {
   };
 }
 
-export default function AdminEditor() {
+export default function AdminEditor({
+  initiallyAuthenticated = false
+}: {
+  initiallyAuthenticated?: boolean;
+}) {
   const router = useRouter();
   const supabase = useMemo(() => createClientComponentClient(), []);
-  const [session, setSession] = useState<Session | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(
+    initiallyAuthenticated
+  );
+  const [signingIn, setSigningIn] = useState(false);
   const [authMessage, setAuthMessage] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -142,13 +148,13 @@ export default function AdminEditor() {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session ?? null);
+      setIsAuthenticated(Boolean(data.session));
     });
 
     const {
       data: { subscription }
     } = supabase.auth.onAuthStateChange((event, nextSession) => {
-      setSession(nextSession);
+      setIsAuthenticated(Boolean(nextSession));
       if (event === "SIGNED_IN" || event === "SIGNED_OUT") {
         router.refresh();
       }
@@ -315,23 +321,33 @@ export default function AdminEditor() {
   );
 
   useEffect(() => {
-    if (!session) {
+    if (!isAuthenticated) {
       return;
     }
 
     void loadPosts();
     void loadPhotos();
-  }, [session, loadPosts, loadPhotos]);
+  }, [isAuthenticated, loadPosts, loadPhotos]);
 
   const handleSignIn = async () => {
-    setAuthMessage("");
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    });
+    if (signingIn) {
+      return;
+    }
 
-    if (error) {
-      setAuthMessage(error.message);
+    setAuthMessage("");
+    setSigningIn(true);
+
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password
+      });
+
+      if (error) {
+        setAuthMessage(error.message);
+      }
+    } finally {
+      setSigningIn(false);
     }
   };
 
@@ -580,28 +596,48 @@ export default function AdminEditor() {
     }
   };
 
-  if (!session) {
+  if (!isAuthenticated) {
     return (
       <div className="card auth-panel">
         <h2>Editor sign in</h2>
-        <div className="form-grid">
-          <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-          />
-          <button className="primary" onClick={handleSignIn}>
-            Sign in
+        <form
+          className="form-grid"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void handleSignIn();
+          }}
+        >
+          <label className="form-field">
+            <span>Email</span>
+            <input
+              type="email"
+              name="email"
+              autoComplete="email"
+              required
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+            />
+          </label>
+          <label className="form-field">
+            <span>Password</span>
+            <input
+              type="password"
+              name="password"
+              autoComplete="current-password"
+              required
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+            />
+          </label>
+          <button className="primary" type="submit" disabled={signingIn}>
+            {signingIn ? "Signing in…" : "Sign in"}
           </button>
-          {authMessage && <p className="post-meta">{authMessage}</p>}
-        </div>
+          {authMessage && (
+            <p className="post-meta" role="alert">
+              {authMessage}
+            </p>
+          )}
+        </form>
       </div>
     );
   }
