@@ -59,18 +59,15 @@ const Notepad = memo(NotepadBase);
 const Turntable = memo(TurntableBase);
 
 // Slim baked assets (meshopt GLB + WebP lightmaps) are hosted on public
-// Supabase Storage under an immutable, versioned prefix. Local dev serves the
-// same slim assets from disk so reloads don't refetch them. NEXT_PUBLIC_BAKE_
-// CDN_URL overrides both (set it in Vercel to repoint without a code change).
-// Bump the v1 prefix on a re-bake — see docs/BAKING.md.
+// Supabase Storage under an immutable, versioned prefix. The public CDN is the
+// reliable default in every environment because the local bake tree is large,
+// gitignored, and therefore absent from a fresh checkout. NEXT_PUBLIC_BAKE_
+// CDN_URL remains the explicit override for local bake work or a future CDN
+// repoint. Bump the v1 prefix on a re-bake — see docs/BAKING.md.
 const SUPABASE_BAKE_CDN =
   "https://qllalbklzxtsvqzszigo.supabase.co/storage/v1/object/public/bake/v1";
-const isLocalhost =
-  typeof window !== "undefined" &&
-  /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname);
 const BAKE_BASE =
-  process.env.NEXT_PUBLIC_BAKE_CDN_URL ||
-  (isLocalhost ? "/_bake/cdn" : SUPABASE_BAKE_CDN);
+  process.env.NEXT_PUBLIC_BAKE_CDN_URL || SUPABASE_BAKE_CDN;
 // -slim82: same bake, embedded PNG textures recompressed to WebP q82 (29.3MB ->
 // 6.4MB; EXT_texture_webp decodes natively in three-stdlib's GLTFLoader).
 // Geometry, material names, userData tags and TEXCOORD_1 are byte-identical.

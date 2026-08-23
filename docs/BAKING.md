@@ -293,8 +293,10 @@ The bake writes `public/_bake/desk-window-uv1.glb` (~66MB geometry) and
 tree is **gitignored** and must NOT be committed — 172MB on first paint is
 brutal, and committing binaries bloats the repo. Instead the assets are
 slimmed (~31MB total) and hosted on **public Supabase Storage** (bucket
-`bake`, immutable versioned prefix). `BakedDeskScene` fetches them from there
-in prod and from local disk in dev.
+`bake`, immutable versioned prefix). `BakedDeskScene` fetches that public CDN
+in every environment by default so a clean checkout works without the ignored
+local bake tree. Set `NEXT_PUBLIC_BAKE_CDN_URL=/_bake/cdn` only when explicitly
+testing freshly generated local assets.
 
 > History: the baked homepage once went BLANK in prod because the assets were
 > gitignored → never deployed → the GLB 404'd. This pipeline is the fix. Vercel
