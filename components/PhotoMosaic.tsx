@@ -211,6 +211,22 @@ export default function PhotoMosaic({ photos }: PhotoMosaicProps) {
 
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const layoutRef = useRef<HTMLDivElement | null>(null);
+  const modalRef = useRef<HTMLDivElement | null>(null);
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const returnFocusRef = useRef<HTMLButtonElement | null>(null);
+
+  const closePhoto = useCallback(() => {
+    setActivePhoto(null);
+    window.requestAnimationFrame(() => returnFocusRef.current?.focus());
+  }, []);
+
+  const openPhoto = useCallback(
+    (photo: PhotoCatalogItem, trigger: HTMLButtonElement) => {
+      returnFocusRef.current = trigger;
+      setActivePhoto(photo);
+    },
+    []
+  );
 
   useEffect(() => {
     setVisibleCount(Math.min(INITIAL_BATCH_SIZE, photos.length));
@@ -266,6 +282,11 @@ export default function PhotoMosaic({ photos }: PhotoMosaicProps) {
   const eagerPaths = useMemo(
     () => new Set(visiblePhotos.slice(0, PRIORITY_IMAGE_COUNT).map((photo) => photo.path)),
     [visiblePhotos]
+  );
+
+  const photoOrdinalByPath = useMemo(
+    () => new Map(photos.map((photo, index) => [photo.path, index + 1])),
+    [photos]
   );
 
   const rows = useMemo(
@@ -335,15 +356,48 @@ export default function PhotoMosaic({ photos }: PhotoMosaicProps) {
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        setActivePhoto(null);
+        event.preventDefault();
+        closePhoto();
+        return;
+      }
+
+      if (event.key !== "Tab" || !modalRef.current) {
+        return;
+      }
+
+      const focusable = Array.from(
+        modalRef.current.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+      );
+      if (focusable.length === 0) {
+        event.preventDefault();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
       }
     };
 
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const focusFrame = window.requestAnimationFrame(() =>
+      closeButtonRef.current?.focus()
+    );
     window.addEventListener("keydown", onKeyDown);
     return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [activePhoto]);
+  }, [activePhoto, closePhoto]);
 
   useEffect(() => {
     if (!hasMoreToLoad || !loadMoreRef.current) {
@@ -422,8 +476,16 @@ export default function PhotoMosaic({ photos }: PhotoMosaicProps) {
                         width: `${tile.width}px`,
                         height: `${tile.height}px`
                       }}
-                      onClick={() => setActivePhoto(tile.photo)}
-                      aria-label={`Open details for ${tile.photo.alt}`}
+                      onClick={(event) =>
+                        openPhoto(tile.photo, event.currentTarget)
+                      }
+                      aria-label={`Open photo ${photoOrdinalByPath.get(tile.photo.path) ?? ""}${
+                        tile.photo.location
+                          ? ` from ${tile.photo.location}`
+                          : tile.photo.geoPlace
+                            ? ` estimated near ${tile.photo.geoPlace}`
+                            : ""
+                      }`}
                     >
                       <img
                         src={tileImageUrl(tile.photo, tile.width)}
@@ -449,9 +511,10 @@ export default function PhotoMosaic({ photos }: PhotoMosaicProps) {
         <div
           className="photo-modal-backdrop"
           role="presentation"
-          onClick={() => setActivePhoto(null)}
+          onClick={closePhoto}
         >
           <div
+            ref={modalRef}
             className="card photo-modal"
             role="dialog"
             aria-modal="true"
@@ -459,9 +522,10 @@ export default function PhotoMosaic({ photos }: PhotoMosaicProps) {
             onClick={(event) => event.stopPropagation()}
           >
             <button
+              ref={closeButtonRef}
               type="button"
               className="secondary photo-modal-close"
-              onClick={() => setActivePhoto(null)}
+              onClick={closePhoto}
             >
               Close
             </button>

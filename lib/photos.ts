@@ -96,14 +96,6 @@ export function buildPublicRenderUrl(
   return url.toString();
 }
 
-function deriveAltFromFileName(name: string) {
-  const withoutExt = name.replace(/\.[^.]+$/, "");
-  return withoutExt
-    .replace(/[-_]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
 function normalizeText(value: string | null | undefined) {
   if (!value) {
     return null;
@@ -111,6 +103,23 @@ function normalizeText(value: string | null | undefined) {
 
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function buildPhotoAlt(metadata: MetadataRow | undefined) {
+  const description = normalizeText(metadata?.description);
+  if (description) {
+    return description;
+  }
+
+  const place = normalizeText(metadata?.location);
+  if (place) {
+    return `Travel photograph from ${place}`;
+  }
+
+  const estimatedPlace = normalizeText(metadata?.geo_place);
+  return estimatedPlace
+    ? `Travel photograph estimated near ${estimatedPlace}`
+    : "Travel photograph";
 }
 
 type MetadataRow = {
@@ -211,7 +220,7 @@ export async function listPhotoCatalog(
       id: metadata?.id ?? null,
       path,
       url: buildPublicPhotoUrl(baseUrl, path),
-      alt: deriveAltFromFileName(entry.name) || "Photo",
+      alt: buildPhotoAlt(metadata),
       location: normalizeText(metadata?.location),
       description: normalizeText(metadata?.description),
       songTitle: normalizeText(metadata?.song_title),
