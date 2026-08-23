@@ -16,8 +16,12 @@ const newsreader = Newsreader({
 });
 
 export const metadata: Metadata = {
-  title: "Jason Latz",
-  description: "Minimalist personal website and writing archive."
+  title: {
+    default: "Jason Latz",
+    template: "%s | Jason Latz"
+  },
+  description:
+    "Jason Latz's interactive desk, writing, photography, travel, and experience."
 };
 
 const themeInitScript = `

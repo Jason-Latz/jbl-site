@@ -1,7 +1,13 @@
 import { fetchPublicPhotos } from "@/lib/photos";
 import PhotoMosaic from "@/components/PhotoMosaic";
+import type { Metadata } from "next";
 
 export const revalidate = 60;
+
+export const metadata: Metadata = {
+  title: "Photography",
+  description: "Travel photography and occasional still life by Jason Latz."
+};
 
 export default async function PhotographyPage() {
   const photos = await fetchPublicPhotos();

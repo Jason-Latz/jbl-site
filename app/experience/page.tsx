@@ -1,3 +1,11 @@
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Experience",
+  description:
+    "Jason Latz's education, software engineering experience, projects, and technical skills."
+};
+
 type ExperienceItem = {
   role: string;
   organization: string;

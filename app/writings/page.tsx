@@ -1,8 +1,14 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { formatDate } from "@/lib/date";
 import { fetchPublishedPosts } from "@/lib/posts";
 
 export const revalidate = 60;
+
+export const metadata: Metadata = {
+  title: "Writings",
+  description: "Essays, notes, and reflections by Jason Latz."
+};
 
 export default async function WritingsPage() {
   const posts = await fetchPublishedPosts();
