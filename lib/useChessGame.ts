@@ -213,8 +213,12 @@ export function useChessGame(): UseChessGameResult {
       }
     };
 
-    const loop = async () => {
-      if (disposedRef.current || isPageHidden()) {
+    // `force` runs the fetch even while the tab is hidden — see the twin
+    // comment in lib/useSpotifyLive.ts. A board that mounted hidden used to
+    // sit on "Setting up the board…" (isLoading never resolves) until the
+    // tab was focused. Only the repeating cadence is visibility-gated.
+    const loop = async (force = false) => {
+      if (disposedRef.current || (!force && isPageHidden())) {
         return;
       }
 
@@ -244,7 +248,7 @@ export function useChessGame(): UseChessGameResult {
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
-    void loop();
+    void loop(true);
 
     return () => {
       disposedRef.current = true;
