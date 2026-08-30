@@ -179,6 +179,22 @@ export default function TravelBackgroundWarmup() {
     return () => {
       cancelled = true;
       cancelIdle();
+
+      // "in-progress" is claimed up front so two mounts can't warm the same
+      // photos twice, but every finishing path either stamps "done" or clears
+      // the key. If we're unmounting while it still reads "in-progress" the
+      // work never ran (the visitor navigated inside the idle window) or was
+      // cut off mid-flight — leaving the claim would silently disable the
+      // prefetch for the whole session. Hand the turn back.
+      try {
+        if (
+          sessionStorage.getItem(TRAVEL_PREFETCH_SESSION_KEY) === "in-progress"
+        ) {
+          sessionStorage.removeItem(TRAVEL_PREFETCH_SESSION_KEY);
+        }
+      } catch {
+        // Private mode / disabled storage: nothing to release.
+      }
     };
   }, [pathname]);
 
