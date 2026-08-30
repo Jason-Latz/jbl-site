@@ -4,7 +4,7 @@
 > Purpose: if context is lost, a fresh session reads CLAUDE.md → PLAN.md → this file
 > and knows exactly where things stand and why.
 
-## Current state (2026-06-17)
+## Current state (2026-08-30)
 
 **The preliminary site is LAUNCHED.** `/` is the baked 3D desk, live on
 **www.jasonlatz.com** (`?baked=0` falls back to the live procedural `DeskScene`).
@@ -27,6 +27,51 @@ splits; window parallax; easter eggs; plus the deferred `/admin` moderation UI
 for `desk_notes`.
 
 ## Session log
+
+### 2026-08-30 — Five bug fixes: stale headline, hidden-tab polling, wedged prefetch, globe modal
+
+A bug-hunting pass over the live site. Seven commits; `npm run build` green,
+`npx tsc --noEmit` clean, `npm test` 34/34.
+
+- **A stale "last played" track froze on the desk HUD.** `useSpotifyLive`'s
+  value-equal bailout compares payloads, but the headline it feeds is resolved
+  against the CLOCK (`selectLeadTrack` only lets a stored play stand in for
+  `LEAD_TRACK_FRESHNESS_MS`). Spotify's recently-played store lags and stops
+  changing once Jason stops listening, so identical payloads kept arriving,
+  `setData` kept returning `prev`, nothing re-rendered, `selectLeadTrack` was
+  never re-run — and the track that aged out ten minutes ago stayed on the HUD
+  indefinitely. This is the "old song shown forever after I stop" bug that
+  `lib/spotifyLeadTrack.ts` exists to kill, resurrected one layer up by a
+  memoization. **Lesson: a bailout keyed on data identity is wrong for any
+  value derived from `Date.now()`.** Fix: take the fresh payload while a stored
+  headline is on screen; the bailout resumes once it has aged out.
+- **Nothing loaded when a page mounted hidden.** All four pollers
+  (`useSpotifyLive`, `useChessGame`, `SpotifyNowPlaying`, `DuolingoStreak`)
+  returned before their FIRST read when `document.visibilityState === "hidden"`,
+  which is the state for a cmd-clicked link, a restored background tab, or a
+  prerender. Result: the HUD sat on "Nothing playing right now", ChessPanel on
+  "Setting up the board…", and the ribbon on "Loading…", with no request ever
+  sent, until the tab was focused. Now the first read is forced and only the
+  repeating cadence is visibility-gated. (Reproduced directly: the in-app
+  preview pane reports `visibilityState: "hidden"`, which is why the desk always
+  looked dead in it — that was the bug, not the tool.)
+- **`TravelBackgroundWarmup` wedged its own session flag.** It stamps
+  `sessionStorage` `"in-progress"` up front, then does the work inside a 2.5 s
+  `requestIdleCallback`. A visitor who clicked through inside that window
+  cancelled the callback, so nothing ever stamped `"done"` — and every later page
+  in the session read `"in-progress"` and returned early, disabling the travel
+  image prefetch for the whole visit. Cleanup now releases a claim that is still
+  `"in-progress"`.
+- **The globe's photo lightbox wasn't a modal.** It carried `role="dialog"
+  aria-modal="true"` but none of the behavior: the page scrolled behind the
+  backdrop, focus never entered it, and Tab walked the gallery underneath — a
+  keyboard visitor could open a photo and never reach Close. Given the same
+  treatment `PhotoMosaic`'s lightbox already had (scroll lock, focus in, Tab
+  trap, focus returned).
+- **Escape closed two globe layers at once.** The stage handler cleared
+  `activePhoto` AND the selected place in one keystroke, so Escape on a photo
+  skipped the gallery and dumped the visitor on the bare globe. The stage handler
+  now stands down while the lightbox is open.
 
 ### 2026-07-16 — Overnight run: poster-first load, 78% slimmer GLB, Reading Room inner pages
 
