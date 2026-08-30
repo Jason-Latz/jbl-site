@@ -6,6 +6,7 @@
 // so the ribbon and the 3D desk share one cache and stay in sync.
 
 import { useEffect, useState } from "react";
+import { selectLeadTrack } from "@/lib/spotifyLeadTrack";
 
 export type SpotifyNowPlayingPayload = {
   trackName: string;
@@ -180,11 +181,25 @@ export function useSpotifyLive(): UseSpotifyLiveResult {
         // Value-equal bailout (fetchedAt excluded): most 45 s polls return
         // the same track and stats, and an always-fresh object identity
         // re-rendered the hero mid-animation for nothing.
+        //
+        // But a stored "last played" headline ages out on the CLOCK, not on
+        // the payload (lib/spotifyLeadTrack.ts), and the recently-played
+        // store lags real time — so identical payloads keep arriving after
+        // the track has passed the freshness window. Bailing out then means
+        // no consumer ever re-renders, `selectLeadTrack` is never re-run,
+        // and the track sits on the HUD forever: the "old song shown after I
+        // stop" bug. While such a headline is on screen, take the new
+        // payload; once it has aged out the bailout resumes.
         setData((prev) => {
           if (prev) {
+            const headlineAgesOut =
+              !payload.nowPlaying && selectLeadTrack(payload) !== null;
             const { fetchedAt: _a, ...prevRest } = prev;
             const { fetchedAt: _b, ...nextRest } = payload;
-            if (JSON.stringify(prevRest) === JSON.stringify(nextRest)) {
+            if (
+              !headlineAgesOut &&
+              JSON.stringify(prevRest) === JSON.stringify(nextRest)
+            ) {
               return prev;
             }
           }
