@@ -207,6 +207,7 @@ export default function SpotifyNowPlaying() {
   const [consecutiveErrors, setConsecutiveErrors] = useState(0);
   const [isPageVisible, setIsPageVisible] = useState(getIsDocumentVisible);
   const consecutiveErrorsRef = useRef(0);
+  const hasFetchedRef = useRef(false);
 
   useEffect(() => {
     try {
@@ -294,7 +295,12 @@ export default function SpotifyNowPlaying() {
   }, []);
 
   useEffect(() => {
-    if (!isPageVisible) {
+    // Skip only once the first read is behind us. A page can mount hidden —
+    // a cmd-clicked link, a restored background tab, a prerender — and
+    // returning here before ever fetching leaves the ribbon on
+    // "Loading Spotify listening activity..." until the tab is focused. The
+    // repeat cadence below stays gated on visibility either way.
+    if (!isPageVisible && hasFetchedRef.current) {
       return;
     }
 
@@ -302,8 +308,11 @@ export default function SpotifyNowPlaying() {
     let timer: ReturnType<typeof setTimeout> | null = null;
 
     const loop = async () => {
+      hasFetchedRef.current = true;
       await fetchSpotifyLive();
-      if (disposed) {
+      // A hidden mount gets its one read, then stops: the effect re-runs and
+      // restarts the cadence as soon as the tab becomes visible.
+      if (disposed || !isPageVisible) {
         return;
       }
 
