@@ -134,6 +134,17 @@ admin, Spotify pipeline).
   `nowPlaying` wins (covers pause too); a stored play only stands in as "last played"
   if its `playedAt` is within `LEAD_TRACK_FRESHNESS_MS`; else "Nothing playing right
   now". Don't reintroduce a raw `nowPlaying ?? recentTracks[0]`.
+- **`selectLeadTrack` is clock-derived, so no memo may gate it on data identity.**
+  `useSpotifyLive`'s value-equal poll bailout re-broke the "old song shown forever"
+  bug in 2026-08-30: the store stops changing once Jason stops, so identical
+  payloads bailed, nothing re-rendered, and the aged-out track stayed on the HUD.
+  Any bailout must let a payload through while a stored headline is on screen.
+- **Poll loops must take their FIRST read even when the tab is hidden.** A page
+  can mount with `document.visibilityState === "hidden"` (cmd-clicked link,
+  restored background tab, prerender). Gate the repeating cadence on visibility,
+  never the initial fetch — that left the HUD, the chess board and the activity
+  ribbon on their loading copy with no request sent. NOTE: the in-app preview
+  pane is ALWAYS `hidden` (it also freezes rAF, so the 3D never reveals there).
 - The white-noise filter (`isWhiteNoiseListening`) must run on EVERY read surface
   (live + stored recent + today-stats + top-artists) — a 3h white-noise track will
   otherwise headline as "last played" and add ~180 min to "today".
