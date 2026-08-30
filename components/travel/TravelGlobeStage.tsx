@@ -267,16 +267,23 @@ export default function TravelGlobeStage({
     }
   }, [places]);
 
+  // Escape peels ONE layer. The lightbox owns its own Escape handler, so while
+  // a photo is open this one stands down: dismissing both at once dropped the
+  // visitor from inside a photo all the way back to the bare globe, throwing
+  // away the place gallery they were browsing.
   useEffect(() => {
+    if (activePhoto) {
+      return;
+    }
+
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        setActivePhoto(null);
         selectPlace(null);
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [selectPlace]);
+  }, [activePhoto, selectPlace]);
 
   // Before detection resolves, hold the globe's footprint with the loading
   // shimmer rather than painting the full place list and then yanking it out
