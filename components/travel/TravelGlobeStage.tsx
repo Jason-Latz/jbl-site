@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSiteTheme } from "@/components/desk/useSiteTheme";
 import { buildTravelRenderUrlForDisplayWidth } from "@/lib/travel-image";
 import type { GlobePhoto, GlobePlace } from "@/lib/travelGlobe";
@@ -52,12 +52,65 @@ function PhotoLightbox({
   place: GlobePlace;
   onClose: () => void;
 }) {
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+
+  // Real modal behaviour, matching the mosaic's lightbox in PhotoMosaic.tsx:
+  // Escape closes, the page behind stops scrolling, focus moves in and is
+  // trapped, and it goes back where it came from on close. Without this the
+  // backdrop was a picture rather than a modal — the page scrolled underneath
+  // it, and keyboard focus stayed on the thumbnail behind the overlay, so
+  // tabbing wandered through a gallery nobody could see.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+
+      if (event.key !== "Tab" || !dialogRef.current) {
+        return;
+      }
+
+      const focusable = Array.from(
+        dialogRef.current.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+      );
+      if (focusable.length === 0) {
+        event.preventDefault();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
+
+    const returnFocusTo =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const focusFrame = window.requestAnimationFrame(() =>
+      closeButtonRef.current?.focus()
+    );
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+      returnFocusTo?.focus();
+    };
   }, [onClose]);
 
   const pct =
@@ -66,13 +119,19 @@ function PhotoLightbox({
   return (
     <div className="photo-modal-backdrop" role="presentation" onClick={onClose}>
       <div
+        ref={dialogRef}
         className="card photo-modal"
         role="dialog"
         aria-modal="true"
         aria-label={`Photo from ${place.name}`}
         onClick={(event) => event.stopPropagation()}
       >
-        <button type="button" className="secondary photo-modal-close" onClick={onClose}>
+        <button
+          ref={closeButtonRef}
+          type="button"
+          className="secondary photo-modal-close"
+          onClick={onClose}
+        >
           Close
         </button>
         <img
