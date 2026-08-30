@@ -225,8 +225,13 @@ export function useSpotifyLive(): UseSpotifyLiveResult {
       }
     };
 
-    const loop = async () => {
-      if (disposed || isPageHidden()) {
+    // `force` runs the fetch even while the tab is hidden. A page can mount
+    // hidden — a cmd-clicked link, a restored background tab, a prerender —
+    // and gating the FIRST read on visibility left the HUD stuck on
+    // "Nothing playing right now" (and isLoading pinned true) until the tab
+    // was focused. Only the repeating cadence is visibility-gated.
+    const loop = async (force = false) => {
+      if (disposed || (!force && isPageHidden())) {
         return;
       }
 
@@ -256,7 +261,7 @@ export function useSpotifyLive(): UseSpotifyLiveResult {
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
-    void loop();
+    void loop(true);
 
     return () => {
       disposed = true;
