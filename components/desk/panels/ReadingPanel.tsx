@@ -66,9 +66,8 @@ export default function ReadingPanel() {
   return (
     <>
       <section className="desk-panel-section">
-        <h3 className="desk-panel-section-title">From the writing desk</h3>
-        <p className="desk-panel-meta">Essays and notes of my own.</p>
-        <Link className="desk-panel-button" href="/writings">Open the notebook ↗</Link>
+        <h3 className="desk-panel-section-title">Writings</h3>
+        <Link className="desk-panel-button" href="/writings">Read my writing ↗</Link>
       </section>
       <Shelf title="Favorites" books={favorites} />
       <Shelf title="Currently reading" books={current} />

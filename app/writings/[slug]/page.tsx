@@ -35,15 +35,17 @@ export default async function WritingPage({
 
   return (
     <div className="writing-detail">
-      <nav className="writing-detail-nav" aria-label="Writing navigation"><Link href="/writings">← All writings</Link><a href="/desk?focus=reading">The bookshelf ↗</a></nav>
-    <article className="section content writing-paper">
-      <h1>{post.title}</h1>
-      <p className="post-meta">
-        {post.published_at ? formatDate(post.published_at) : "Draft"}
-      </p>
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
-    </article>
-    <Link className="writing-detail-back" href="/writings">Back to the notebook →</Link>
+      <nav className="writing-detail-nav" aria-label="Writing navigation">
+        <Link href="/writings">← All writings</Link>
+      </nav>
+      <article className="section content writing-paper">
+        <h1>{post.title}</h1>
+        <p className="post-meta">
+          {post.published_at ? formatDate(post.published_at) : "Draft"}
+        </p>
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+      </article>
+      <Link className="writing-detail-back" href="/writings">← All writings</Link>
     </div>
   );
 }
