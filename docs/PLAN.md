@@ -1,5 +1,28 @@
 # The Desk — staged roadmap
 
+## October 5, 2026 — responsive front door
+
+The current implementation makes `/` a server-rendered landing page. The 3D
+room now lives at `/desk` and starts only after explicit entry. This supersedes
+the automatic-homepage direction in the historical roadmap below.
+
+- [x] Static home with direct content links and a theme-aware desk postcard
+- [x] Writings as a notebook: featured entry, numbered archive, bookshelf and scratch-pad links
+- [x] Skip gallery warmup on home, desk, and writings; defer home activity until near the viewport
+- [x] Remove the entrance camera flight and shorten scene reveal; preserve navigation/recovery during loading
+- [x] Remove the Supabase catalog dependency from browser image URL helpers; deduplicate article/metadata reads
+- [ ] Profile `/desk` on a midrange phone: model parsing, live-object texture generation, shader compilation, and sustained dragging. Tune measured bottlenecks without lowering visible quality
+- [ ] Investigate merging compatible static bake materials/meshes to reduce draw calls. Keep lightmap UVs and verify with the production decoder before replacing the asset
+- [ ] Evaluate compressed GPU textures or staged decode for lightmaps only after measuring texture upload stalls and verifying both themes
+- [ ] Capture new desk posters at the current resting view so the still and interactive reveal share the same framing and lighting
+- [ ] Restore Spotify authentication: local verification logs `Spotify token refresh failed with status 400`; existing UI/API fallbacks work, but live playback needs a fresh authorized token
+- [ ] Add real-user navigation/interaction measurements and an automated startup budget (including zero desk requests before entry)
+- [ ] Plan the existing Next.js security upgrade with the React/Three stack; keep it separate from this UX pass
+
+Verification details are in `CODEBASE_GUIDE.md` under desk startup.
+
+---
+
 The homepage becomes a single warm, lamplit 3D desk. Every object on it is real data:
 the turntable plays what Jason is actually listening to, the bookshelf holds what he's
 actually reading, the notepad is a public guestbook, the chessboard is one ongoing

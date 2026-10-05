@@ -29,13 +29,16 @@ The site is intentionally minimal and server-rendered where possible.
 ```
 app/
   layout.tsx               # Global shell (header/nav/main/footer) + metadata
-  page.tsx                 # Home page
+  page.tsx                 # Static front door; explicit link to /desk
+  landing.css              # Homepage-only postcard/directory styles
+  desk/page.tsx            # Opt-in interactive desk
   globals.css              # Global styles and component utility classes
   experience/page.tsx      # Static experience timeline
   travel/page.tsx          # Public travel page: interactive 3D globe of geolocated photos
   travel/quality-lab/page.tsx # Side-by-side quality comparison page for travel images
   photography/page.tsx     # Public photography page: the gapless justified mosaic
-  writings/page.tsx        # Published writings list page
+  writings/page.tsx        # Notebook archive + bookshelf/guestbook links
+  writings/writings.css    # Notebook archive and article paper styles
   writings/[slug]/page.tsx # Single published post page
   admin/page.tsx           # Admin page wrapper
   admin/AdminEditor.tsx    # Client-side admin dashboard (auth + posts + photo uploads)
@@ -55,7 +58,8 @@ components/
   SiteNav.tsx              # Main nav links
   ThemeToggle.tsx          # Client theme switcher (light/dark with localStorage persistence)
   SiteFooter.tsx           # Footer copyright + social links
-  desk/DeskHero.tsx        # Small poster-first shell and capability gate
+  HomeActivity.tsx         # Mounts homepage activity pollers near the viewport
+  desk/DeskHero.tsx        # /desk poster shell, capability/error gate, recovery links
   desk/DeskInteractive.tsx # Deferred panels, audio, live data, and 3D scene
   desk/BakedDeskScene.tsx  # Baked Three.js scene; static model + CDN lightmaps
   SpotifyNowPlaying.tsx    # Home-page Spotify ribbon panel polling /api/spotify/live
@@ -71,7 +75,8 @@ content/
 
 lib/
   spotify.ts               # Spotify OAuth token refresh + data aggregation
-  posts.ts                 # Supabase public-read helpers for published content
+  posts.ts                 # Supabase public-read helpers; request-deduplicated slug reads
+  photo-url.ts             # Pure browser-safe storage/render URL construction
   photos.ts                # Shared photo catalog helper (storage objects + metadata, incl. geo fields)
   travelGlobe.ts           # Server: fetchGlobePlaces() — placed photos grouped by gazetteer place
   travel-image.ts          # Shared travel render URL + warmup constants/helpers
@@ -101,7 +106,7 @@ vercel.json                # Vercel cron schedules for Spotify history sync + tr
 
 ### 4.1 App shell and layout
 
-`app/layout.tsx` is the root layout and does seven key things:
+`app/layout.tsx` is the root layout and provides the following:
 
 1. Loads Google fonts (`Inter`, `Newsreader`) and exposes them as CSS variables.
 2. Disables `adjustFontFallback` for `Newsreader` to avoid noisy dev-time font override warnings in Next.js.
@@ -109,41 +114,45 @@ vercel.json                # Vercel cron schedules for Spotify history sync + tr
 4. Renders global chrome: header with site title + nav, main content container, and footer with social links.
 5. Initializes the persisted light/dark theme during HTML parsing (a native inline script reading `localStorage.site-theme`, defaulting to light mode when no stored preference exists). The theme and active poster preload do not wait for the Next.js script runtime.
 6. Adds Supabase host `preconnect` + `dns-prefetch` hints when `NEXT_PUBLIC_SUPABASE_URL` is configured to reduce connection setup cost before travel image requests.
-7. Mounts `TravelBackgroundWarmup` so inner routes other than travel/photography can warm likely first-view gallery image variants during idle time; the homepage skips this work.
+7. Mounts `TravelBackgroundWarmup` for idle gallery warmup on other inner routes. Home, desk, writings, travel, and photography skip this work. Its URL helper imports `lib/photo-url.ts`, avoiding the Supabase catalog client in the shared browser bundle.
 8. Keeps designed `not-found.tsx` and `error.tsx` recovery states inside the same shell instead of exposing framework-default dead ends.
 
 This means every route is rendered inside the same visual shell by default.
 
 ### 4.2 Public pages
 
-- `/` (`app/page.tsx`): poster-first interactive 3D desk (`DeskHero` → `DeskInteractive` → `BakedDeskScene`), single-line collapsible Spotify + Duolingo activity ribbon, dynamic “latest writing” card sourced from a dedicated single-row published-post query, and a “now” card. The latest-writing query has its own Suspense boundary; it cannot hold back the header, desk poster, or intro. ISR remains `revalidate = 60`. The default model is the committed `/desk-static-f5fbb9104223.glb`; its lightmaps remain on the immutable public Supabase `bake/v1` CDN. `NEXT_PUBLIC_BAKE_CDN_URL` overrides both the model source (using `desk-window-uv1-slim82.glb`) and lightmaps for local bake work.
+- `/` (`app/page.tsx`, `app/landing.css`): server-rendered front door with an intro, theme-aware landscape desk postcard, direct directory links, and the latest writing. It never imports or mounts `DeskHero`, Three.js, panels, or desk pollers. Desk entry uses ordinary HTML anchors to `/desk` so hover cannot start route/chunk prefetch. Latest-writing data has its own Suspense boundary and a usable archive-link fallback; ISR remains `revalidate = 60`. `components/HomeActivity.tsx` reserves the compact ribbon and dynamically mounts the existing Spotify/Duolingo widgets when they are within 100 px of the viewport; their APIs and polling behavior are unchanged.
+- `/desk` (`app/desk/page.tsx`): the deliberately entered interactive 3D room (`DeskHero` → `DeskInteractive` → `BakedDeskScene`). The default model remains `/desk-static-f5fbb9104223.glb`; immutable lightmaps remain on Supabase `bake/v1`. `NEXT_PUBLIC_BAKE_CDN_URL` overrides model/lightmap sources for local bake work. `/desk?focus=records|work|reading|notes|chess` opens a panel; `/desk?baked=0` retains the procedural scene. `next.config.js` redirects legacy `/?focus=…` and `/?baked=0|1` requests with HTTP 307 while keeping ordinary `/` static. The bookshelf panel links to writings; the scratch pad remains the existing moderated guestbook.
 - `/experience` (`app/experience/page.tsx`): static, resume-style sections (education, professional experience, projects, technical skills, activities) rendered as cards.
 - `/travel` (`app/travel/page.tsx`): server-rendered route that fetches `public.photos` grouped by their estimated place (`lib/travelGlobe.ts`) and hydrates the interactive 3D globe (`components/travel/TravelGlobeStage` → `TravelGlobe`, react-three-fiber). Each place with photos is a glowing pin; clicking one flies the globe to it and opens a gallery panel (thumbnails → lightbox) showing the photos shot there, with an "estimated location · NN% confidence" badge. `?place=<name>` deep-links a selection. A server-rendered place list is kept in the DOM (visually hidden) for crawlers, and is the designed fallback for no-WebGL / reduced-motion / no-JS visitors. See §4.7 for how photos get placed.
 - `/travel/quality-lab` (`app/travel/quality-lab/page.tsx`): visual tuning route that renders the same sampled photos side-by-side as `Preferred (q92)`, `Fallback (q90)`, and `Original` to compare sharpness versus payload strategy.
 - `/photography` (`app/photography/page.tsx`): the gapless justified mosaic (`PhotoMosaic`) built from storage images plus metadata from `public.photos`; renders an initial top batch, appends more as the user scrolls, uses justified row packing (not fixed columns) so photos rewrap for best fit, and serves width-only transformed tiles at roughly `q92` so aspect ratio is preserved without crop. Clicking a tile opens a lightbox with location/description/song metadata.
-- `/writings` (`app/writings/page.tsx`): server component fetching published posts from Supabase via `lib/posts.ts`.
-- `/writings/[slug]` (`app/writings/[slug]/page.tsx`): server component fetching one published post by slug; returns `notFound()` if missing.
+- `/writings` (`app/writings/page.tsx`, `app/writings/writings.css`): server-rendered notebook archive. The newest published post is featured, remaining entries form a numbered index, and margin links open the desk's bookshelf or guestbook. The masthead and margin render outside the archive's Suspense boundary. The decorative notebook/books are HTML/CSS, with no 3D dependencies or image requests.
+- `/writings/[slug]` (`app/writings/[slug]/page.tsx`): paper-style article with explicit archive/back navigation; returns `notFound()` if missing. `fetchPostBySlug` uses React `cache` so metadata and the article share one Supabase query per server render.
 
 `/` and both writings routes set `export const revalidate = 60`; `/travel` sets `revalidate = 3600` (newly geolocated photos appear within the hour without a redeploy). Page data is ISR-cached accordingly.
 
-For perceived gallery-load speed, inner routes other than `/travel` and `/photography` run a one-time, session-scoped background warmup. The home page skips it so gallery downloads cannot compete with desk startup:
+For perceived gallery-load speed, other inner routes run a one-time, session-scoped background warmup. `/`, `/desk`, `/writings` (including articles), `/travel`, and `/photography` skip it so unrelated image downloads do not compete with navigation, desk startup, or reading:
 
 1. `TravelBackgroundWarmup` waits until browser idle time.
 2. It skips warmup when `Save-Data` is enabled or the connection is `2g/3g`.
 3. It fetches top photos from `GET /api/travel/prefetch`.
 4. It preloads the expected first-view transformed variant URLs (q92) with concurrency limits.
 
-#### Homepage startup and model delivery
+#### Desk startup and model delivery
 
-- `components/desk/DeskHero.tsx` is a small server-rendered client shell containing the poster. After two animation frames it checks WebGL/reduced motion, starts low-priority asset preloads, and mounts the dynamically imported `DeskInteractive.tsx`. Panels, audio, data hooks, and Three.js do not participate in its initial hydration. Reduced-motion/no-WebGL visits keep the designed still and do not preload the bake.
+- `components/desk/DeskHero.tsx` is mounted only on `/desk`. After two animation frames it checks WebGL/reduced motion, starts low-priority asset preloads, and mounts the dynamically imported `DeskInteractive.tsx`. Reduced-motion/no-WebGL visits keep the still and direct writing/home links. While the scene prepares, a plain loading dock has a writing link; after 12 seconds its message acknowledges the delay. A local scene error boundary preserves the poster/navigation and offers retry if the interactive tree throws. No-JS visits get a still and writing link. `app/layout.tsx` preloads only the active theme's landscape poster on home; on `/desk`, it selects landscape/portrait by orientation.
 - `lib/desk-assets.ts` is the shared model URL and active-theme lightmap manifest (13 named units). Low-priority CORS preloads download the model and maps alongside scene code; the model no longer has to parse before map requests start. Re-check the manifest against named non-emissive materials when changing the bake.
 - `public/desk-static-f5fbb9104223.glb` removes baked duplicates of the four live overlays (MacBook, chessboard, turntable, notepad) and exported lights. The source was [the public slim bake](https://qllalbklzxtsvqzszigo.supabase.co/storage/v1/object/public/bake/v1/desk-window-uv1-slim82.glb), SHA-256 `947b8036797d25fe10e0c10e812d9c4ff0916afa4e648e80d7952cbd268ea531`: 6,363,900 bytes, 261 meshes, 188 materials, 85 textures. The static-only model is 3,125,024 bytes, 142 meshes, 130 materials, 71 textures. No visible geometry or texture quality was reduced; baked contact shadows remain in the lightmaps.
 - `scripts/bake/prune_live_overlays.mjs <source.glb> <output.glb>` regenerates the static-only model, preserving `TEXCOORD_1`, object tags, texture bytes, and placements. It requires `meshoptimizer@0.18.1`; never silently switch encoders. `scripts/bake/verify_static_glb.mjs <source.glb> <output.glb>` uses the production Three.js decoder and verifies visible vertex attributes, oriented triangle topology, placement matrices, and texture hashes. Re-encoding can rotate triangle indices or narrow their integer type without changing geometry.
 - Regeneration example: `node scripts/bake/prune_live_overlays.mjs /path/to/desk-window-uv1-slim82.glb public/desk-static-next.glb`, then `node scripts/bake/verify_static_glb.mjs /path/to/desk-window-uv1-slim82.glb public/desk-static-next.glb`. Name the final asset with the first 12 hex digits of its SHA-256 and update `BAKED_GLB_URL` in `lib/desk-assets.ts`; do not overwrite an immutable URL. `next.config.js` serves `/desk-static-:hash.glb` with `public, max-age=31536000, immutable`. Commit the resulting asset (the ignored `public/_bake` tree is not delivered by Git deployments).
 - `BakedDeskScene.tsx` mounts the four live objects across separate tasks. Its canvas begins with `frameloop="never"`: rendering an opacity-zero canvas still forces synchronous first-draw shader compilation. Once the model, all overlays, and active maps are ready, `compileAsync` prepares the graph before the render loop starts. Readiness is stored in the Canvas owner's React state and changes its declared `frameloop` prop to `"always"`; an imperative `setFrameloop` with a still-declared `"never"` prop is reset by Canvas reconfiguration after a parent render, freezing dragging and animation. Three drawn frames reveal the scene; the existing 8-second post-parse backstop remains. Older override models have hidden duplicates removed from the scene graph, since `compileAsync` traverses invisible meshes too.
-- The initial camera flight is 0.45 seconds; focus-view flights remain 1.05 seconds. `SiteNav.tsx` suppresses automatic prefetch for travel, photography, and admin. `app/loading.tsx` keeps the shared header available while server-backed routes load.
+- Both desk scenes start directly at their resting/focused camera view instead of flying in from `CAMERA.start`; orbit controls are immediately enabled at rest. Focus-view flights remain 1.05 seconds. The prepared canvas fades in over 0.35 seconds. `SiteNav.tsx` uses a native desk anchor and suppresses automatic prefetch for travel, photography, and admin. `app/loading.tsx` keeps the shared header available while server-backed routes load.
 - Production builds must be able to reach Supabase while prerendering. The content helpers can log a fetch/DNS error and generate empty fallback pages even when `next build` exits successfully; verify actual content and rerun with authorized network access if the build was sandbox-blocked. Interaction verification must include dragging after the reveal and after a theme-driven parent render.
-- Verification: production build and TypeScript checks pass; the static-model invariant verifier passes against the downloaded source; the existing 34 tests pass. A local production-build browser run with cold asset requests measured the header at 113 ms, first contentful paint at 112 ms, scene reveal at 2,261 ms, and the longest sampled event-loop stall at 554 ms. These are local diagnostics, not production latency guarantees; network, GPU caches, and device performance vary. With the model response deliberately delayed by 8 seconds, Writings opened while the desk was still unready. Light and dark scenes and the Work focus panel were checked in the browser. `/`, `/writings`, `/travel`, `/admin`, and `/photography` returned HTTP 200; the model returned the immutable cache header.
+- October 5 static-entry verification: `npm run dev -- --hostname 127.0.0.1 --port 3100`, `npm run build`, TypeScript/build lint, and all 34 existing tests passed. Real post titles were verified in `.next/server/app/index.html` and `.next/server/app/writings.html`; no Supabase fetch failures occurred during the network-enabled build. Home, desk, writings, travel, photography, and admin returned HTTP 200; legacy focus/bake URLs returned 307 to `/desk`.
+- A temporary localhost diagnostics proxy against `npm run start -- --hostname 127.0.0.1 --port 3101` measured the final production home at approximately 153 ms for header/content discovery and 180 ms for first contentful paint, zero desk model/lightmap requests, zero long tasks, zero layout shift, and a maximum sampled event-loop delay of 3.9 ms during a 15-second desktop visit. These are local observations, not production latency guarantees. The former global Supabase chunk (172,222 uncompressed bytes) disappeared from home requests after extracting `lib/photo-url.ts`; the build's initial JS estimates for `/photography` and `/travel` dropped from 144/145 kB to 90.8/91.6 kB. Native entry anchors kept the desk off speculative navigation downloads.
+- Browser verification covered light/dark home and notebook layouts, 390 px phone layouts without horizontal overflow, article text/footnotes and back links, writings → bookshelf → writings, and navigation away while the model response was artificially delayed eight seconds. Desk dragging worked after scene readiness and after a theme change. The remaining rendering/asset investigations and the observed local Spotify refresh-token failure (HTTP 400 upstream, handled by the existing fallback) are tracked in `docs/PLAN.md`.
+- Earlier automatic-homepage verification: the static-model invariant verifier passed against the downloaded source, with production build, TypeScript checks, and 34 existing tests passing. That version's cold local run measured header at 113 ms, first contentful paint at 112 ms, scene reveal at 2,261 ms, and a maximum sampled event-loop stall of 554 ms. These historical measurements describe the automatic desk startup, not the current static home. Light/dark scenes, the Work panel, delayed-load navigation, and immutable model delivery were checked before moving the scene to `/desk`.
 
 ### 4.3 Home activity ribbon (Spotify + Duolingo)
 
@@ -804,7 +813,7 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 2. Updating a published post resets `published_at`, which changes archive ordering and apparent publish date.
 3. No delete/unpublish history or versioning.
 4. Unit tests cover editor text/markdown commands and publish-date behavior, but there are no integration or end-to-end test suites yet.
-5. `app/loading.tsx` provides a shared loading state that leaves navigation available; public routes do not yet have individual skeletons. The home latest-writing card has its own Suspense fallback.
+5. `app/loading.tsx` provides a shared loading state that leaves navigation available. Home's latest-writing card and the writings archive have local Suspense fallbacks; desk loading keeps a poster and direct links available.
 6. Page metadata now has route-specific titles/descriptions for the primary public pages, but it does not yet include a configured production `metadataBase`, canonical URLs, or custom Open Graph imagery.
 7. Spotify "today" stats are approximate because `/me/player/recently-played` returns only the latest 50 tracks.
 8. Spotify now-playing and recent-play endpoints depend on account/app permissions and may return `502` via `/api/spotify/live` when OAuth scope or account constraints are not satisfied.
@@ -819,7 +828,7 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 1. Request hits Next app route.
 2. `WritingsPage` server component calls `fetchPublishedPosts()`.
 3. Supabase returns rows where `published = true` (enforced by query + RLS).
-4. Page renders cards with title/date/excerpt links.
+4. The notebook masthead and margin appear immediately; the published list resolves into a featured newest entry and a numbered archive.
 5. Result can be served from ISR cache for up to 60 seconds.
 
 ### Admin save post (`/admin`)
@@ -850,7 +859,7 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 11. Mosaic tiles use width-only transformed URLs (`q92` target, `resize=contain`) to keep captured aspect ratios while reducing transfer/decode cost; requested widths are quantized into fixed buckets so small zoom drags reuse cached image variants.
 12. If a transformed tile request fails, `PhotoMosaic` falls back that tile to its original public object URL so zoom-level edge cases do not show a broken image icon.
 13. `/travel` includes a draggable zoom slider (25% to 200%) with a single Reset action and no on-screen percentage text labels; zoom changes row target height and triggers reflow (instead of scaling one fixed block), with `100%` tuned to the denser look that was previously around `200%`. Zoom control state is deferred for row recomputation to keep slider interaction smooth.
-14. Inner routes other than travel/photography run one idle-time warmup per session via `GET /api/travel/prefetch`; the homepage skips it. On the current Hobby-plan deployment, Vercel cron calls `GET /api/travel/prewarm` once daily to refresh a light top-image variant set. Both routes intentionally use the limited `{ path, url }` helper in `lib/photos.ts` so they only list the top storage objects they warm instead of rebuilding the full `/travel` metadata catalog.
+14. Other inner routes run one idle-time warmup per session via `GET /api/travel/prefetch`; home, desk, writings, travel, and photography skip it. On the current Hobby-plan deployment, Vercel cron calls `GET /api/travel/prewarm` once daily to refresh a light top-image variant set. Both routes intentionally use the limited `{ path, url }` helper in `lib/photos.ts` so they only list the top storage objects they warm instead of rebuilding the full `/travel` metadata catalog.
 15. Clicking a photo opens metadata in the modal with the original image URL.
 
 ## 16) File-by-file quick reference
@@ -858,12 +867,12 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 - `app/layout.tsx`: global app shell and typography setup, plus Supabase preconnect/dns-prefetch hints and background travel warmup mount.
 - `app/not-found.tsx`: designed 404 recovery with links back home and to writings.
 - `app/error.tsx`: client error boundary with retry and home recovery actions.
-- `app/page.tsx`: landing content + shared one-line activity ribbon.
+- `app/page.tsx`, `app/landing.css`: static entry, desk postcard, direct directory, latest writing, and viewport-deferred activity ribbon.
   - latest writing card is dynamically populated from a dedicated newest-post query instead of loading the full archive
 - `app/travel/page.tsx`: interactive 3D globe shell backed by cached geolocated photo groupings.
 - `app/travel/quality-lab/page.tsx`: side-by-side travel image quality comparison route for evaluating `q92`, `q90`, and original delivery against the same photos.
 - `app/photography/page.tsx`: public gapless justified photo mosaic with zoom controls and metadata details.
-- `app/writings/page.tsx`: archive list page for published posts.
+- `app/writings/page.tsx`, `app/writings/writings.css`: notebook archive, featured newest post, and bookshelf/guestbook links.
 - `app/writings/[slug]/page.tsx`: individual published post renderer + metadata.
 - `app/experience/page.tsx`: static resume-style profile sections for education, work, projects, skills, and activities.
 - `app/admin/page.tsx`: admin route wrapper, forced dynamic render, and signed-in non-editor redirect to `/writings`.
@@ -883,18 +892,19 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 - `components/ThemeToggle.tsx`: client-side light/dark theme switcher in the site header (persists selection and respects system preference when no explicit selection exists).
 - `components/SiteFooter.tsx`: footer with dynamic copyright year and external links to LinkedIn, GitHub, and Instagram.
 - `components/SiteNav.tsx`: primary navigation (includes `/travel` link).
-- `components/desk/DeskHero.tsx`: small poster-first capability gate and deferred interactive mount.
+- `app/desk/page.tsx`, `components/desk/DeskHero.tsx`: opt-in room, poster-first capability gate, scene error boundary, and loading recovery links.
 - `components/desk/DeskInteractive.tsx`: desk panels, audio, live-data orchestration, and dynamically loaded scene.
 - `components/desk/BakedDeskScene.tsx`: default baked Three.js scene with staged overlays and compilation before drawing; uses the committed static-only model plus versioned CDN lightmaps unless overridden.
 - `lib/desk-assets.ts`: shared model URL and active lightmap preload manifest.
 - `app/loading.tsx`: shared route fallback that keeps the header available.
 - `components/PhotoMosaic.tsx`: justified row packer with progressive top-down batch loading, width-only `q92` transformed tile URLs (`resize=contain`) with quantized width buckets and per-tile original-URL fallback on transform errors, draggable 25%-200% zoom + reset (no on-screen percent labels) that reflows rows (with `100%` mapped to the denser former `200%` look and deferred layout recompute), human-readable photo labels, and a focus-managed metadata modal on `/photography`.
-- `components/TravelBackgroundWarmup.tsx`: one-time-per-session idle warmup on inner routes except travel/photography; preloads likely first-view gallery variants and skips homepage startup.
+- `components/TravelBackgroundWarmup.tsx`: one-time-per-session idle warmup on other inner routes; skips home, desk, writings, travel, and photography to keep navigation and reading responsive.
 - `lib/posts.ts`: public content fetch functions.
   - reuses one public Supabase client per server runtime for public post reads
   - exposes separate archive-list, newest-post summary, and slug-detail fetch helpers
   - used by home page and writings pages for published content lists/details
-- `lib/photos.ts`: merged photo catalog helper for `/travel`, limited path/url helper for background warmup routes, and public render URL builder for display-sized image variants.
+- `lib/photos.ts`: merged photo catalog helper for `/travel`, limited path/url helper for background warmup routes, and compatibility re-export of the render URL builder.
+- `lib/photo-url.ts`: pure public render URL builder; browser callers use this module to avoid bundling the server catalog/Supabase client.
 - `lib/travel-image.ts`: canonical travel render quality/width constants, transformed URL builders, and warmup width sets shared by mosaic/background/admin/cron.
 - `lib/spotify.ts`: Spotify token refresh, API fetches, and payload shaping.
 - `lib/requireEditor.ts`: reusable editor authorization check.
