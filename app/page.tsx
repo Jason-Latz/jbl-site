@@ -2,6 +2,7 @@ import Link from "next/link";
 import "./landing.css";
 import { Suspense } from "react";
 import HomeActivity from "@/components/HomeActivity";
+import DeskEntry from "@/components/DeskEntry";
 import { formatDate } from "@/lib/date";
 import { fetchLatestPublishedPost } from "@/lib/posts";
 
@@ -11,7 +12,7 @@ async function LatestWriting() {
   const post = await fetchLatestPublishedPost();
   return post ? (
     <Link className="landing-writing" href={`/writings/${post.slug}`}>
-      <span className="eyebrow">Fresh off the desk</span>
+      <span className="eyebrow">Latest writing</span>
       <h2>{post.title}</h2>
       {post.excerpt ? <p>{post.excerpt}</p> : null}
       <span className="landing-writing-foot">
@@ -21,10 +22,8 @@ async function LatestWriting() {
     </Link>
   ) : (
     <Link className="landing-writing" href="/writings">
-      <span className="eyebrow">From the desk</span>
-      <h2>Essays, notes, and things worth keeping.</h2>
-      <p>A place for the longer thoughts.</p>
-      <span className="landing-writing-foot">Open the notebook ↗</span>
+      <h2>Writings</h2>
+      <span className="landing-writing-foot">View all writings ↗</span>
     </Link>
   );
 }
@@ -40,7 +39,7 @@ export default function HomePage() {
             I&rsquo;m Jason. I like building things, travelling, and writing
             about what I find along the way.
           </p>
-          <Link className="landing-text-link" href="/writings">Read my writing <span aria-hidden="true">↗</span></Link>
+          <DeskEntry />
         </div>
 
         {/* A normal HTML link keeps the entire 3D route off the startup path,
@@ -48,15 +47,14 @@ export default function HomePage() {
         <a className="desk-postcard" href="/desk">
           <div className="desk-postcard-image" role="img" aria-label="A wooden desk with books, a turntable, and a scratch pad" />
           <div className="desk-postcard-caption">
-            <div><span className="eyebrow">Make yourself at home</span><strong>Enter the desk</strong></div>
+            <div><span className="eyebrow">Interactive desk</span><strong>Click to enter</strong></div>
             <span className="desk-postcard-arrow" aria-hidden="true">↗</span>
           </div>
-          <span className="desk-postcard-note">A little room to look around.</span>
         </a>
       </section>
 
       <nav className="landing-directory" aria-label="Explore the site">
-        <Link href="/writings"><span className="directory-number" aria-hidden="true">01</span><span><strong>Writings</strong><small>Open the notebook</small></span><span aria-hidden="true">↗</span></Link>
+        <Link href="/writings"><span className="directory-number" aria-hidden="true">01</span><span><strong>Writings</strong><small>Essays and notes</small></span><span aria-hidden="true">↗</span></Link>
         <a href="/photography"><span className="directory-number" aria-hidden="true">02</span><span><strong>Photography</strong><small>Through the lens</small></span><span aria-hidden="true">↗</span></a>
         <a href="/travel"><span className="directory-number" aria-hidden="true">03</span><span><strong>Travel</strong><small>Places along the way</small></span><span aria-hidden="true">↗</span></a>
         <Link href="/experience"><span className="directory-number" aria-hidden="true">04</span><span><strong>Experience</strong><small>What I&rsquo;ve been up to</small></span><span aria-hidden="true">↗</span></Link>
@@ -64,10 +62,8 @@ export default function HomePage() {
 
       <Suspense fallback={
         <Link className="landing-writing" href="/writings">
-          <span className="eyebrow">From the desk</span>
-          <h2>Essays, notes, and things worth keeping.</h2>
-          <p>A place for the longer thoughts.</p>
-          <span className="landing-writing-foot">Open the notebook ↗</span>
+          <h2>Writings</h2>
+          <span className="landing-writing-foot">View all writings ↗</span>
         </Link>
       }><LatestWriting /></Suspense>
       <HomeActivity />
