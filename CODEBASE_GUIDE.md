@@ -37,8 +37,8 @@ app/
   travel/page.tsx          # Public travel page: interactive 3D globe of geolocated photos
   travel/quality-lab/page.tsx # Side-by-side quality comparison page for travel images
   photography/page.tsx     # Public photography page: the gapless justified mosaic
-  writings/page.tsx        # Notebook archive + bookshelf/guestbook links
-  writings/writings.css    # Notebook archive and article paper styles
+  writings/page.tsx        # Minimal chronological title/date archive
+  writings/writings.css    # Plain archive and article reading layout
   writings/[slug]/page.tsx # Single published post page
   admin/page.tsx           # Admin page wrapper
   admin/AdminEditor.tsx    # Client-side admin dashboard (auth + posts + photo uploads)
@@ -59,6 +59,7 @@ components/
   ThemeToggle.tsx          # Client theme switcher (light/dark with localStorage persistence)
   SiteFooter.tsx           # Footer copyright + social links
   HomeActivity.tsx         # Mounts homepage activity pollers near the viewport
+  DeskEntry.tsx            # Native desk link + guarded Space shortcut on home
   desk/DeskHero.tsx        # /desk poster shell, capability/error gate, recovery links
   desk/DeskInteractive.tsx # Deferred panels, audio, live data, and 3D scene
   desk/BakedDeskScene.tsx  # Baked Three.js scene; static model + CDN lightmaps
@@ -121,14 +122,14 @@ This means every route is rendered inside the same visual shell by default.
 
 ### 4.2 Public pages
 
-- `/` (`app/page.tsx`, `app/landing.css`): server-rendered front door with an intro, theme-aware landscape desk postcard, direct directory links, and the latest writing. It never imports or mounts `DeskHero`, Three.js, panels, or desk pollers. Desk entry uses ordinary HTML anchors to `/desk` so hover cannot start route/chunk prefetch. Latest-writing data has its own Suspense boundary and a usable archive-link fallback; ISR remains `revalidate = 60`. `components/HomeActivity.tsx` reserves the compact ribbon and dynamically mounts the existing Spotify/Duolingo widgets when they are within 100 px of the viewport; their APIs and polling behavior are unchanged.
+- `/` (`app/page.tsx`, `app/landing.css`): server-rendered entry with an intro, a prominent "Enter the desk" link, theme-aware landscape desk preview labeled "Click to enter," direct directory links, and the latest writing. `components/DeskEntry.tsx` adds a visible Space shortcut on devices with a pointer. It handles unmodified Space only while the entry link is in view, ignores repeats/composition/default-prevented events, and leaves focused links, buttons, form fields, and editable content alone. It uses native navigation and does not prefetch. Home never imports or mounts `DeskHero`, Three.js, panels, or desk pollers. Latest-writing data has its own Suspense boundary and a usable archive-link fallback; ISR remains `revalidate = 60`. `components/HomeActivity.tsx` reserves the compact ribbon and dynamically mounts the existing Spotify/Duolingo widgets when they are within 100 px of the viewport; their APIs and polling behavior are unchanged.
 - `/desk` (`app/desk/page.tsx`): the deliberately entered interactive 3D room (`DeskHero` → `DeskInteractive` → `BakedDeskScene`). The default model remains `/desk-static-f5fbb9104223.glb`; immutable lightmaps remain on Supabase `bake/v1`. `NEXT_PUBLIC_BAKE_CDN_URL` overrides model/lightmap sources for local bake work. `/desk?focus=records|work|reading|notes|chess` opens a panel; `/desk?baked=0` retains the procedural scene. `next.config.js` redirects legacy `/?focus=…` and `/?baked=0|1` requests with HTTP 307 while keeping ordinary `/` static. The bookshelf panel links to writings; the scratch pad remains the existing moderated guestbook.
 - `/experience` (`app/experience/page.tsx`): static, resume-style sections (education, professional experience, projects, technical skills, activities) rendered as cards.
 - `/travel` (`app/travel/page.tsx`): server-rendered route that fetches `public.photos` grouped by their estimated place (`lib/travelGlobe.ts`) and hydrates the interactive 3D globe (`components/travel/TravelGlobeStage` → `TravelGlobe`, react-three-fiber). Each place with photos is a glowing pin; clicking one flies the globe to it and opens a gallery panel (thumbnails → lightbox) showing the photos shot there, with an "estimated location · NN% confidence" badge. `?place=<name>` deep-links a selection. A server-rendered place list is kept in the DOM (visually hidden) for crawlers, and is the designed fallback for no-WebGL / reduced-motion / no-JS visitors. See §4.7 for how photos get placed.
 - `/travel/quality-lab` (`app/travel/quality-lab/page.tsx`): visual tuning route that renders the same sampled photos side-by-side as `Preferred (q92)`, `Fallback (q90)`, and `Original` to compare sharpness versus payload strategy.
 - `/photography` (`app/photography/page.tsx`): the gapless justified mosaic (`PhotoMosaic`) built from storage images plus metadata from `public.photos`; renders an initial top batch, appends more as the user scrolls, uses justified row packing (not fixed columns) so photos rewrap for best fit, and serves width-only transformed tiles at roughly `q92` so aspect ratio is preserved without crop. Clicking a tile opens a lightbox with location/description/song metadata.
-- `/writings` (`app/writings/page.tsx`, `app/writings/writings.css`): server-rendered notebook archive. The newest published post is featured, remaining entries form a numbered index, and margin links open the desk's bookshelf or guestbook. The masthead and margin render outside the archive's Suspense boundary. The decorative notebook/books are HTML/CSS, with no 3D dependencies or image requests.
-- `/writings/[slug]` (`app/writings/[slug]/page.tsx`): paper-style article with explicit archive/back navigation; returns `notFound()` if missing. `fetchPostBySlug` uses React `cache` so metadata and the article share one Supabase query per server render.
+- `/writings` (`app/writings/page.tsx`, `app/writings/writings.css`): minimal server-rendered archive with a plain "Writings" title and one chronological title/date list, newest first. There is no notebook artwork, feature card, decorative numbering, sidebar, or themed tagline. The title renders outside the archive's Suspense boundary; the bookshelf still links here with plain wording.
+- `/writings/[slug]` (`app/writings/[slug]/page.tsx`): plain article reading layout with "All writings" navigation; returns `notFound()` if missing. `fetchPostBySlug` uses React `cache` so metadata and the article share one Supabase query per server render.
 
 `/` and both writings routes set `export const revalidate = 60`; `/travel` sets `revalidate = 3600` (newly geolocated photos appear within the hour without a redeploy). Page data is ISR-cached accordingly.
 
@@ -152,6 +153,7 @@ For perceived gallery-load speed, other inner routes run a one-time, session-sco
 - October 5 static-entry verification: `npm run dev -- --hostname 127.0.0.1 --port 3100`, `npm run build`, TypeScript/build lint, and all 34 existing tests passed. Real post titles were verified in `.next/server/app/index.html` and `.next/server/app/writings.html`; no Supabase fetch failures occurred during the network-enabled build. Home, desk, writings, travel, photography, and admin returned HTTP 200; legacy focus/bake URLs returned 307 to `/desk`.
 - A temporary localhost diagnostics proxy against `npm run start -- --hostname 127.0.0.1 --port 3101` measured the final production home at approximately 153 ms for header/content discovery and 180 ms for first contentful paint, zero desk model/lightmap requests, zero long tasks, zero layout shift, and a maximum sampled event-loop delay of 3.9 ms during a 15-second desktop visit. These are local observations, not production latency guarantees. The former global Supabase chunk (172,222 uncompressed bytes) disappeared from home requests after extracting `lib/photo-url.ts`; the build's initial JS estimates for `/photography` and `/travel` dropped from 144/145 kB to 90.8/91.6 kB. Native entry anchors kept the desk off speculative navigation downloads.
 - Browser verification covered light/dark home and notebook layouts, 390 px phone layouts without horizontal overflow, article text/footnotes and back links, writings → bookshelf → writings, and navigation away while the model response was artificially delayed eight seconds. Desk dragging worked after scene readiness and after a theme change. The remaining rendering/asset investigations and the observed local Spotify refresh-token failure (HTTP 400 upstream, handled by the existing fallback) are tracked in `docs/PLAN.md`.
+- October 5 minimalism revision: removed the archive's notebook artwork/featured card/sidebar, removed article paper borders/shadows, and replaced themed writing labels with plain wording. TypeScript and the network-enabled production build passed with real post titles in generated HTML. Dev routes `/`, `/writings`, `/travel`, and `/admin` returned 200. Browser checks covered light/dark layouts, 390 px archive/article/home views, Space navigation into `/desk`, Space on the theme control without desk navigation, and ordinary Space scrolling after the entry moved offscreen. The archive had no horizontal overflow at 390 px.
 - Earlier automatic-homepage verification: the static-model invariant verifier passed against the downloaded source, with production build, TypeScript checks, and 34 existing tests passing. That version's cold local run measured header at 113 ms, first contentful paint at 112 ms, scene reveal at 2,261 ms, and a maximum sampled event-loop stall of 554 ms. These historical measurements describe the automatic desk startup, not the current static home. Light/dark scenes, the Work panel, delayed-load navigation, and immutable model delivery were checked before moving the scene to `/desk`.
 
 ### 4.3 Home activity ribbon (Spotify + Duolingo)
@@ -828,7 +830,7 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 1. Request hits Next app route.
 2. `WritingsPage` server component calls `fetchPublishedPosts()`.
 3. Supabase returns rows where `published = true` (enforced by query + RLS).
-4. The notebook masthead and margin appear immediately; the published list resolves into a featured newest entry and a numbered archive.
+4. The plain page title appears immediately; the published list resolves into chronological title/date links, newest first.
 5. Result can be served from ISR cache for up to 60 seconds.
 
 ### Admin save post (`/admin`)
@@ -872,7 +874,7 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 - `app/travel/page.tsx`: interactive 3D globe shell backed by cached geolocated photo groupings.
 - `app/travel/quality-lab/page.tsx`: side-by-side travel image quality comparison route for evaluating `q92`, `q90`, and original delivery against the same photos.
 - `app/photography/page.tsx`: public gapless justified photo mosaic with zoom controls and metadata details.
-- `app/writings/page.tsx`, `app/writings/writings.css`: notebook archive, featured newest post, and bookshelf/guestbook links.
+- `app/writings/page.tsx`, `app/writings/writings.css`: minimal chronological title/date archive and plain article styling.
 - `app/writings/[slug]/page.tsx`: individual published post renderer + metadata.
 - `app/experience/page.tsx`: static resume-style profile sections for education, work, projects, skills, and activities.
 - `app/admin/page.tsx`: admin route wrapper, forced dynamic render, and signed-in non-editor redirect to `/writings`.

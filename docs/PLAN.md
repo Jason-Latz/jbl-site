@@ -7,7 +7,8 @@ room now lives at `/desk` and starts only after explicit entry. This supersedes
 the automatic-homepage direction in the historical roadmap below.
 
 - [x] Static home with direct content links and a theme-aware desk postcard
-- [x] Writings as a notebook: featured entry, numbered archive, bookshelf and scratch-pad links
+- [x] Minimal writings archive with title/date links; plain article pages and a writings link from the bookshelf
+- [x] Prominent homepage desk entry with a visible Space shortcut that preserves typing and focused controls
 - [x] Skip gallery warmup on home, desk, and writings; defer home activity until near the viewport
 - [x] Remove the entrance camera flight and shorten scene reveal; preserve navigation/recovery during loading
 - [x] Remove the Supabase catalog dependency from browser image URL helpers; deduplicate article/metadata reads
