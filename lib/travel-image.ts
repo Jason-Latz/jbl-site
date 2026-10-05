@@ -1,4 +1,4 @@
-import { buildPublicRenderUrl } from "@/lib/photos";
+import { buildPublicRenderUrl } from "@/lib/photo-url";
 
 export const TRAVEL_IMAGE_QUALITY = 92;
 export const TRAVEL_RENDER_MIN_WIDTH = 320;
