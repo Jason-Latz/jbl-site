@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { cache } from "react";
 
 export type Post = {
   id: string;
@@ -71,7 +72,8 @@ export async function fetchLatestPublishedPost() {
   return (data as PostSummary | null) ?? null;
 }
 
-export async function fetchPostBySlug(slug: string) {
+// Metadata and the article share one request instead of querying twice.
+export const fetchPostBySlug = cache(async (slug: string) => {
   const supabase = getSupabase();
   if (!supabase) {
     return null;
@@ -85,4 +87,4 @@ export async function fetchPostBySlug(slug: string) {
     .single();
 
   return (data as Post | null) ?? null;
-}
+});

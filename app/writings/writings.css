@@ -1,0 +1,67 @@
+/* A notebook and a margin, rather than another grid of generic cards. */
+.writing-room-header { display: flex; align-items: center; justify-content: space-between; gap: 2rem; padding-bottom: 2.8rem; border-bottom: 1px solid var(--hairline-strong); margin-bottom: 2.8rem; }
+.writing-room-header h1 { font-size: clamp(3.2rem, 6vw, 5rem); line-height: 1.04; letter-spacing: -0.04em; font-weight: 450; margin: 0.7rem 0 1rem; }
+.writing-room-header p:last-child { color: var(--muted); max-width: 26rem; margin: 0; font: 1.15rem / 1.5 var(--font-serif), Georgia, serif; }
+.notebook-mark { width: 190px; height: 185px; position: relative; flex: none; margin-right: 1rem; transform: rotate(-8deg); }
+.notebook-mark-page { position: absolute; inset: 0 12px 0 0; background: var(--surface); border: 1px solid var(--hairline-strong); border-radius: 2px 9px 9px 2px; box-shadow: 3px 3px 0 var(--surface-muted), 5px 5px 0 var(--border); padding: 27px 17px 12px 36px; }
+.notebook-mark-page > span { font: 1.45rem / 1.05 var(--font-serif), Georgia, serif; color: var(--accent); }
+.notebook-mark-page i { display: block; height: 1px; background: var(--border); margin-top: 17px; }
+.notebook-mark-spine { position: absolute; inset: -2px auto -2px -3px; width: 18px; z-index: 1; background: repeating-linear-gradient(to bottom, transparent 0 10px, var(--muted) 10px 12px, transparent 12px 22px); }
+.notebook-mark-pen { position: absolute; width: 8px; height: 157px; background: #4d493b; border-right: 2px solid #88816f; border-radius: 3px; right: 2px; top: 43px; transform: rotate(26deg); }
+.notebook-mark-pen::after { content: ""; position: absolute; top: 100%; border: 4px solid transparent; border-top: 11px solid #ad987a; }
+.writing-room-layout { display: grid; grid-template-columns: minmax(0, 1fr) 205px; gap: 3.5rem; align-items: start; }
+.writing-feature { display: block; position: relative; padding: 2.2rem 2rem; background: var(--surface); border: 1px solid var(--border); border-top: 3px solid var(--coral); box-shadow: 3px 4px 0 var(--surface-muted); }
+.writing-feature h2 { font-size: clamp(1.9rem, 3.5vw, 2.65rem); line-height: 1.1; font-weight: 450; margin: 1rem 0; }
+.writing-feature > p { color: var(--muted); font-size: 1rem; margin: 0 0 1.6rem; }
+.writing-feature-foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.7rem; color: var(--accent); font-size: 0.8rem; }
+.writing-feature-foot > span:first-child { color: var(--muted); }
+.writing-feature:hover h2 { color: var(--accent); }
+.notebook-index-head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; margin: 2.7rem 0 1rem; }
+.notebook-index-head h2 { font-size: 1.35rem; font-weight: 450; margin: 0; }
+.notebook-index-head > span { font-size: 0.75rem; color: var(--muted); white-space: nowrap; }
+.notebook-index { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--border); }
+.notebook-entry { display: grid; grid-template-columns: 1.6rem minmax(0, 1fr) 1rem; gap: 0.8rem; padding: 1.5rem 0; border-bottom: 1px solid var(--border); }
+.notebook-entry-number { font-size: 0.72rem; color: var(--accent); padding-top: 0.3rem; font-variant-numeric: tabular-nums; }
+.notebook-entry h3 { margin: 0; font-size: 1.5rem; line-height: 1.2; font-weight: 450; }
+.notebook-entry p { margin: 0.5rem 0; font-size: 0.9rem; color: var(--muted); }
+.notebook-entry .essay-date { display: block; font-size: 0.75rem; padding-top: 0.5rem; }
+.notebook-entry-arrow { color: var(--accent); }
+.notebook-entry:hover h3 { color: var(--accent); }
+.writing-room-margin { display: grid; gap: 1.5rem; padding-top: 0.3rem; }
+.writing-room-margin a { display: block; }
+.writing-room-margin strong { font: 500 1.2rem var(--font-serif), Georgia, serif; }
+.writing-room-margin strong > span { color: var(--accent); }
+.writing-room-margin p { font-size: 0.85rem; line-height: 1.5; color: var(--muted); margin: 0.5rem 0 0; }
+.writing-room-margin > .eyebrow { font-size: 0.65rem; color: var(--accent); }
+.margin-book-spines { display: flex; align-items: flex-end; height: 65px; gap: 4px; margin-bottom: 0.9rem; }
+.margin-book-spines i { display: block; width: 21px; height: 64px; background: #635e43; border-radius: 2px; box-shadow: inset 3px 0 rgb(0 0 0 / 0.12); border-top: 7px double #baad89; border-bottom: 7px double #baad89; }
+.margin-book-spines i:nth-child(2) { height: 54px; background: #9b583f; }
+.margin-book-spines i:nth-child(3) { background: #bc9d73; transform: rotate(10deg); margin-left: 3px; }
+.margin-pad { padding: 1.2rem 0.9rem; border: 1px solid var(--border); border-top: 8px solid var(--hairline-strong); background: repeating-linear-gradient(transparent 0 27px, var(--border) 27px 28px), var(--surface-soft); }
+.margin-pad p { background: var(--surface-soft); }
+.writing-home-link { color: var(--muted); font-size: 0.8rem; padding: 0.5rem 0; }
+.writing-room-margin a:hover strong, .writing-home-link:hover { color: var(--accent); }
+.writing-empty { min-height: 245px; padding: 2rem; border: 1px solid var(--border); background: var(--surface); color: var(--muted); }
+.writing-empty h2 { font-size: 2rem; font-weight: 450; color: var(--fg); }
+.writing-detail { max-width: 48rem; margin: 0 auto; }
+.writing-detail-nav { display: flex; justify-content: space-between; gap: 1rem; font-size: 0.85rem; color: var(--accent); margin-bottom: 1.8rem; }
+.writing-paper.content { max-width: 48rem; padding: clamp(1.2rem, 4vw, 3rem); background: var(--surface); border: 1px solid var(--border); border-top: 3px solid var(--coral); box-shadow: 3px 4px 0 var(--surface-muted); }
+.writing-detail-back { display: inline-block; color: var(--accent); font-size: 0.9rem; padding: 1.5rem 0; }
+
+.writing-room a:focus-visible, .writing-detail a:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 5px; }
+@media (max-width: 760px) {
+  .writing-room-layout { grid-template-columns: 1fr; gap: 2.5rem; }
+  .writing-room-margin { grid-template-columns: 1fr 1fr; border-top: 1px solid var(--border); padding-top: 1.5rem; }
+  .writing-room-margin > .eyebrow, .writing-home-link { grid-column: 1 / -1; }
+  .writing-room-header { gap: 1rem; padding-bottom: 2rem; margin-bottom: 2rem; }
+  .notebook-mark { transform: rotate(-8deg) scale(0.75); transform-origin: right center; width: 150px; margin-right: 0; }
+  .writing-feature { padding: 1.7rem 1.3rem; }
+}
+@media (max-width: 480px) {
+  .writing-room-header { position: relative; display: block; padding-top: 0.6rem; }
+  .writing-room-header > div:first-child { position: relative; z-index: 1; }
+  .writing-room-header h1 { font-size: 3.35rem; max-width: 14rem; }
+  .writing-room-header p:last-child { max-width: 17rem; font-size: 1.05rem; }
+  .notebook-mark { display: none; }
+  .writing-detail-nav { font-size: 0.75rem; }
+}

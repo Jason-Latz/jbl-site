@@ -1,6 +1,7 @@
 "use client";
 
 import { BOOKS, type Book } from "@/content/books";
+import Link from "next/link";
 
 // Tolerates content/books.ts gaining an optional review field mid-flight.
 function bookReview(book: Book): string | null {
@@ -64,6 +65,11 @@ export default function ReadingPanel() {
 
   return (
     <>
+      <section className="desk-panel-section">
+        <h3 className="desk-panel-section-title">From the writing desk</h3>
+        <p className="desk-panel-meta">Essays and notes of my own.</p>
+        <Link className="desk-panel-button" href="/writings">Open the notebook ↗</Link>
+      </section>
       <Shelf title="Favorites" books={favorites} />
       <Shelf title="Currently reading" books={current} />
       <p className="desk-panel-meta">The shelf grows &mdash; check back.</p>
