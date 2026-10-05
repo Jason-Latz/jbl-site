@@ -26,6 +26,15 @@ export default function SiteNav() {
           <Link
             key={item.href}
             href={item.href}
+            // Don't download the globe, photo catalog, or auth route just
+            // because their links are visible over a loading desk.
+            prefetch={
+              item.href === "/travel" ||
+              item.href === "/photography" ||
+              item.href === "/admin"
+                ? false
+                : undefined
+            }
             aria-current={active ? "page" : undefined}
           >
             {item.label}

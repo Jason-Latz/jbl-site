@@ -112,7 +112,14 @@ export default function TravelBackgroundWarmup() {
   const pathname = usePathname();
 
   useEffect(() => {
-    if (pathname?.startsWith("/travel")) {
+    // A cold home visit is already downloading the desk. Idle CPU time does
+    // not mean the network is idle: twelve gallery images competed with the
+    // model/lightmaps. Gallery pages fetch their own visible photos as well.
+    if (
+      pathname === "/" ||
+      pathname?.startsWith("/travel") ||
+      pathname?.startsWith("/photography")
+    ) {
       return;
     }
 

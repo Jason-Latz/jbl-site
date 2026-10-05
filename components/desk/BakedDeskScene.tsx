@@ -1,20 +1,14 @@
 "use client";
 
-// The BAKED homepage scene — a drop-in for DeskScene with the same props/HUD
-// contract, but the lighting is frozen-dried: it loads the world-space uv1 GLB
-// and lights every static surface with a baked lightmap (diffuse GI) crossfaded
-// by the lamp, plus an Environment for specular/chrome. No shadow maps, no AO,
-// no IBL warm-up — the expensive real-time GI is gone, the beauty (env specular,
-// lamp beam, bloom, grain, vignette) stays. Clicks dispatch off each baked
-// mesh's `object` tag (turntable, macbook, …) to the same focus views.
-//
-// First pass: the scene is STATIC (chess/tonearm/lid are baked in rest pose).
-// Dynamic objects layer back on top later. The live DeskScene remains the
-// fallback until this is signed off.
+// The default homepage scene shares DeskScene's props/HUD contract. Static
+// surfaces use uv1 baked lightmaps, crossfaded by the lamp, with an Environment
+// for specular highlights. Four live objects supply animation and current
+// data. Build the graph in stages and prepare shaders before the first draw.
 
 import {
   Suspense,
   memo,
+  startTransition,
   useCallback,
   useEffect,
   useMemo,
@@ -51,6 +45,7 @@ import { lampGlowRef } from "./objects/DeskLamp";
 import MoonBeam, { moonGlowRef } from "./objects/MoonBeam";
 import DeskAffordances, { buildAffordanceItems } from "./DeskAffordances";
 import type { DeskSceneProps } from "./DeskScene";
+import { BAKE_BASE, BAKED_GLB_URL } from "@/lib/desk-assets";
 
 // Memoized like DeskScene's: a theme/poll re-render must not re-reconcile these
 // objects' hundreds of R3F elements unless their own props actually changed.
@@ -58,26 +53,15 @@ const Chessboard = memo(ChessboardBase);
 const Notepad = memo(NotepadBase);
 const Turntable = memo(TurntableBase);
 
-// Slim baked assets (meshopt GLB + WebP lightmaps) are hosted on public
-// Supabase Storage under an immutable, versioned prefix. The public CDN is the
-// reliable default in every environment because the local bake tree is large,
-// gitignored, and therefore absent from a fresh checkout. NEXT_PUBLIC_BAKE_
-// CDN_URL remains the explicit override for local bake work or a future CDN
-// repoint. Bump the v1 prefix on a re-bake — see docs/BAKING.md.
-const SUPABASE_BAKE_CDN =
-  "https://qllalbklzxtsvqzszigo.supabase.co/storage/v1/object/public/bake/v1";
-const BAKE_BASE =
-  process.env.NEXT_PUBLIC_BAKE_CDN_URL || SUPABASE_BAKE_CDN;
-// -slim82: same bake, embedded PNG textures recompressed to WebP q82 (29.3MB ->
-// 6.4MB; EXT_texture_webp decodes natively in three-stdlib's GLTFLoader).
-// Geometry, material names, userData tags and TEXCOORD_1 are byte-identical.
-const GLB_URL = `${BAKE_BASE}/desk-window-uv1-slim82.glb`;
+// The committed 3.1 MB model omits baked duplicates of the live objects.
+// WebP lightmaps stay on versioned Supabase Storage. NEXT_PUBLIC_BAKE_CDN_URL
+// overrides both sources for bake work; older models are pruned below too.
 
 // Reveal backstop: if a lightmap or a shader compile stalls, don't hold the
 // poster past this. The poster is a designed view, so a generous cap is fine.
 const BAKED_READY_TIMEOUT_MS = 8000;
 
-// Baked meshes hidden because a LIVE component overlays them (their baked
+// Baked meshes removed because a LIVE component overlays them (their baked
 // contact shadow stays painted on the desk lightmap to ground the overlay).
 const HIDDEN = new Set(["macbook", "chessboard", "turntable", "notepad"]);
 
@@ -255,10 +239,12 @@ function attachBakedLightmap(
 
 function BakedStatics({
   onFocus,
-  onReady
+  onReady,
+  overlaysReady
 }: {
   onFocus: (id: FocusId) => void;
   onReady?: () => void;
+  overlaysReady: boolean;
 }) {
   const { theme, toggleTheme } = useDeskTheme();
   const router = useRouter();
@@ -279,10 +265,9 @@ function BakedStatics({
   // Reveal-signal bookkeeping (mirrors DeskScene's ReadySignal): compile the
   // graph and draw a few frames before the canvas crossfades in over the
   // poster.
-  const { gl, scene, camera } = useThree();
+  const { gl, scene, camera, setFrameloop } = useThree();
   const startedAtRef = useRef(0);
   const framesRef = useRef(0);
-  const compileStartedRef = useRef(false);
   const compiledRef = useRef(false);
   const firedRef = useRef(false);
 
@@ -298,11 +283,11 @@ function BakedStatics({
     const loader = new GLTFLoader();
     loader.setMeshoptDecoder(MeshoptDecoder);
     loader.load(
-      GLB_URL,
+      BAKED_GLB_URL,
       (gltf) => {
         if (cancelled) return;
         // The reveal backstop clock starts HERE, at parse — not at mount. The
-        // 29MB GLB alone can take >8s on a cold connection; a mount-anchored
+        // A slow model download can take >8s; a mount-anchored
         // clock would already be expired when the gate first runs, skipping
         // both the lightmap wait and the compile wait and reproducing the
         // half-lit reveal this gate exists to prevent. Anchored at parse, the
@@ -312,15 +297,19 @@ function BakedStatics({
         // ("on") in light, moonlit ("off") in dark.
         const activeState = themeRef.current === "dark" ? "off" : "on";
         const ctx = ctxRef.current;
+        const discarded: THREE.Object3D[] = [];
         gltf.scene.traverse((o) => {
-          // Hide every baked mesh whose object has a live overlay (frozen shut
+          // Remove every baked mesh whose object has a live overlay (frozen shut
           // macbook, frozen-position chessboard) — mirror objectOf()'s
           // self-or-parent tag resolution.
           const tag =
             (o.userData?.object as string) ||
             (o.parent?.userData?.object as string) ||
             "";
-          if (HIDDEN.has(tag)) o.visible = false;
+          if (HIDDEN.has(tag)) {
+            discarded.push(o);
+            return;
+          }
           // The exported GLB carries each object's three.js lights as KHR
           // punctual lights (notably the MacBook's screen-glow point light).
           // The runtime supplies all its own lighting (the baked lightmap +
@@ -330,7 +319,7 @@ function BakedStatics({
           // front of the machine in BOTH themes (the "light from the computer"
           // speck). Drop every baked light.
           if ((o as { isLight?: boolean }).isLight) {
-            o.visible = false;
+            discarded.push(o);
             return;
           }
           const mesh = o as THREE.Mesh;
@@ -348,6 +337,9 @@ function BakedStatics({
             std.envMapIntensity = 0.35;
           }
         });
+        // compileAsync traverses invisible meshes too. Remove duplicates from
+        // older/override bakes so they never enter the shader warm-up graph.
+        for (const object of discarded) object.removeFromParent();
         setRoot(gltf.scene);
         parsedRef.current = true;
       },
@@ -365,50 +357,57 @@ function BakedStatics({
     if (parsedRef.current) runDeferred();
   }, [theme, runDeferred]);
 
-  // Reveal signal: hold the poster until the GLB has parsed, the lightmaps of
-  // the theme CURRENTLY on screen have decoded, the shaders have compiled, and
-  // a few frames have drawn — then report ready and warm the off-theme set on
-  // idle. The gate keys are derived from themeRef at check time (not a
-  // parse-time snapshot) so a mid-load lamp flip makes the reveal wait for the
-  // set the visitor will actually see, not the one that was active at parse.
-  // A wall-clock timeout (anchored at parse) keeps one stuck lightmap from
-  // holding the reveal hostage; the GLB itself must still parse, so a total
-  // load failure keeps the poster up.
-  useFrame(() => {
-    if (firedRef.current || !parsedRef.current) return;
-    const timedOut =
-      performance.now() - startedAtRef.current > BAKED_READY_TIMEOUT_MS;
-    if (!timedOut) {
+  // The canvas starts with frameloop="never". Rendering it invisibly still
+  // compiles shaders synchronously on the first draw, so compileAsync was too
+  // late when run from useFrame. Prepare the complete graph first, then start
+  // drawing only after the async shader warm-up has finished.
+  useEffect(() => {
+    if (!root || !overlaysReady) return;
+    let cancelled = false;
+    let timer = 0;
+    const activate = () => {
+      if (cancelled) return;
+      compiledRef.current = true;
+      window.clearTimeout(timer);
+      setFrameloop("always");
+    };
+    const prepare = () => {
+      const remaining =
+        BAKED_READY_TIMEOUT_MS - (performance.now() - startedAtRef.current);
       const visibleState = themeRef.current === "dark" ? "off" : "on";
-      for (const unit of ctxRef.current.units) {
-        if (!lightmapLoaded(`${unit}-${visibleState}`)) return;
+      if (
+        remaining > 0 &&
+        ctxRef.current.units.some(
+          (unit) => !lightmapLoaded(`${unit}-${visibleState}`)
+        )
+      ) {
+        timer = window.setTimeout(prepare, 25);
+        return;
       }
-    }
-    if (!compileStartedRef.current) {
-      compileStartedRef.current = true;
-      const done = () => {
-        compiledRef.current = true;
-      };
+      timer = window.setTimeout(activate, Math.max(0, remaining));
       try {
-        gl.compileAsync(scene, camera).then(done, done);
+        gl.compileAsync(scene, camera).then(activate, activate);
       } catch {
-        done();
+        activate();
       }
-    }
+    };
+    timer = window.setTimeout(prepare, 0);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [root, overlaysReady, gl, scene, camera, setFrameloop]);
+
+  useFrame(() => {
+    if (firedRef.current || !compiledRef.current) return;
     framesRef.current += 1;
-    if ((compiledRef.current || timedOut) && framesRef.current >= 3) {
-      firedRef.current = true;
-      onReady?.();
-      const ric = (
-        window as unknown as {
-          requestIdleCallback?: (
-            cb: () => void,
-            opts?: { timeout: number }
-          ) => void;
-        }
-      ).requestIdleCallback;
-      if (ric) ric(runDeferred, { timeout: 1500 });
-      else window.setTimeout(runDeferred, 600);
+    if (framesRef.current < 3) return;
+    firedRef.current = true;
+    onReady?.();
+    if (window.requestIdleCallback) {
+      window.requestIdleCallback(runDeferred, { timeout: 1500 });
+    } else {
+      window.setTimeout(runDeferred, 600);
     }
   });
 
@@ -664,7 +663,7 @@ function CameraDirector({
       to,
       toTarget,
       progress: 0,
-      duration: isFirst ? 2.3 : 1.05,
+      duration: isFirst ? 0.45 : 1.05,
       unlockOnLand: !focus
     };
   }, [rig, focus, camera, controlsRef]);
@@ -723,6 +722,17 @@ function SceneContents({
   onReady,
   sceneReady
 }: DeskSceneProps) {
+  // These objects generate procedural geometry/textures. Mount one per
+  // separate task so navigation can respond between preparations instead of
+  // losing several seconds to one uninterrupted render.
+  const [overlayStage, setOverlayStage] = useState(0);
+  useEffect(() => {
+    if (overlayStage >= 4) return;
+    const timer = window.setTimeout(() => {
+      startTransition(() => setOverlayStage((stage) => stage + 1));
+    }, 50);
+    return () => window.clearTimeout(timer);
+  }, [overlayStage]);
   const controlsRef = useRef<OrbitControlsImpl>(null!);
   const rig = useCameraRig();
   const router = useRouter();
@@ -745,86 +755,98 @@ function SceneContents({
       <ThemeDrivers />
       <SceneEnvironment />
       <CameraDirector controlsRef={controlsRef} rig={rig} focus={focus} />
-      <BakedStatics onFocus={onFocus} onReady={onReady} />
-      {/* The live, animated MacBook overlays the (hidden) baked one. Its baked
+      <BakedStatics
+        onFocus={onFocus}
+        onReady={onReady}
+        overlaysReady={overlayStage >= 4}
+      />
+      {/* The live, animated MacBook replaces the baked one. Its baked
           contact shadow stays on the desk lightmap and grounds it, so the
           transform MUST be exactly PLACEMENT.macbook — no offset. */}
-      <group
-        position={PLACEMENT.macbook.position}
-        rotation-y={PLACEMENT.macbook.rotationY}
-        onClick={(e: ThreeEvent<MouseEvent>) => {
-          e.stopPropagation();
-          onFocus("work");
-        }}
-        onPointerOver={(e: ThreeEvent<PointerEvent>) => {
-          e.stopPropagation();
-          document.body.style.cursor = "pointer";
-        }}
-        onPointerOut={() => {
-          document.body.style.cursor = "auto";
-        }}
-      >
-        <MacBook open={focus === "work"} />
-      </group>
-      {/* The live chessboard overlays the (hidden) baked one and shows the real
+      {overlayStage >= 1 ? (
+        <group
+          position={PLACEMENT.macbook.position}
+          rotation-y={PLACEMENT.macbook.rotationY}
+          onClick={(e: ThreeEvent<MouseEvent>) => {
+            e.stopPropagation();
+            onFocus("work");
+          }}
+          onPointerOver={(e: ThreeEvent<PointerEvent>) => {
+            e.stopPropagation();
+            document.body.style.cursor = "pointer";
+          }}
+          onPointerOut={() => {
+            document.body.style.cursor = "auto";
+          }}
+        >
+          <MacBook open={focus === "work"} />
+        </group>
+      ) : null}
+      {/* The live chessboard replaces the baked one and shows the real
           world-vs-Jason game from props — the baked board was frozen at the
           bake's rest position. Same transform as the bake so its painted
           contact shadow still grounds it. */}
-      <group
-        position={PLACEMENT.chessboard.position}
-        rotation-y={PLACEMENT.chessboard.rotationY}
-        onClick={(e: ThreeEvent<MouseEvent>) => {
-          e.stopPropagation();
-          onFocus("chess");
-        }}
-        onPointerOver={(e: ThreeEvent<PointerEvent>) => {
-          e.stopPropagation();
-          document.body.style.cursor = "pointer";
-        }}
-        onPointerOut={() => {
-          document.body.style.cursor = "auto";
-        }}
-      >
-        <Chessboard fen={chessFen} lastMove={chessLastMove} />
-      </group>
-      {/* The live turntable overlays the (hidden) baked one so the platter
+      {overlayStage >= 2 ? (
+        <group
+          position={PLACEMENT.chessboard.position}
+          rotation-y={PLACEMENT.chessboard.rotationY}
+          onClick={(e: ThreeEvent<MouseEvent>) => {
+            e.stopPropagation();
+            onFocus("chess");
+          }}
+          onPointerOver={(e: ThreeEvent<PointerEvent>) => {
+            e.stopPropagation();
+            document.body.style.cursor = "pointer";
+          }}
+          onPointerOut={() => {
+            document.body.style.cursor = "auto";
+          }}
+        >
+          <Chessboard fen={chessFen} lastMove={chessLastMove} />
+        </group>
+      ) : null}
+      {/* The live turntable replaces the baked one so the platter
           spins on play and the tonearm drops on the needle click. Like
           DeskScene, the wrapping group has NO onClick — the only interaction
           is the needle (onNeedleClick → records view), handled inside the
           component. Same transform as the bake so its contact shadow grounds
           it. */}
-      <group
-        position={PLACEMENT.turntable.position}
-        rotation-y={PLACEMENT.turntable.rotationY}
-      >
-        <Turntable
-          playing={turntablePlaying}
-          armDown={armDown}
-          onNeedleClick={onNeedleClick}
-          labelArtUrl={labelArtUrl}
-        />
-      </group>
-      {/* The live notepad overlays the (hidden) baked one and writes the real
+      {overlayStage >= 3 ? (
+        <group
+          position={PLACEMENT.turntable.position}
+          rotation-y={PLACEMENT.turntable.rotationY}
+        >
+          <Turntable
+            playing={turntablePlaying}
+            armDown={armDown}
+            onNeedleClick={onNeedleClick}
+            labelArtUrl={labelArtUrl}
+          />
+        </group>
+      ) : null}
+      {/* The live notepad replaces the baked one and writes the real
           guestbook notes from props — the baked sheet was frozen with the old
           placeholder. Same transform as the bake so its painted contact shadow
           still grounds it. */}
-      <group
-        position={PLACEMENT.notepad.position}
-        rotation-y={PLACEMENT.notepad.rotationY}
-        onClick={(e: ThreeEvent<MouseEvent>) => {
-          e.stopPropagation();
-          onFocus("notes");
-        }}
-        onPointerOver={(e: ThreeEvent<PointerEvent>) => {
-          e.stopPropagation();
-          document.body.style.cursor = "pointer";
-        }}
-        onPointerOut={() => {
-          document.body.style.cursor = "auto";
-        }}
-      >
-        <Notepad notes={notes} />
-      </group>
+      {overlayStage >= 4 ? (
+        <group
+          position={PLACEMENT.notepad.position}
+          rotation-y={PLACEMENT.notepad.rotationY}
+          onClick={(e: ThreeEvent<MouseEvent>) => {
+            e.stopPropagation();
+            onFocus("notes");
+          }}
+          onPointerOver={(e: ThreeEvent<PointerEvent>) => {
+            e.stopPropagation();
+            document.body.style.cursor = "pointer";
+          }}
+          onPointerOut={() => {
+            document.body.style.cursor = "auto";
+          }}
+        >
+          <Notepad notes={notes} />
+        </group>
+      ) : null}
       <LampSpotKey />
       <MoonAmbient />
       {/* The visible moonlight shaft: streams in through the window opening and
@@ -875,6 +897,7 @@ export default function BakedDeskScene(props: DeskSceneProps) {
 
   return (
     <Canvas
+      frameloop="never"
       dpr={[1, 1.5]}
       camera={{ fov: CAMERA.fov, near: 0.1, far: 20, position: CAMERA.start }}
       // R3F sets touch-action:none on its container div by default (to stop 3D

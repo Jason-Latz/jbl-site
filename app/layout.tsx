@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Inter, Newsreader } from "next/font/google";
-import Script from "next/script";
 import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 import SiteFooter from "@/components/SiteFooter";
@@ -86,9 +85,12 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <head>
-        <Script id="theme-init" strategy="beforeInteractive">
-          {themeInitScript}
-        </Script>
+        {/* Run directly during HTML parsing: theme and poster loading must
+            not wait for the Next.js runtime to download and hydrate. */}
+        <script
+          id="theme-init"
+          dangerouslySetInnerHTML={{ __html: themeInitScript }}
+        />
         {supabaseConnectionTarget ? (
           <>
             <link

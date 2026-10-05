@@ -1,0 +1,352 @@
+"use client";
+
+import dynamic from "next/dynamic";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { TurntableAudio } from "@/lib/audio/turntable-audio";
+import { useChessGame } from "@/lib/useChessGame";
+import { useSpotifyLive } from "@/lib/useSpotifyLive";
+import { selectLeadTrack } from "@/lib/spotifyLeadTrack";
+import { type FocusId } from "./layout";
+import type { DeskNote } from "./DeskScene";
+import DragHint from "./DragHint";
+import NowPlayingHUD, { type NeedlePhase } from "./NowPlayingHUD";
+import ChessPanel from "./panels/ChessPanel";
+import DeskPanel from "./panels/DeskPanel";
+import NotesPanel from "./panels/NotesPanel";
+import ReadingPanel from "./panels/ReadingPanel";
+import RecordsPanel from "./panels/RecordsPanel";
+import WorkPanel from "./panels/WorkPanel";
+
+const PANEL_META: Record<FocusId, { eyebrow: string; title: string }> = {
+  records: { eyebrow: "listening", title: "On the platter" },
+  work: { eyebrow: "working", title: "What I'm building" },
+  reading: { eyebrow: "reading", title: "The bookshelf" },
+  notes: { eyebrow: "guestbook", title: "Leave a note" },
+  chess: { eyebrow: "playing", title: "The world vs. Jason" }
+};
+
+// The baked scene is the default homepage; ?baked=0 is the escape hatch to the
+// live procedural DeskScene. The static-only model is committed in public/;
+// immutable lightmaps remain on Supabase. See lib/desk-assets.ts.
+const DeskScene = dynamic(
+  () =>
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("baked") === "0"
+      ? import("./DeskScene")
+      : import("./BakedDeskScene"),
+  {
+    ssr: false,
+    loading: () => <div className="desk-hero-loading" aria-hidden="true" />
+  }
+);
+
+// Choreography of the needle drop, in ms from the click:
+// arm starts swinging immediately; the thunk + crackle land as the needle
+// touches down; the music fades in just after.
+const NEEDLE_CONTACT_MS = 850;
+const PREVIEW_START_MS = 1250;
+const ARM_LIFT_MS = 800;
+
+export default function DeskInteractive({ onReady }: { onReady: () => void }) {
+  const [phase, setPhase] = useState<NeedlePhase>("idle");
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [focus, setFocus] = useState<FocusId | null>(null);
+  const [coverArtUrls, setCoverArtUrls] = useState<string[]>([]);
+  const [notes, setNotes] = useState<DeskNote[]>([]);
+  // Keep the poster visible while the scene prepares its assets and shaders,
+  // then crossfade after the first prepared frames have drawn.
+  const [sceneReady, setSceneReady] = useState(false);
+  const handleSceneReady = useCallback(() => {
+    setSceneReady(true);
+    onReady();
+  }, [onReady]);
+  const { data } = useSpotifyLive();
+  // One chess poller for both consumers: the 3D board (fen/lastMove) and
+  // ChessPanel (which takes the whole result as a prop — a second hook
+  // instance used to cold-fetch state the app already held).
+  const chess = useChessGame();
+  const chessGame = chess.game;
+  // Identity-stable props for the memoized scene objects: a fresh object
+  // literal or closure here would defeat React.memo on every render.
+  const chessLastMove = useMemo(
+    () =>
+      chessGame?.lastMove
+        ? { from: chessGame.lastMove.from, to: chessGame.lastMove.to }
+        : null,
+    [chessGame?.lastMove?.from, chessGame?.lastMove?.to]
+  );
+  const handleNeedleFocus = useCallback(() => setFocus("records"), []);
+
+  // Heavy-rotation art for the crate sleeves, fetched once.
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/spotify/albums", { signal: controller.signal })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload: { albums?: { imageUrl?: string }[] } | null) => {
+        const urls = (payload?.albums ?? [])
+          .map((album) => album.imageUrl)
+          .filter((url): url is string => typeof url === "string");
+        if (urls.length > 0) {
+          setCoverArtUrls(urls);
+        }
+      })
+      .catch(() => {
+        // Procedural sleeves stay in place.
+      });
+    return () => controller.abort();
+  }, []);
+
+  // Approved guestbook notes for the pad, fetched once. Only the public fields
+  // (body + display name) are kept; createdAt/ip_hash are dropped here and
+  // never reach the canvas.
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/desk-notes", { signal: controller.signal })
+      .then((response) => (response.ok ? response.json() : null))
+      .then(
+        (payload: { notes?: { id: string; body: string; author: unknown }[] } | null) => {
+          if (!Array.isArray(payload?.notes)) {
+            return;
+          }
+          setNotes(
+            payload.notes
+              .filter((n) => typeof n.body === "string" && n.body.trim())
+              .map((n) => ({
+                id: n.id,
+                body: n.body,
+                author: typeof n.author === "string" ? n.author : null
+              }))
+          );
+        }
+      )
+      .catch(() => {
+        // The pad keeps its empty-state prompt.
+      });
+    return () => controller.abort();
+  }, []);
+
+  // Identity-stable subset: `notes` only changes identity on the single
+  // successful fetch, so slicing here stays stable across Spotify/chess polls
+  // and never hands the memoized Notepad a fresh array.
+  const stableNotes = useMemo(() => notes.slice(0, 2), [notes]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setFocus(null);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  // Deep link straight into a focus view:
+  // /?focus=records|work|reading|notes|chess
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get("focus");
+    if (
+      requested === "records" ||
+      requested === "work" ||
+      requested === "reading" ||
+      requested === "notes" ||
+      requested === "chess"
+    ) {
+      setFocus(requested);
+    }
+  }, []);
+
+  const audioRef = useRef<TurntableAudio | null>(null);
+  const timersRef = useRef<number[]>([]);
+
+  useEffect(() => {
+    return () => {
+      timersRef.current.forEach((id) => window.clearTimeout(id));
+      audioRef.current?.dispose();
+      audioRef.current = null;
+    };
+  }, []);
+
+  const schedule = useCallback((fn: () => void, delayMs: number) => {
+    timersRef.current.push(window.setTimeout(fn, delayMs));
+  }, []);
+
+  // Headline = the live track when present, else a genuinely-recent last play;
+  // a stale stored play is dropped (slot shows "Nothing playing right now")
+  // rather than masquerading as current. See lib/spotifyLeadTrack.ts.
+  const leadTrack = selectLeadTrack(data);
+  const trackTitle = leadTrack?.trackName ?? null;
+  const artistLine = useMemo(
+    () =>
+      leadTrack && leadTrack.artists.length > 0
+        ? leadTrack.artists.join(", ")
+        : null,
+    [leadTrack]
+  );
+  const primaryArtist = leadTrack?.artists?.[0] ?? null;
+
+  // Match the lead track against the iTunes catalog whenever it changes.
+  // A playing preview is never interrupted by a match change; the next
+  // needle drop simply uses the fresher URL.
+  useEffect(() => {
+    if (!trackTitle || !primaryArtist) {
+      setPreviewUrl(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    const query = new URLSearchParams({
+      track: trackTitle,
+      artist: primaryArtist
+    });
+
+    fetch(`/api/audio/preview?${query.toString()}`, {
+      signal: controller.signal
+    })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload: { previewUrl?: string } | null) => {
+        setPreviewUrl(
+          typeof payload?.previewUrl === "string" ? payload.previewUrl : null
+        );
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setPreviewUrl(null);
+        }
+      });
+
+    return () => controller.abort();
+  }, [trackTitle, primaryArtist]);
+
+  const liftNeedle = useCallback(() => {
+    const audio = audioRef.current;
+    setPhase("stopping");
+    audio?.stopPreview();
+    schedule(() => audio?.stopCrackle(), 250);
+    schedule(() => setPhase("idle"), ARM_LIFT_MS);
+  }, [schedule]);
+
+  const dropNeedle = useCallback(async () => {
+    if (!previewUrl) {
+      return;
+    }
+    const audio = (audioRef.current ??= new TurntableAudio());
+    setPhase("dropping");
+
+    try {
+      await audio.ensureContext();
+    } catch {
+      setPhase("idle");
+      return;
+    }
+
+    schedule(() => {
+      audio.playNeedleDrop();
+      audio.startCrackle();
+    }, NEEDLE_CONTACT_MS);
+
+    schedule(() => {
+      const streamUrl = `/api/audio/stream?u=${encodeURIComponent(previewUrl)}`;
+      audio
+        .playPreview(streamUrl, { onEnded: liftNeedle })
+        .then(() => setPhase("playing"))
+        .catch(() => {
+          audio.stopCrackle();
+          setPhase("stopping");
+          schedule(() => setPhase("idle"), ARM_LIFT_MS);
+        });
+    }, PREVIEW_START_MS);
+  }, [previewUrl, liftNeedle, schedule]);
+
+  const handleToggleNeedle = useCallback(() => {
+    if (phase === "dropping" || phase === "stopping") {
+      return;
+    }
+    if (phase === "playing") {
+      liftNeedle();
+      return;
+    }
+    void dropNeedle();
+  }, [phase, liftNeedle, dropNeedle]);
+
+  const armDown = phase === "dropping" || phase === "playing";
+  const turntablePlaying = (data?.isPlaying ?? false) || armDown;
+
+  const statusNote = !trackTitle
+    ? null
+    : previewUrl
+      ? data?.isPlaying
+        ? "live on Jason's Spotify · 30 s preview"
+        : "last played · 30 s preview"
+      : "preview unavailable for this track";
+
+  return (
+    <>
+      <div
+        className="desk-hero-canvas"
+        style={{
+          position: "absolute",
+          inset: 0,
+          opacity: sceneReady ? 1 : 0,
+          transition: "opacity 1.15s ease",
+          // An opacity-0 element still hit-tests: without this, invisible
+          // desk objects were clickable through the poster mid-load (a blind
+          // tap could silently toggle the theme via the unseen lamp).
+          pointerEvents: sceneReady ? "auto" : "none"
+        }}
+      >
+        <DeskScene
+          turntablePlaying={turntablePlaying}
+          armDown={armDown}
+          onNeedleClick={handleNeedleFocus}
+          focus={focus}
+          onFocus={setFocus}
+          labelArtUrl={leadTrack?.albumImageUrl ?? null}
+          coverArtUrls={coverArtUrls}
+          chessFen={chessGame?.fen ?? null}
+          chessLastMove={chessLastMove}
+          notes={stableNotes}
+          onReady={handleSceneReady}
+          sceneReady={sceneReady}
+        />
+      </div>
+      {focus ? (
+        <DeskPanel
+          eyebrow={PANEL_META[focus].eyebrow}
+          title={PANEL_META[focus].title}
+          onClose={() => setFocus(null)}
+        >
+          {focus === "records" ? (
+            <RecordsPanel
+              spotify={data}
+              phase={phase}
+              canPlay={Boolean(previewUrl)}
+              onToggleNeedle={handleToggleNeedle}
+            />
+          ) : focus === "work" ? (
+            <WorkPanel />
+          ) : focus === "reading" ? (
+            <ReadingPanel />
+          ) : focus === "chess" ? (
+            <ChessPanel chess={chess} />
+          ) : (
+            <NotesPanel />
+          )}
+        </DeskPanel>
+      ) : null}
+      {sceneReady ? (
+        <NowPlayingHUD
+          trackTitle={trackTitle}
+          artistLine={artistLine}
+          isLive={data?.isPlaying ?? false}
+          phase={phase}
+          canPlay={Boolean(previewUrl)}
+          onToggleNeedle={handleToggleNeedle}
+          statusNote={statusNote}
+        />
+      ) : null}
+      {/* Touch-only, first-visit nudge that the scene can be dragged. Self-gates
+          on coarse pointer + localStorage; sits above the HUD. */}
+      <DragHint ready={sceneReady} />
+    </>
+  );
+}

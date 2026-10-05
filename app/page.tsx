@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import DeskHero from "@/components/desk/DeskHero";
 import DuolingoStreak from "@/components/DuolingoStreak";
 import SpotifyNowPlaying from "@/components/SpotifyNowPlaying";
@@ -7,9 +8,44 @@ import { fetchLatestPublishedPost } from "@/lib/posts";
 
 export const revalidate = 60;
 
-export default async function HomePage() {
+async function LatestWriting() {
   const latestPost = await fetchLatestPublishedPost();
+  return (
+    <div className="card home-card">
+      {latestPost ? (
+        <>
+          <h3>{latestPost.title}</h3>
+          <p className="post-meta home-card-meta">
+            {latestPost.published_at
+              ? formatDate(latestPost.published_at)
+              : "Published"}
+          </p>
+          <p className="home-card-copy">
+            {latestPost.excerpt ?? "Read the latest article from the archive."}
+          </p>
+          <Link className="home-card-link" href={`/writings/${latestPost.slug}`}>
+            Read the article →
+          </Link>
+        </>
+      ) : (
+        <>
+          <h3>No published writing yet</h3>
+          <p className="post-meta home-card-meta">
+            Drafts are available in the editor.
+          </p>
+          <p className="home-card-copy">
+            Publish your first article and it will show up here automatically.
+          </p>
+          <Link className="home-card-link" href="/writings">
+            Read the archive →
+          </Link>
+        </>
+      )}
+    </div>
+  );
+}
 
+export default function HomePage() {
   return (
     <div className="hero">
       <DeskHero />
@@ -25,37 +61,18 @@ export default async function HomePage() {
 
       <div className="section">
         <h2>Latest writing</h2>
-        <div className="card home-card">
-          {latestPost ? (
-            <>
-              <h3>{latestPost.title}</h3>
-              <p className="post-meta home-card-meta">
-                {latestPost.published_at
-                  ? formatDate(latestPost.published_at)
-                  : "Published"}
-              </p>
-              <p className="home-card-copy">
-                {latestPost.excerpt ?? "Read the latest article from the archive."}
-              </p>
-              <Link className="home-card-link" href={`/writings/${latestPost.slug}`}>
-                Read the article →
-              </Link>
-            </>
-          ) : (
-            <>
-              <h3>No published writing yet</h3>
-              <p className="post-meta home-card-meta">
-                Drafts are available in the editor.
-              </p>
-              <p className="home-card-copy">
-                Publish your first article and it will show up here automatically.
-              </p>
+        <Suspense
+          fallback={
+            <div className="card home-card" aria-busy="true">
+              <p className="home-card-copy">Loading the latest writing…</p>
               <Link className="home-card-link" href="/writings">
                 Read the archive →
               </Link>
-            </>
-          )}
-        </div>
+            </div>
+          }
+        >
+          <LatestWriting />
+        </Suspense>
       </div>
 
       <div className="section">
