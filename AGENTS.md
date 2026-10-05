@@ -221,3 +221,8 @@ For the `/travel` photo globe (see `CODEBASE_GUIDE.md` §4.5):
 3. Keep unrelated gallery warmup off home, desk, and writing startup paths. Browser URL helpers must not import server catalog clients into the global bundle.
 4. Before shipping a bake optimization, verify it with the production decoder and inspect both themes in a browser. Preserve visible geometry, lightmap UVs, and texture quality.
 5. Build with access to Supabase and verify real prerendered content; a successful exit after logged fetch/DNS errors can still ship empty fallback pages.
+
+## 26) Writings Should Stay Minimal
+
+1. Use a plain page title and chronological article list with dates; avoid notebook artwork, decorative paper cards, and themed taglines such as "From the desk."
+2. Make homepage desk entry a clear primary action. Keyboard shortcuts must preserve normal typing and focused-control behavior.
