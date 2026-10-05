@@ -213,3 +213,10 @@ For the `/travel` photo globe (see `CODEBASE_GUIDE.md` §4.5):
 2. Photo locations are estimated by a **local, offline** batch (`scripts/geolocate/geolocate.py`) — no API key, no request-time ML. After uploading new travel photos, re-run the batch to place them; the globe reads cached `photos.geo_*` columns.
 3. Estimates are public-facing, so **verify placements before treating them as final** — an estimate can be wrong. Correct via the admin "Globe location" picker (writes `geo_source = 'manual'`, which a `--only-missing` re-run will not overwrite).
 4. Keep `content/places.json` the single source of truth for both the globe and the estimator's candidate set; add a place there before assigning photos to it.
+
+## 25) Homepage Startup Must Leave Navigation Usable
+
+1. Render the header and desk poster before waiting for page data or 3D readiness; keep the initial desk shell independent of heavy scene code.
+2. Check cold-start input responsiveness as well as download times. A finished-scene screenshot does not prove the page was usable during startup.
+3. Keep unrelated gallery warmup and heavy route prefetch off the home page's startup path.
+4. Before shipping a bake optimization, verify it with the production decoder and inspect both themes in a browser. Preserve visible geometry, lightmap UVs, and texture quality.
