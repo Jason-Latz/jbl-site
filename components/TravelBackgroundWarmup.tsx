@@ -117,6 +117,8 @@ export default function TravelBackgroundWarmup() {
     // model/lightmaps. Gallery pages fetch their own visible photos as well.
     if (
       pathname === "/" ||
+      pathname?.startsWith("/desk") ||
+      pathname?.startsWith("/writings") ||
       pathname?.startsWith("/travel") ||
       pathname?.startsWith("/photography")
     ) {

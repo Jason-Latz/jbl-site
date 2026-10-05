@@ -37,13 +37,11 @@ const themeInitScript = `
   }
   root.setAttribute("data-theme", theme);
 
-  // Homepage only: preload the active-theme desk poster from here, the earliest
-  // point the theme is known, so the poster-first hero has its image in hand at
-  // first paint. Guarded to "/" and to one theme so inner pages and the
-  // off-theme poster are never fetched.
+  // Home uses a landscape postcard; /desk uses the viewport-matched still.
+  // Only preload the active image, never the model or the scene on home.
   try {
-    if (location.pathname === "/") {
-      var portrait = window.matchMedia("(orientation: portrait)").matches;
+    if (location.pathname === "/" || location.pathname === "/desk") {
+      var portrait = location.pathname === "/desk" && window.matchMedia("(orientation: portrait)").matches;
       const link = document.createElement("link");
       link.rel = "preload";
       link.as = "image";
@@ -106,7 +104,7 @@ export default function RootLayout({
         <header className="site-header">
           <div className="container">
             <div className="site-header-top">
-              <div className="site-title">Jason Latz</div>
+              <a className="site-title" href="/">Jason Latz</a>
               <div className="site-header-controls">
                 <SiteNav />
                 <ThemeToggle />

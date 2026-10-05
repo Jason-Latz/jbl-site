@@ -318,6 +318,17 @@ img {
   gap: 1.5rem;
 }
 
+.desk-loading-dock, .desk-noscript { position: absolute; z-index: 5; bottom: 28px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 32px); width: max-content; padding: 0.9rem 1.2rem; border: 1px solid rgba(255, 240, 220, 0.18); background: rgba(22, 17, 12, 0.92); color: #f3e8dd; border-radius: 8px; text-align: center; }
+.desk-loading-dock p { margin: 0 0 0.3rem; font-size: 0.85rem; }
+.desk-loading-dock a, .desk-noscript a { display: block; color: #edb68d; font-size: 0.8rem; padding: 0.3rem 0; }
+.desk-loading-dock a:focus-visible, .desk-fallback-links a:focus-visible { outline: 2px solid #edb68d; outline-offset: 4px; }
+.desk-fallback-links { display: flex; flex-wrap: wrap; gap: 1.5rem; color: #f3e8dd; }
+.desk-fallback-links a { border-bottom: 1px solid currentColor; padding: 0.5rem 0; }
+:root:has(.desk-hero, .desk-hero-fallback) main { padding-bottom: 0; }
+:root:has(.desk-hero, .desk-hero-fallback) .site-footer { display: none; }
+
+.site-title:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 5px; }
+
 .activity-ribbon {
   display: flex;
   align-items: flex-start;

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 
 const navItems = [
   { label: "Home", href: "/" },
+  { label: "Desk", href: "/desk" },
   { label: "Writings", href: "/writings" },
   { label: "Travel", href: "/travel" },
   { label: "Photography", href: "/photography" },
@@ -22,6 +23,9 @@ export default function SiteNav() {
           item.href === "/"
             ? pathname === "/"
             : pathname.startsWith(item.href);
+        if (item.href === "/desk") {
+          return <a key={item.href} href={item.href} aria-current={active ? "page" : undefined}>{item.label}</a>;
+        }
         return (
           <Link
             key={item.href}

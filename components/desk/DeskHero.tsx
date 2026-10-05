@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { startTransition, useCallback, useEffect, useState } from "react";
+import { Component, startTransition, useCallback, useEffect, useState, type ReactNode } from "react";
 import { preloadBakedDesk } from "@/lib/desk-assets";
 
 const DeskInteractive = dynamic(() => import("./DeskInteractive"), {
@@ -33,17 +33,25 @@ function DeskHeroFallback() {
     <section className="desk-hero-fallback" aria-label="Introduction">
       <div className="desk-hero-fallback-inner">
         <h1 className="desk-hero-fallback-title">
-          Out and about, occasionally building things.
+          A moment at the desk.
         </h1>
         <p className="desk-hero-fallback-copy">
           You&rsquo;re seeing a still of my desk. Live, it&rsquo;s a 3D scene —
           the turntable spins whatever I&rsquo;m listening to, the books are what
           I&rsquo;m reading, the chess game is real and ongoing. Everything on it
-          lives in the pages below, too.
+          is yours to explore.
         </p>
+        <div className="desk-fallback-links"><a href="/writings">Read my writing ↗</a><a href="/">Back home →</a></div>
       </div>
     </section>
   );
+}
+
+class SceneBoundary extends Component<{ children: ReactNode; onFailure: () => void }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch() { this.props.onFailure(); }
+  render() { return this.state.failed ? null : this.props.children; }
 }
 
 // This small shell is server-rendered and hydrates independently of the
@@ -52,7 +60,16 @@ function DeskHeroFallback() {
 export default function DeskHero() {
   const [capability, setCapability] = useState<Capability>("pending");
   const [sceneReady, setSceneReady] = useState(false);
+  const [slow, setSlow] = useState(false);
+  const [failed, setFailed] = useState(false);
   const handleReady = useCallback(() => setSceneReady(true), []);
+  const handleFailure = useCallback(() => setFailed(true), []);
+
+  useEffect(() => {
+    if (sceneReady) return;
+    const timer = window.setTimeout(() => setSlow(true), 12000);
+    return () => window.clearTimeout(timer);
+  }, [sceneReady]);
 
   useEffect(() => {
     let firstFrame = 0;
@@ -94,12 +111,15 @@ export default function DeskHero() {
       data-scene-ready={sceneReady}
     >
       <div className="desk-hero-poster" aria-hidden="true" />
-      {capability === "scene" ? <DeskInteractive onReady={handleReady} /> : null}
+      {capability === "scene" ? <SceneBoundary onFailure={handleFailure}><DeskInteractive onReady={handleReady} /></SceneBoundary> : null}
       {!sceneReady ? (
-        <p className="desk-hero-whisper" role="status">
-          setting the desk
-        </p>
+        <div className="desk-loading-dock">
+          <p role="status">{failed ? "The interactive desk couldn’t open." : slow ? "Taking a little longer to open…" : "Opening the interactive desk…"}</p>
+          <a href="/writings">Read my writing while you wait ↗</a>
+          {failed ? <a href="/desk">Try again →</a> : null}
+        </div>
       ) : null}
+      <noscript><div className="desk-noscript">This is a still of my desk. <a href="/writings">Read my writing ↗</a></div></noscript>
     </section>
   );
 }

@@ -2,6 +2,22 @@
 const nextConfig = {
   reactStrictMode: true,
   transpilePackages: ["three"],
+  async redirects() {
+    return [
+      {
+        source: "/",
+        has: [{ type: "query", key: "focus", value: "(?<focus>records|work|reading|notes|chess)" }],
+        destination: "/desk?focus=:focus",
+        permanent: false
+      },
+      {
+        source: "/",
+        has: [{ type: "query", key: "baked", value: "(?<baked>0|1)" }],
+        destination: "/desk?baked=:baked",
+        permanent: false
+      }
+    ];
+  },
   async headers() {
     return [
       {

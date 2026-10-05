@@ -1,0 +1,50 @@
+/* The front door is ordinary HTML. The interactive room lives at /desk. */
+.landing { display: grid; gap: 3.5rem; }
+.landing-intro { display: grid; grid-template-columns: 1.05fr 1fr; gap: 3rem; align-items: center; padding: 1rem 0 2rem; }
+.landing-copy h1 { font-size: clamp(2.8rem, 4.8vw, 4.35rem); line-height: 1.04; font-weight: 450; letter-spacing: -0.045em; margin: 1.1rem 0 1.5rem; }
+.landing-copy h1 em, .writing-room-header h1 em { color: var(--accent); font-weight: 400; }
+.landing-standfirst { max-width: 24rem; font-size: 1.05rem; color: var(--muted); margin: 0 0 1.4rem; }
+.landing-text-link { display: inline-flex; gap: 1.5rem; align-items: center; min-height: 44px; border-bottom: 1px solid var(--accent); color: var(--accent); font-size: 0.95rem; }
+.desk-postcard { display: block; position: relative; padding: 0.7rem 0.7rem 1rem; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 10px 30px -20px rgb(var(--shadow-warm) / 0.4); transform: rotate(2deg); transition: transform 180ms ease, border-color 180ms ease; }
+.desk-postcard:hover { transform: rotate(0deg); border-color: var(--accent); }
+.desk-postcard-image { aspect-ratio: 1.2; background: #e3d4ba url(/desk-poster-light.jpg) center bottom / cover no-repeat; }
+:root[data-theme="dark"] .desk-postcard-image { background-image: url(/desk-poster-dark.jpg); background-color: #0e0a07; }
+.desk-postcard-caption { display: flex; align-items: center; justify-content: space-between; padding: 1rem 0.6rem 0.1rem; gap: 1rem; }
+.desk-postcard-caption .eyebrow { font-size: 0.63rem; }
+.desk-postcard-caption strong { display: block; font: 450 1.8rem / 1.3 var(--font-serif), Georgia, serif; }
+.desk-postcard-arrow { display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid var(--border); border-radius: 50%; color: var(--accent); font-size: 1.5rem; }
+.desk-postcard-note { display: block; margin: 0.2rem 0.6rem 0; color: var(--muted); font: italic 0.95rem var(--font-serif), Georgia, serif; }
+.landing-directory { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid var(--hairline-strong); border-bottom: 1px solid var(--hairline-strong); }
+.landing-directory a { display: flex; gap: 0.7rem; align-items: baseline; padding: 1.4rem 0.85rem; transition: background 150ms ease; }
+.landing-directory a:first-child { padding-left: 0; }
+.landing-directory a:hover { background: var(--surface-soft); }
+.directory-number { color: var(--accent); font-size: 0.65rem; font-variant-numeric: tabular-nums; }
+.landing-directory strong { display: block; font: 500 1.2rem var(--font-serif), Georgia, serif; }
+.landing-directory small { display: block; margin-top: 0.4rem; color: var(--muted); font-size: 0.7rem; }
+.landing-directory a > span:last-child { margin-left: auto; color: var(--accent); }
+.landing-writing { display: block; position: relative; border-left: 2px solid var(--coral); padding: 0.3rem 0 0.3rem 1.6rem; max-width: 44rem; }
+.landing-writing h2 { font-size: clamp(1.65rem, 3vw, 2.1rem); line-height: 1.15; font-weight: 450; margin: 0.7rem 0; }
+.landing-writing > p { color: var(--muted); font-size: 0.95rem; margin: 0.6rem 0 1.1rem; }
+.landing-writing-foot { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem; color: var(--accent); font-size: 0.8rem; }
+.landing-writing-foot > span:first-child { color: var(--muted); }
+.landing-writing:hover h2 { color: var(--accent); }
+.landing-activity { border-top: 1px solid var(--border); padding-top: 1.5rem; }
+.landing-activity > .eyebrow { margin-bottom: 0.7rem; }
+.landing-activity .activity-ribbon { min-height: 58px; }
+.landing a:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 5px; }
+
+@media (max-width: 760px) {
+  .landing-intro { grid-template-columns: 1fr; gap: 2rem; padding-top: 0; }
+  .landing-copy h1 { font-size: clamp(2.8rem, 9vw, 4.2rem); }
+  .landing-standfirst { max-width: 30rem; }
+  .desk-postcard { width: min(100%, 440px); justify-self: center; transform: rotate(1deg); }
+  .desk-postcard-image { aspect-ratio: 1.65; }
+  .landing { gap: 2.5rem; }
+  .landing-directory { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .landing-directory a { padding: 1.1rem 0.65rem; }
+  .landing-directory a:nth-child(3) { padding-left: 0; }
+  .landing-directory a:nth-child(-n+2) { border-bottom: 1px solid var(--border); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .desk-postcard, .desk-postcard:hover { transform: none; transition: none; }
+}
