@@ -240,10 +240,12 @@ function attachBakedLightmap(
 function BakedStatics({
   onFocus,
   onReady,
+  onPrepared,
   overlaysReady
 }: {
   onFocus: (id: FocusId) => void;
   onReady?: () => void;
+  onPrepared: () => void;
   overlaysReady: boolean;
 }) {
   const { theme, toggleTheme } = useDeskTheme();
@@ -265,7 +267,7 @@ function BakedStatics({
   // Reveal-signal bookkeeping (mirrors DeskScene's ReadySignal): compile the
   // graph and draw a few frames before the canvas crossfades in over the
   // poster.
-  const { gl, scene, camera, setFrameloop } = useThree();
+  const { gl, scene, camera } = useThree();
   const startedAtRef = useRef(0);
   const framesRef = useRef(0);
   const compiledRef = useRef(false);
@@ -366,10 +368,10 @@ function BakedStatics({
     let cancelled = false;
     let timer = 0;
     const activate = () => {
-      if (cancelled) return;
+      if (cancelled || compiledRef.current) return;
       compiledRef.current = true;
       window.clearTimeout(timer);
-      setFrameloop("always");
+      onPrepared();
     };
     const prepare = () => {
       const remaining =
@@ -396,7 +398,7 @@ function BakedStatics({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [root, overlaysReady, gl, scene, camera, setFrameloop]);
+  }, [root, overlaysReady, gl, scene, camera, onPrepared]);
 
   useFrame(() => {
     if (firedRef.current || !compiledRef.current) return;
@@ -720,8 +722,9 @@ function SceneContents({
   chessLastMove,
   notes,
   onReady,
+  onPrepared,
   sceneReady
-}: DeskSceneProps) {
+}: DeskSceneProps & { onPrepared: () => void }) {
   // These objects generate procedural geometry/textures. Mount one per
   // separate task so navigation can respond between preparations instead of
   // losing several seconds to one uninterrupted render.
@@ -758,6 +761,7 @@ function SceneContents({
       <BakedStatics
         onFocus={onFocus}
         onReady={onReady}
+        onPrepared={onPrepared}
         overlaysReady={overlayStage >= 4}
       />
       {/* The live, animated MacBook replaces the baked one. Its baked
@@ -884,6 +888,8 @@ function SceneContents({
 
 export default function BakedDeskScene(props: DeskSceneProps) {
   const { theme, toggleTheme } = useSiteTheme();
+  const [drawing, setDrawing] = useState(false);
+  const handlePrepared = useCallback(() => setDrawing(true), []);
 
   // Cold-load insurance: the hero canvas mounts while the load curtain still
   // holds its container at 0 height, so R3F's ResizeObserver can latch the
@@ -897,12 +903,15 @@ export default function BakedDeskScene(props: DeskSceneProps) {
 
   return (
     <Canvas
-      frameloop="never"
+      // Keep the declared prop in sync with readiness. An imperative
+      // setFrameloop alone is overwritten when Canvas reconfigures on a
+      // parent render (including the scene-ready reveal).
+      frameloop={drawing ? "always" : "never"}
       dpr={[1, 1.5]}
       camera={{ fov: CAMERA.fov, near: 0.1, far: 20, position: CAMERA.start }}
       // R3F sets touch-action:none on its container div by default (to stop 3D
       // gestures from scrolling the page). We need pan-y so the user can scroll
-      // past the hero on mobile — orbit is disabled anyway on this scene.
+      // past the hero on mobile.
       style={{ touchAction: "pan-y" }}
       gl={{
         antialias: false,
@@ -915,7 +924,7 @@ export default function BakedDeskScene(props: DeskSceneProps) {
     >
       <DeskThemeProvider theme={theme} toggleTheme={toggleTheme}>
         <Suspense fallback={null}>
-          <SceneContents {...props} />
+          <SceneContents {...props} onPrepared={handlePrepared} />
         </Suspense>
       </DeskThemeProvider>
     </Canvas>
