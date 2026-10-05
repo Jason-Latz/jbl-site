@@ -217,6 +217,7 @@ For the `/travel` photo globe (see `CODEBASE_GUIDE.md` §4.5):
 ## 25) Homepage Startup Must Leave Navigation Usable
 
 1. Render the header and desk poster before waiting for page data or 3D readiness; keep the initial desk shell independent of heavy scene code.
-2. Check cold-start input responsiveness as well as download times. A finished-scene screenshot does not prove the page was usable during startup.
+2. Check cold-start header navigation and desk dragging as well as download times, including after the scene-ready render. A finished-scene screenshot does not prove the page was usable during startup.
 3. Keep unrelated gallery warmup and heavy route prefetch off the home page's startup path.
 4. Before shipping a bake optimization, verify it with the production decoder and inspect both themes in a browser. Preserve visible geometry, lightmap UVs, and texture quality.
+5. Build with access to Supabase and verify real prerendered content; a successful exit after logged fetch/DNS errors can still ship empty fallback pages.
