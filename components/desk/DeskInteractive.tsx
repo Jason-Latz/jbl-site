@@ -25,7 +25,7 @@ const PANEL_META: Record<FocusId, { eyebrow: string; title: string }> = {
   chess: { eyebrow: "playing", title: "The world vs. Jason" }
 };
 
-// The baked scene is the default homepage; ?baked=0 is the escape hatch to the
+// The baked scene lives at /desk; ?baked=0 is the escape hatch to the
 // live procedural DeskScene. The static-only model is committed in public/;
 // immutable lightmaps remain on Supabase. See lib/desk-assets.ts.
 const DeskScene = dynamic(
@@ -141,7 +141,7 @@ export default function DeskInteractive({ onReady }: { onReady: () => void }) {
   }, []);
 
   // Deep link straight into a focus view:
-  // /?focus=records|work|reading|notes|chess
+  // /desk?focus=records|work|reading|notes|chess
   useEffect(() => {
     const requested = new URLSearchParams(window.location.search).get("focus");
     if (
@@ -287,7 +287,7 @@ export default function DeskInteractive({ onReady }: { onReady: () => void }) {
           position: "absolute",
           inset: 0,
           opacity: sceneReady ? 1 : 0,
-          transition: "opacity 1.15s ease",
+          transition: "opacity 0.35s ease",
           // An opacity-0 element still hit-tests: without this, invisible
           // desk objects were clickable through the poster mid-load (a blind
           // tap could silently toggle the theme via the unseen lamp).

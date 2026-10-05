@@ -632,6 +632,20 @@ function CameraDirector({
     firstFlightRef.current = false;
     prevFocusRef.current = focus;
 
+    // Reveal at the final framing. An entrance dolly behind the poster made
+    // the first visible scene move abruptly and kept orbit controls locked.
+    if (isFirst) {
+      camera.position.copy(to);
+      currentTarget.current.copy(toTarget);
+      camera.lookAt(toTarget);
+      if (controlsRef.current) {
+        controlsRef.current.target.copy(toTarget);
+        controlsRef.current.enabled = !focus;
+        controlsRef.current.update();
+      }
+      return;
+    }
+
     // A rig change that did NOT change the focus is a viewport event — the
     // cold-load size correction (300x150 -> real, which flips landscape<->
     // portrait via the resize-nudge) or an orientation flip. Retarget the live
@@ -660,12 +674,12 @@ function CameraDirector({
 
     if (controlsRef.current) controlsRef.current.enabled = false;
     flightRef.current = {
-      from: isFirst ? rig.start.clone() : camera.position.clone(),
+      from: camera.position.clone(),
       fromTarget: currentTarget.current.clone(),
       to,
       toTarget,
       progress: 0,
-      duration: isFirst ? 0.45 : 1.05,
+      duration: 1.05,
       unlockOnLand: !focus
     };
   }, [rig, focus, camera, controlsRef]);

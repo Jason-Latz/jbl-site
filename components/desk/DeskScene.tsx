@@ -301,6 +301,18 @@ function CameraDirector({
     firstFlightRef.current = false;
     prevFocusRef.current = focus;
 
+    if (isFirst) {
+      camera.position.copy(to);
+      currentTarget.current.copy(toTarget);
+      camera.lookAt(toTarget);
+      if (controlsRef.current) {
+        controlsRef.current.target.copy(toTarget);
+        controlsRef.current.enabled = !focus;
+        controlsRef.current.update();
+      }
+      return;
+    }
+
     // A rig change that did NOT change the focus is a viewport event — the
     // cold-load size correction (300x150 -> real, which flips landscape<->
     // portrait) or an orientation flip. Retarget the live dolly instead of
@@ -334,14 +346,14 @@ function CameraDirector({
       controlsRef.current.enabled = false;
     }
     flightRef.current = {
-      from: isFirst ? rig.start.clone() : camera.position.clone(),
+      from: camera.position.clone(),
       fromTarget: currentTarget.current.clone(),
       to,
       toTarget,
       progress: 0,
       // 1.05 s focus flights (was 1.25): with the panel's backdrop blur
       // gone, the shorter dolly reads snappy instead of rushed.
-      duration: isFirst ? 2.3 : 1.05,
+      duration: 1.05,
       unlockOnLand: !focus
     };
   }, [rig, focus, camera, controlsRef]);
