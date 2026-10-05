@@ -293,10 +293,11 @@ The bake writes `public/_bake/desk-window-uv1.glb` (~66MB geometry) and
 tree is **gitignored** and must NOT be committed — 172MB on first paint is
 brutal, and committing binaries bloats the repo. Instead the assets are
 slimmed (~31MB total) and hosted on **public Supabase Storage** (bucket
-`bake`, immutable versioned prefix). `BakedDeskScene` fetches that public CDN
-in every environment by default so a clean checkout works without the ignored
-local bake tree. Set `NEXT_PUBLIC_BAKE_CDN_URL=/_bake/cdn` only when explicitly
-testing freshly generated local assets.
+`bake`, immutable versioned prefix). Lightmaps still use that CDN. The default
+GLB is now a committed static-only derivative described in §10, so a clean
+checkout works without the ignored local bake tree. Set
+`NEXT_PUBLIC_BAKE_CDN_URL=/_bake/cdn` only when explicitly testing freshly
+generated local assets, including `desk-window-uv1-slim82.glb`.
 
 > History: the baked homepage once went BLANK in prod because the assets were
 > gitignored → never deployed → the GLB 404'd. This pipeline is the fix. Vercel
@@ -310,11 +311,11 @@ node scripts/bake/slim_lightmaps.mjs 768 90  # PNG → public/_bake/cdn/lightmap
 node scripts/bake/verify_glb.mjs          # asserts meshopt decodes + vert/uv1 totals match
 node scripts/bake/upload_supabase.mjs v2  # NEW version prefix on a re-bake (was v1)
 ```
-Then bump the version the runtime points at: edit `SUPABASE_BAKE_CDN` in
-`components/desk/BakedDeskScene.tsx` (…/bake/**v1** → **v2**) — or set
+Then bump the version the runtime points at: edit `DEFAULT_BAKE_BASE` in
+`lib/desk-assets.ts` (…/bake/**v1** → **v2**) — or set
 `NEXT_PUBLIC_BAKE_CDN_URL` in Vercel to repoint without a code change — and
-redeploy. The versioned prefix makes URLs immutable, so there's no stale-CDN
-cache to bust.
+redeploy. For the default model, also complete §9 and §10. The versioned prefix
+makes URLs immutable, so there's no stale-CDN cache to bust.
 
 **Sharp gotchas this pipeline cost us:**
 - **`prune()` strips the lightmap UVs.** The lightmap is attached at RUNTIME
@@ -342,9 +343,9 @@ cache to bust.
 The exported GLB's bytes are ~80% embedded PNG textures (the objects' own PBR
 maps), not geometry. Recompressing those textures to WebP q82 took the shipped
 GLB from 29.33MB to 6.36MB (78% smaller) with no runtime change: three-stdlib's
-GLTFLoader decodes `EXT_texture_webp` natively. The live homepage loads
-`bake/v1/desk-window-uv1-slim82.glb` (uploaded additively; the original
-`desk-window-uv1.glb` is untouched in `v1/` as the rollback).
+GLTFLoader decodes `EXT_texture_webp` natively. The source for the static-only
+homepage model is `bake/v1/desk-window-uv1-slim82.glb` (uploaded additively;
+the original `desk-window-uv1.glb` is untouched in `v1/` as the rollback).
 
 Reproduce on a future re-bake (after the §8 slim step):
 
@@ -365,4 +366,27 @@ Verified constraints, do not skip:
   `npx @gltf-transform/cli inspect` + a tag-count diff before uploading.
 - Quality floor: q82 measured ~0.88/255 mean abs error across all 84 textures
   (at the measurement noise floor). Below q75 is unverified territory.
-- A/B in the browser (both themes) before repointing `GLB_URL`.
+- A/B in the browser (both themes) before repointing `BAKED_GLB_URL`.
+
+## 10. Remove live-overlay duplicates before delivery (2026-10-05)
+
+The MacBook, chessboard, turntable, and notepad are live React components. Their
+baked duplicates and exported lights add download, decoding, and shader work
+without adding visible detail. The current static-only model is
+`public/desk-static-f5fbb9104223.glb` (3,125,024 bytes, down from 6,363,900).
+It preserves visible geometry, placements, tags, lightmap UVs, and texture bytes.
+The baked contact shadows remain on the desk lightmaps.
+
+From a §9 slim82 source, run:
+
+```bash
+node scripts/bake/prune_live_overlays.mjs /path/to/source.glb public/desk-static-next.glb
+node scripts/bake/verify_static_glb.mjs /path/to/source.glb public/desk-static-next.glb
+```
+
+The verifier uses the exact production Three.js decoder, including oriented
+triangle comparisons rather than raw index-buffer identity. After verification,
+name the file with the first 12 SHA-256 hex digits, update `BAKED_GLB_URL` and
+the lightmap manifest in `lib/desk-assets.ts`, and commit the asset. Its URL is
+served with a one-year immutable cache policy; never overwrite an existing hash
+URL. Check both themes and startup navigation in a browser before shipping.
