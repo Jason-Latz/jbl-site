@@ -226,3 +226,4 @@ For the `/travel` photo globe (see `CODEBASE_GUIDE.md` §4.5):
 
 1. Use a plain page title and chronological article list with dates; avoid notebook artwork, decorative paper cards, and themed taglines such as "From the desk."
 2. Make homepage desk entry a clear primary action. Keyboard shortcuts must preserve normal typing and focused-control behavior.
+3. Keep the homepage minimal too: prefer an actual desk still and direct navigation, without invented intro slogans or decorative framing.
