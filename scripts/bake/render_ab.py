@@ -40,10 +40,11 @@ def parse_args():
     parser.add_argument("--lamp-watts", type=float, default=18.0)
     parser.add_argument(
         "--cam",
-        choices=["rest", "start", "hero"],
+        choices=["rest", "start", "hero", "overhead"],
         default="hero",
         help="rest = tight top-down desk, start = pulled-back intro, "
-        "hero = lower head-on establishing view (sees the window + wall)",
+        "hero = lower head-on establishing view (sees the window + wall), "
+        "overhead = orthographic tabletop still for the static homepage",
     )
     parser.add_argument("--save-blend", action="store_true")
     return parser.parse_args(argv)
@@ -152,24 +153,32 @@ def main():
         bpy.data.objects.remove(obj, do_unlink=True)
 
     # ——— Camera from markers ———
-    cam_marker = {
-        "start": "MARKER_camStart",
-        "rest": "MARKER_camPos",
-        "hero": "MARKER_camHero",
-    }[args.cam]
-    try:
-        cam_pos = marker(cam_marker)
-        cam_target = (
-            marker("MARKER_camHeroTarget")
-            if args.cam == "hero"
-            else marker("MARKER_camTarget")
-        )
-    except RuntimeError:
-        cam_pos = marker("MARKER_camPos")  # older GLBs lack the newer markers
-        cam_target = marker("MARKER_camTarget")
+    if args.cam == "overhead":
+        # Stay inside the room, below its 1.75 m ceiling and above the lamp.
+        cam_pos = t2b(0, 1.3, 0.001)
+        cam_target = t2b(0, 0, 0)
+    else:
+        cam_marker = {
+            "start": "MARKER_camStart",
+            "rest": "MARKER_camPos",
+            "hero": "MARKER_camHero",
+        }[args.cam]
+        try:
+            cam_pos = marker(cam_marker)
+            cam_target = (
+                marker("MARKER_camHeroTarget")
+                if args.cam == "hero"
+                else marker("MARKER_camTarget")
+            )
+        except RuntimeError:
+            cam_pos = marker("MARKER_camPos")  # older GLBs lack newer markers
+            cam_target = marker("MARKER_camTarget")
     cam_data = bpy.data.cameras.new("HeroCam")
     cam_data.sensor_fit = "VERTICAL"
     cam_data.angle_y = math.radians(40.0)  # CAMERA.fov in layout.ts
+    if args.cam == "overhead":
+        cam_data.type = "ORTHO"
+        cam_data.ortho_scale = 1.12  # vertical span; full 1.9 m desk at 16:9
     cam_obj = bpy.data.objects.new("HeroCam", cam_data)
     cam_obj.location = cam_pos
     scene.collection.objects.link(cam_obj)
