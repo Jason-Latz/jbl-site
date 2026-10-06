@@ -37,7 +37,7 @@ const themeInitScript = `
   }
   root.setAttribute("data-theme", theme);
 
-  // Home uses a landscape postcard; /desk uses the viewport-matched still.
+  // Home uses the overhead still; /desk uses the viewport-matched poster.
   // Only preload the active image, never the model or the scene on home.
   try {
     if (location.pathname === "/" || location.pathname === "/desk") {
@@ -45,8 +45,9 @@ const themeInitScript = `
       const link = document.createElement("link");
       link.rel = "preload";
       link.as = "image";
-      link.href =
-        "/desk-poster-" + (portrait ? "portrait-" : "") + theme + ".jpg";
+      link.href = location.pathname === "/"
+        ? "/desk-overhead-" + theme + ".webp"
+        : "/desk-poster-" + (portrait ? "portrait-" : "") + theme + ".jpg";
       link.setAttribute("fetchpriority", "high");
       (document.head || root).appendChild(link);
     }

@@ -1,52 +1,28 @@
-/* The front door is ordinary HTML. The interactive room lives at /desk. */
-.landing { display: grid; gap: 3.5rem; }
-.landing-intro { display: grid; grid-template-columns: 1.05fr 1fr; gap: 3rem; align-items: center; padding: 1rem 0 2rem; }
-.landing-copy h1 { font-size: clamp(2.8rem, 4.8vw, 4.35rem); line-height: 1.04; font-weight: 450; letter-spacing: -0.045em; margin: 1.1rem 0 1.5rem; }
-.landing-copy h1 em { color: var(--accent); font-weight: 400; }
-.landing-standfirst { max-width: 24rem; font-size: 1.05rem; color: var(--muted); margin: 0 0 1.4rem; }
-.landing-desk-entry { display: flex; align-items: flex-start; flex-direction: column; gap: 0.8rem; }
-.landing-desk-action { display: inline-flex; gap: 2.5rem; align-items: center; min-height: 52px; padding: 0.8rem 1.3rem; background: var(--fg); color: var(--bg); border-radius: 3px; font-weight: 500; }
+/* The homepage renders a still; the interactive room lives at /desk. */
+:root:has(.landing) main { padding-top: 2rem; }
+.landing { display: grid; gap: 2.5rem; }
+.landing .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+.landing-desk { display: grid; justify-items: center; gap: 1.5rem; }
+.landing-desk-view { display: block; width: min(100%, 840px); }
+.landing-desk-image { aspect-ratio: 16 / 9; background: #302117 url(/desk-overhead-light.webp) center / cover no-repeat; }
+:root[data-theme="dark"] .landing-desk-image { background-image: url(/desk-overhead-dark.webp); background-color: #17100d; }
+.landing-desk-entry { display: flex; align-items: center; flex-direction: column; gap: 0.65rem; }
+.landing-desk-action { display: inline-flex; gap: 2rem; align-items: center; min-height: 48px; padding: 0.7rem 1.2rem; background: var(--fg); color: var(--bg); border-radius: 3px; font-size: 0.9rem; font-weight: 500; }
 .landing-desk-action:hover { background: var(--accent); }
-.landing-desk-shortcut { color: var(--muted); font-size: 0.8rem; }
-.landing-desk-shortcut kbd { font: inherit; border: 1px solid var(--hairline-strong); border-bottom-width: 2px; border-radius: 3px; padding: 0.15rem 0.55rem; margin: 0 0.15rem; color: var(--fg); }
-.desk-postcard { display: block; position: relative; padding: 0.7rem 0.7rem 1rem; background: var(--surface); border: 1px solid var(--border); }
-.desk-postcard:hover { border-color: var(--accent); }
-.desk-postcard-image { aspect-ratio: 1.2; background: #e3d4ba url(/desk-poster-light.jpg) center bottom / cover no-repeat; }
-:root[data-theme="dark"] .desk-postcard-image { background-image: url(/desk-poster-dark.jpg); background-color: #0e0a07; }
-.desk-postcard-caption { display: flex; align-items: center; justify-content: space-between; padding: 1rem 0.6rem 0.1rem; gap: 1rem; }
-.desk-postcard-caption .eyebrow { font-size: 0.63rem; }
-.desk-postcard-caption strong { display: block; font: 450 1.8rem / 1.3 var(--font-serif), Georgia, serif; }
-.desk-postcard-arrow { display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid var(--border); border-radius: 50%; color: var(--accent); font-size: 1.5rem; }
-.landing-directory { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid var(--hairline-strong); border-bottom: 1px solid var(--hairline-strong); }
-.landing-directory a { display: flex; gap: 0.7rem; align-items: baseline; padding: 1.4rem 0.85rem; transition: background 150ms ease; }
-.landing-directory a:first-child { padding-left: 0; }
-.landing-directory a:hover { background: var(--surface-soft); }
-.directory-number { color: var(--accent); font-size: 0.65rem; font-variant-numeric: tabular-nums; }
-.landing-directory strong { display: block; font: 500 1.2rem var(--font-serif), Georgia, serif; }
-.landing-directory small { display: block; margin-top: 0.4rem; color: var(--muted); font-size: 0.7rem; }
-.landing-directory a > span:last-child { margin-left: auto; color: var(--accent); }
-.landing-writing { display: block; position: relative; border-left: 2px solid var(--coral); padding: 0.3rem 0 0.3rem 1.6rem; max-width: 44rem; }
-.landing-writing h2 { font-size: clamp(1.65rem, 3vw, 2.1rem); line-height: 1.15; font-weight: 450; margin: 0.7rem 0; }
-.landing-writing > p { color: var(--muted); font-size: 0.95rem; margin: 0.6rem 0 1.1rem; }
-.landing-writing-foot { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem; color: var(--accent); font-size: 0.8rem; }
-.landing-writing-foot > span:first-child { color: var(--muted); }
-.landing-writing:hover h2 { color: var(--accent); }
-.landing-activity { border-top: 1px solid var(--border); padding-top: 1.5rem; }
-.landing-activity > .eyebrow { margin-bottom: 0.7rem; }
+.landing-desk-shortcut { color: var(--muted); font-size: 0.75rem; }
+.landing-desk-shortcut kbd { font: inherit; border: 1px solid var(--hairline-strong); border-bottom-width: 2px; border-radius: 3px; padding: 0.15rem 0.5rem; margin: 0 0.15rem; color: var(--fg); }
+.landing-writing { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.5rem 1rem; padding-top: 1.5rem; border-top: 1px solid var(--hairline); font-size: 0.85rem; }
+.landing-writing-label, .landing-writing-date { color: var(--muted); font-size: 0.75rem; }
+.landing-writing-date { margin-left: auto; }
+.landing-writing:hover .landing-writing-title { color: var(--accent); }
 .landing-activity .activity-ribbon { min-height: 58px; }
 .landing a:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 5px; }
 
 @media (max-width: 760px) {
-  .landing-intro { grid-template-columns: 1fr; gap: 2rem; padding-top: 0; }
-  .landing-copy h1 { font-size: clamp(2.8rem, 9vw, 4.2rem); }
-  .landing-standfirst { max-width: 30rem; }
-  .desk-postcard { width: min(100%, 440px); justify-self: center; }
-  .desk-postcard-image { aspect-ratio: 1.65; }
-  .landing { gap: 2.5rem; }
-  .landing-directory { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .landing-directory a { padding: 1.1rem 0.65rem; }
-  .landing-directory a:nth-child(3) { padding-left: 0; }
-  .landing-directory a:nth-child(-n+2) { border-bottom: 1px solid var(--border); }
+  :root:has(.landing) main { padding-top: 1.5rem; }
+  .landing { gap: 2rem; }
+  .landing-desk { gap: 1.5rem; }
+  .landing-writing-label { flex-basis: 100%; }
 }
 @media (hover: none) and (pointer: coarse) {
   .landing-desk-shortcut { display: none; }

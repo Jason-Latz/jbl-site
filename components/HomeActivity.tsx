@@ -29,9 +29,8 @@ export default function HomeActivity() {
 
   return (
     <div ref={ref} className="landing-activity">
-      <p className="eyebrow">In the background</p>
       <div className="activity-ribbon" aria-label="Live activity">
-        {visible ? <><Spotify /><Duolingo /></> : <p className="post-meta">Music &amp; a little daily practice.</p>}
+        {visible ? <><Spotify /><Duolingo /></> : null}
       </div>
     </div>
   );
