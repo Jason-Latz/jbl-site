@@ -6,7 +6,7 @@ The current implementation makes `/` a server-rendered landing page. The 3D
 room now lives at `/desk` and starts only after explicit entry. This supersedes
 the automatic-homepage direction in the historical roadmap below.
 
-- [x] Static home with direct content links and a theme-aware desk postcard
+- [x] Minimal static home with header navigation, a theme-aware overhead desk still, and explicit entry
 - [x] Minimal writings archive with title/date links; plain article pages and a writings link from the bookshelf
 - [x] Prominent homepage desk entry with a visible Space shortcut that preserves typing and focused controls
 - [x] Skip gallery warmup on home, desk, and writings; defer home activity until near the viewport
