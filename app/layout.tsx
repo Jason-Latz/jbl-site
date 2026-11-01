@@ -15,12 +15,28 @@ const newsreader = Newsreader({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://www.jasonlatz.com"),
   title: {
     default: "Jason Latz",
     template: "%s | Jason Latz"
   },
   description:
-    "Jason Latz's interactive desk, writing, photography, travel, and experience."
+    "Jason Latz's interactive desk, writing, photography, travel, and experience.",
+  openGraph: {
+    type: "website",
+    siteName: "Jason Latz",
+    locale: "en_US",
+    images: [{
+      url: "/social/compass-v1.png",
+      width: 1200,
+      height: 630,
+      type: "image/png",
+      alt: "A copper and charcoal compass rose above Jason Latz's name on warm ivory paper."
+    }]
+  },
+  twitter: {
+    card: "summary_large_image"
+  }
 };
 
 const themeInitScript = `

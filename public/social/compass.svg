@@ -1,0 +1,110 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">Jason Latz</title>
+  <desc id="desc">An eight-point compass rose in charcoal and copper, with fine instrument markings on warm ivory paper.</desc>
+  <defs>
+    <radialGradient id="paper" cx="50%" cy="38%" r="75%">
+      <stop offset="0" stop-color="#faf7ef"/>
+      <stop offset="1" stop-color="#ede6d8"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#paper)"/>
+  <rect x="28.5" y="28.5" width="1143" height="573" rx="2" fill="none" stroke="#cbbda8" stroke-opacity="0.55"/>
+  <g fill="none" stroke="#bcab94" stroke-width="1" opacity="0.65">
+    <path d="M 49 64 V 49 H 64 M 1136 49 H 1151 V 64 M 1151 566 V 581 H 1136 M 64 581 H 49 V 566"/>
+  </g>
+  <text x="600" y="67" text-anchor="middle" fill="#9c684b" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="13" font-weight="500" letter-spacing="1">N</text>
+  <g transform="translate(600 248)">
+    <circle r="165" fill="none" stroke="#cfbfa7" stroke-width="0.8"/>
+    <circle r="159" fill="none" stroke="#9e886c" stroke-width="1"/>
+    <circle r="139" fill="none" stroke="#cbbba3" stroke-width="0.65"/>
+    <g><path d="M 0 -143 V -154" transform="rotate(0)" stroke="#8a7562" stroke-width="1.3"/>
+      <path d="M 0 -148 V -154" transform="rotate(7.5)" stroke="#c9bba8" stroke-width="0.8"/>
+      <path d="M 0 -148 V -154" transform="rotate(15)" stroke="#c9bba8" stroke-width="0.8"/>
+      <path d="M 0 -148 V -154" transform="rotate(22.5)" stroke="#c9bba8" stroke-width="0.8"/>
+      <path d="M 0 -148 V -154" transform="rotate(30)" stroke="#c9bba8" stroke-width="0.8"/>
+      <path d="M 0 -148 V -154" transform="rotate(37.5)" stroke="#c9bba8" stroke-width="0.8"/>
+      <path d="M 0 -143 V -154" transform="rotate(45)" stroke="#8a7562" stroke-width="1.3"/>
+      <path d="M 0 -148 V -154" transform="rotate(52.5)" stroke="#c9bba8" stroke-width="0.8"/>
+      <path d="M 0 -148 V -154" transform="rotate(60)" stroke="#c9bba8" stroke-width="0.8"/>
+      <path d="M 0 -148 V -154" transform="rotate(67.5)" stroke="#c9bba8" stroke-width="0.8"/>
+      <path d="M 0 -148 V -154" transform="rotate(75)" stroke="#c9bba8" stroke-width="0.8"/>
+      <path d="M 0 -148 V -154" transform="rotate(82.5)" stroke="#c9bba8" stroke-width="0.8"/>
+      <path d="M 0 -143 V -154" transform="rotate(90)" stroke="#8a7562" stroke-width="1.3"/>
+      <path d="M 0 -148 V -154" transform="rotate(97.5)" stroke="#c9bba8" stroke-width="0.8"/>
+      <path d="M 0 -148 V -154" transform="rotate(105)" stroke="#c9bba8" stroke-width="0.8"/>
+      <path d="M 0 -148 V -154" transform="rotate(112.5)" stroke="#c9bba8" stroke-width="0.8"/>
+      <path d="M 0 -148 V -154" transform="rotate(120)" stroke="#c9bba8" stroke-width="0.8"/>
+      <path d="M 0 -148 V -154" transform="rotate(127.5)" stroke="#c9bba8" stroke-width="0.8"/>
+      <path d="M 0 -143 V -154" transform="rotate(135)" stroke="#8a7562" stroke-width="1.3"/>
+      <path d="M 0 -148 V -154" transform="rotate(142.5)" stroke="#c9bba8" stroke-width="0.8"/>
+      <path d="M 0 -148 V -154" transform="rotate(150)" stroke="#c9bba8" stroke-width="0.8"/>
+      <path d="M 0 -148 V -154" transform="rotate(157.5)" stroke="#c9bba8" stroke-width="0.8"/>
+      <path d="M 0 -148 V -154" transform="rotate(165)" stroke="#c9bba8" stroke-width="0.8"/>
+      <path d="M 0 -148 V -154" transform="rotate(172.5)" stroke="#c9bba8" stroke-width="0.8"/>
+      <path d="M 0 -143 V -154" transform="rotate(180)" stroke="#8a7562" stroke-width="1.3"/>
+      <path d="M 0 -148 V -154" transform="rotate(187.5)" stroke="#c9bba8" stroke-width="0.8"/>
+      <path d="M 0 -148 V -154" transform="rotate(195)" stroke="#c9bba8" stroke-width="0.8"/>
+      <path d="M 0 -148 V -154" transform="rotate(202.5)" stroke="#c9bba8" stroke-width="0.8"/>
+      <path d="M 0 -148 V -154" transform="rotate(210)" stroke="#c9bba8" stroke-width="0.8"/>
+      <path d="M 0 -148 V -154" transform="rotate(217.5)" stroke="#c9bba8" stroke-width="0.8"/>
+      <path d="M 0 -143 V -154" transform="rotate(225)" stroke="#8a7562" stroke-width="1.3"/>
+      <path d="M 0 -148 V -154" transform="rotate(232.5)" stroke="#c9bba8" stroke-width="0.8"/>
+      <path d="M 0 -148 V -154" transform="rotate(240)" stroke="#c9bba8" stroke-width="0.8"/>
+      <path d="M 0 -148 V -154" transform="rotate(247.5)" stroke="#c9bba8" stroke-width="0.8"/>
+      <path d="M 0 -148 V -154" transform="rotate(255)" stroke="#c9bba8" stroke-width="0.8"/>
+      <path d="M 0 -148 V -154" transform="rotate(262.5)" stroke="#c9bba8" stroke-width="0.8"/>
+      <path d="M 0 -143 V -154" transform="rotate(270)" stroke="#8a7562" stroke-width="1.3"/>
+      <path d="M 0 -148 V -154" transform="rotate(277.5)" stroke="#c9bba8" stroke-width="0.8"/>
+      <path d="M 0 -148 V -154" transform="rotate(285)" stroke="#c9bba8" stroke-width="0.8"/>
+      <path d="M 0 -148 V -154" transform="rotate(292.5)" stroke="#c9bba8" stroke-width="0.8"/>
+      <path d="M 0 -148 V -154" transform="rotate(300)" stroke="#c9bba8" stroke-width="0.8"/>
+      <path d="M 0 -148 V -154" transform="rotate(307.5)" stroke="#c9bba8" stroke-width="0.8"/>
+      <path d="M 0 -143 V -154" transform="rotate(315)" stroke="#8a7562" stroke-width="1.3"/>
+      <path d="M 0 -148 V -154" transform="rotate(322.5)" stroke="#c9bba8" stroke-width="0.8"/>
+      <path d="M 0 -148 V -154" transform="rotate(330)" stroke="#c9bba8" stroke-width="0.8"/>
+      <path d="M 0 -148 V -154" transform="rotate(337.5)" stroke="#c9bba8" stroke-width="0.8"/>
+      <path d="M 0 -148 V -154" transform="rotate(345)" stroke="#c9bba8" stroke-width="0.8"/>
+      <path d="M 0 -148 V -154" transform="rotate(352.5)" stroke="#c9bba8" stroke-width="0.8"/></g>
+    <g fill="none" stroke="#cabda9" stroke-width="0.7">
+      <path d="M -118 0 H 118 M 0 -118 V 118"/>
+      <circle r="60"/>
+    </g>
+    <g><g transform="rotate(0)">
+        <path d="M 0 -130 L 10.72 -25.87 L 0 0 Z" fill="#b45538"/>
+        <path d="M 0 -130 L -10.72 -25.87 L 0 0 Z" fill="#d69674"/>
+      </g>
+      <g transform="rotate(45)">
+        <path d="M 0 -83 L 10.72 -25.87 L 0 0 Z" fill="#303930"/>
+        <path d="M 0 -83 L -10.72 -25.87 L 0 0 Z" fill="#a5a18c"/>
+      </g>
+      <g transform="rotate(90)">
+        <path d="M 0 -130 L 10.72 -25.87 L 0 0 Z" fill="#303930"/>
+        <path d="M 0 -130 L -10.72 -25.87 L 0 0 Z" fill="#a5a18c"/>
+      </g>
+      <g transform="rotate(135)">
+        <path d="M 0 -83 L 10.72 -25.87 L 0 0 Z" fill="#303930"/>
+        <path d="M 0 -83 L -10.72 -25.87 L 0 0 Z" fill="#a5a18c"/>
+      </g>
+      <g transform="rotate(180)">
+        <path d="M 0 -130 L 10.72 -25.87 L 0 0 Z" fill="#303930"/>
+        <path d="M 0 -130 L -10.72 -25.87 L 0 0 Z" fill="#a5a18c"/>
+      </g>
+      <g transform="rotate(225)">
+        <path d="M 0 -83 L 10.72 -25.87 L 0 0 Z" fill="#303930"/>
+        <path d="M 0 -83 L -10.72 -25.87 L 0 0 Z" fill="#a5a18c"/>
+      </g>
+      <g transform="rotate(270)">
+        <path d="M 0 -130 L 10.72 -25.87 L 0 0 Z" fill="#303930"/>
+        <path d="M 0 -130 L -10.72 -25.87 L 0 0 Z" fill="#a5a18c"/>
+      </g>
+      <g transform="rotate(315)">
+        <path d="M 0 -83 L 10.72 -25.87 L 0 0 Z" fill="#303930"/>
+        <path d="M 0 -83 L -10.72 -25.87 L 0 0 Z" fill="#a5a18c"/>
+      </g></g>
+    <circle r="7" fill="#f7f2e7" stroke="#b45538" stroke-width="1.5"/>
+    <circle r="2.5" fill="#b45538"/>
+  </g>
+  <text x="600" y="496" text-anchor="middle" fill="#303930" font-family="Baskerville, Georgia, Times New Roman, serif" font-size="66" font-weight="400" letter-spacing="-1">Jason Latz</text>
+  <path d="M 577 520 H 623" stroke="#b45538" stroke-width="1.5"/>
+  <text x="600" y="553" text-anchor="middle" fill="#777365" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="16" font-weight="400" letter-spacing="2.8">jasonlatz.com</text>
+</svg>

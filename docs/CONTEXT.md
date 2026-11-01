@@ -4,7 +4,28 @@
 > Purpose: if context is lost, a fresh session reads CLAUDE.md → PLAN.md → this file
 > and knows exactly where things stand and why.
 
-## Current state (2026-08-30)
+## Latest update (2026-11-01): social link preview
+
+Prepared locally, awaiting permission to push and deploy. The live domain is
+`www.jasonlatz.com`, Vercel project `personal-website`, repository `Jason-Latz/jbl-site`
+(local checkout `~/code/website`). The live HTML had no Open Graph or Twitter tags.
+
+- `public/social/compass.svg`: editable eight-point compass emblem in warm ivory,
+  charcoal and copper, with Jason's name and domain. Rendered with the existing
+  transitive `sharp` package into `compass-v1.png` (1200 × 630, 70,563 bytes).
+- `app/layout.tsx`: production `metadataBase`, shared Open Graph image with dimensions
+  and alt text, and Twitter `summary_large_image`. Page titles and descriptions
+  continue to resolve per route; no client JavaScript or runtime image generation added.
+- Verification: `npm run build` passes, including type checks. Production HTML for
+  home, desk, experience, writings, travel and photography exposes the absolute image
+  URL in both Open Graph and Twitter tags, with the appropriate page title. A local
+  production request with `facebookexternalhit/1.1` receives the tags; the image serves
+  HTTP 200 as `image/png`, with the reviewed bytes and correct dimensions.
+- Release through the existing `main` → Vercel production integration after Jason
+  authorizes pushing. Verify the public image and HTML once production is ready.
+  Messaging apps may retain an earlier preview until they refresh their cache.
+
+## Previous state (2026-08-30; homepage superseded by 2026-10-05 PLAN)
 
 **The preliminary site is LAUNCHED.** `/` is the baked 3D desk, live on
 **www.jasonlatz.com** (`?baked=0` falls back to the live procedural `DeskScene`).
@@ -20,7 +41,7 @@ scenes), slimmed the mobile nav (~10%) + HUD, and added touch-only guided tap
 affordances (`DeskAffordances.tsx`) + a first-visit drag hint (`DragHint.tsx`),
 gated by `useCoarsePointer`.
 
-**Next up — Stage 4 polish** (see `docs/PLAN.md`): social OG image; Spotify Web
+**Next up — Stage 4 polish** (see `docs/PLAN.md`): Spotify Web
 orbit + perf tiers; inner-page typography to match the desk palette; Spotify Web
 Playback SDK (full tracks when Jason's signed in); `/music` + `/photography`
 splits; window parallax; easter eggs; plus the deferred `/admin` moderation UI

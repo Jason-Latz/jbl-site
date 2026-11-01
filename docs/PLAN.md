@@ -1,5 +1,12 @@
 # The Desk — staged roadmap
 
+## November 1, 2026: social link preview
+
+- [x] Original compass-emblem thumbnail (1200 × 630 PNG plus editable SVG)
+- [x] Shared Open Graph and Twitter large-image metadata with absolute production URLs
+- [x] Production build and six-route metadata checks
+- [ ] Push and deploy with Jason's permission, then verify production delivery
+
 ## October 5, 2026 — responsive front door
 
 The current implementation makes `/` a server-rendered landing page. The 3D
@@ -271,8 +278,8 @@ A (perfected void) vs B (corner window), decided from Cycles stills.
       `/` flipped to the baked desk (`?baked=0` = live-scene escape). **The
       preliminary site is LIVE on www.jasonlatz.com.** Re-bake/re-host runbook:
       `docs/BAKING.md` §8.
-- [~] Poster / OG / no-WebGL fallback from the kiln — fallback poster DONE;
-      social OG image still TODO.
+- [x] Fallback poster and social OG image (compass design, 2026-11-01;
+      publication pending permission to push).
 
 ## Performance budget
 
