@@ -4,6 +4,24 @@
 > Purpose: if context is lost, a fresh session reads CLAUDE.md → PLAN.md → this file
 > and knows exactly where things stand and why.
 
+## Latest update (2026-11-01): social link preview
+
+Jason approved pushing and deploying the compass thumbnail. Release only this change
+from production `main`; the original `~/code/website` checkout also contains older,
+unpublished homepage work that is outside this release.
+
+- `public/social/compass.svg`: editable compass emblem in ivory, charcoal and copper.
+  `compass-v1.png` is the matching 1200 × 630 social card (70,563 bytes).
+- `app/layout.tsx`: production `metadataBase`, shared Open Graph image with dimensions
+  and alt text, and Twitter `summary_large_image`. Route titles remain independent.
+- Verification: `npm run build` passes on the production base, including type checks.
+  Generated HTML for home, experience, writings, travel and photography includes the
+  absolute Open Graph and Twitter image URLs and 1200 × 630 dimensions.
+- Target: `Jason-Latz/jbl-site` → Vercel `personal-website` → `www.jasonlatz.com`.
+  Post-release check: fetch HTML with a link-preview crawler user agent and fetch the
+  PNG directly (HTTP 200, `image/png`, matching artwork). Messaging apps may retain
+  their previous preview until they refresh their cache.
+
 ## Current state (2026-08-30)
 
 **The preliminary site is LAUNCHED.** `/` is the baked 3D desk, live on
@@ -20,7 +38,7 @@ scenes), slimmed the mobile nav (~10%) + HUD, and added touch-only guided tap
 affordances (`DeskAffordances.tsx`) + a first-visit drag hint (`DragHint.tsx`),
 gated by `useCoarsePointer`.
 
-**Next up — Stage 4 polish** (see `docs/PLAN.md`): social OG image; Spotify Web
+**Next up — Stage 4 polish** (see `docs/PLAN.md`): Spotify Web
 orbit + perf tiers; inner-page typography to match the desk palette; Spotify Web
 Playback SDK (full tracks when Jason's signed in); `/music` + `/photography`
 splits; window parallax; easter eggs; plus the deferred `/admin` moderation UI

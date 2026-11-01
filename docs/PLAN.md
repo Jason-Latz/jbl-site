@@ -1,5 +1,11 @@
 # The Desk — staged roadmap
 
+## November 1, 2026: social link preview
+
+- [x] Original compass-emblem thumbnail (1200 × 630 PNG plus editable SVG)
+- [x] Shared Open Graph and Twitter large-image metadata with absolute production URLs
+- [x] Production build and five-route metadata checks; release approved by Jason
+
 The homepage becomes a single warm, lamplit 3D desk. Every object on it is real data:
 the turntable plays what Jason is actually listening to, the bookshelf holds what he's
 actually reading, the notepad is a public guestbook, the chessboard is one ongoing
@@ -247,8 +253,7 @@ A (perfected void) vs B (corner window), decided from Cycles stills.
       `/` flipped to the baked desk (`?baked=0` = live-scene escape). **The
       preliminary site is LIVE on www.jasonlatz.com.** Re-bake/re-host runbook:
       `docs/BAKING.md` §8.
-- [~] Poster / OG / no-WebGL fallback from the kiln — fallback poster DONE;
-      social OG image still TODO.
+- [x] Fallback poster and social OG image (compass design, 2026-11-01).
 
 ## Performance budget
 
