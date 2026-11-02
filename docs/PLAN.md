@@ -5,7 +5,7 @@
 - [x] Original compass-emblem thumbnail (1200 × 630 PNG plus editable SVG)
 - [x] Shared Open Graph and Twitter large-image metadata with absolute production URLs
 - [x] Production build and six-route metadata checks
-- [ ] Push and deploy with Jason's permission, then verify production delivery
+- [x] Push and deploy with Jason's permission; production metadata and image verified (6591ca9)
 
 ## October 5, 2026 — responsive front door
 
@@ -279,7 +279,7 @@ A (perfected void) vs B (corner window), decided from Cycles stills.
       preliminary site is LIVE on www.jasonlatz.com.** Re-bake/re-host runbook:
       `docs/BAKING.md` §8.
 - [x] Fallback poster and social OG image (compass design, 2026-11-01;
-      publication pending permission to push).
+      published and verified as 6591ca9).
 
 ## Performance budget
 

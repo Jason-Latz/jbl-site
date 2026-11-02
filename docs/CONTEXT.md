@@ -6,7 +6,8 @@
 
 ## Latest update (2026-11-01): social link preview
 
-Prepared locally, awaiting permission to push and deploy. The live domain is
+Published to production on 2026-11-01 as `6591ca9` (Vercel deployment
+`dpl_5mB12AzQ8CF8qjvQKCWTx8BFNwA7`, READY). The live domain is
 `www.jasonlatz.com`, Vercel project `personal-website`, repository `Jason-Latz/jbl-site`
 (local checkout `~/code/website`). The live HTML had no Open Graph or Twitter tags.
 
@@ -21,9 +22,14 @@ Prepared locally, awaiting permission to push and deploy. The live domain is
   URL in both Open Graph and Twitter tags, with the appropriate page title. A local
   production request with `facebookexternalhit/1.1` receives the tags; the image serves
   HTTP 200 as `image/png`, with the reviewed bytes and correct dimensions.
-- Release through the existing `main` → Vercel production integration after Jason
-  authorizes pushing. Verify the public image and HTML once production is ready.
-  Messaging apps may retain an earlier preview until they refresh their cache.
+- Production verification: both bare and `www` domains expose the expected image
+  to `facebookexternalhit/1.1` and `Twitterbot/1.0`. The public PNG serves HTTP 200 as
+  `image/png`, with all 70,563 bytes matching the approved artwork. Messaging apps
+  may retain an earlier preview until they refresh their cache.
+- The original checkout contained 14 older unpublished commits, so the approved
+  thumbnail was released separately from production `d573a76`. The earlier homepage
+  work remains local on `codex/social-compass-preview`; only the thumbnail, metadata
+  and its release documentation were pushed to production.
 
 ## Previous state (2026-08-30; homepage superseded by 2026-10-05 PLAN)
 
