@@ -4,6 +4,17 @@
 > Purpose: if context is lost, a fresh session reads CLAUDE.md → PLAN.md → this file
 > and knows exactly where things stand and why.
 
+## Latest update (2026-11-18) — Production performance audit
+
+Production and GitHub `main` both pointed to `6591ca9`. The static homepage and
+dedicated `/desk` were still local. Chromium confirmed that the live homepage
+unmounts and rebuilds WebGL after Writings even with an immutable, disk-cached
+model. It also found unnecessary photo transfers on Writings and Experience and
+repeated image variants on Photography. See [the audit](PERFORMANCE_AUDIT.md) for
+measurements, the verified local candidate, and the Blender and architecture plan.
+Jason wants future Vercel deployments to run automatically from GitHub. The native
+GitHub link and `main` production branch were already configured and verified.
+
 ## Latest update (2026-11-01): social link preview
 
 Published to production on 2026-11-01 as `6591ca9` (Vercel deployment
