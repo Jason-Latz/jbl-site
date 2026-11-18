@@ -2,6 +2,8 @@
 
 This document explains how the site is structured, how data and auth flow through the app, and how each major file contributes to behavior.
 
+The route descriptions below cover the local October homepage and desk work. As of November 18, 2026, production still serves the automatic WebGL homepage from GitHub `main`. See the [production audit](docs/PERFORMANCE_AUDIT.md) for the verified release gap and browser measurements.
+
 ## 1) What this project is
 
 This is a **Next.js 14 App Router** project for a personal website with:
@@ -944,6 +946,8 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 2. Primary branch:
    - `main`
 3. Local `main` is configured to track `origin/main`.
+4. The Vercel project `personal-website` is linked to `Jason-Latz/jbl-site` through the Vercel GitHub app. `main` is the production branch. Push or merge reviewed production changes to GitHub and let Vercel build and assign `www.jasonlatz.com` automatically. Use a feature branch for preview builds.
+5. After a release, confirm Vercel reports a ready production deployment for the intended GitHub commit and that the live domain points to it. Smoke-test the affected routes on the live domain. The Git link, production branch and a successful GitHub Vercel status were verified on November 18, 2026.
 
 ## 19) Local runtime gotchas and resolved issues
 

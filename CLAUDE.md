@@ -44,6 +44,9 @@ admin, Spotify pipeline).
    crisp HTML panels / navigates to real routes. Never bury content inside WebGL.
 6. **Graceful degradation is non-negotiable.** No-WebGL, reduced-motion, and weak devices
    get a designed fallback (not an apology). Content below the canvas stays real HTML.
+7. **Release through GitHub.** Use the linked Vercel project’s automatic production build
+   from GitHub `main` for reviewed releases. Verify the ready deployment’s commit and
+   smoke-test the live domain. Feature branches are the preview path.
 
 ## Design pillars
 
