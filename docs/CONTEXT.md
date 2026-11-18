@@ -4,6 +4,14 @@
 > Purpose: if context is lost, a fresh session reads CLAUDE.md → PLAN.md → this file
 > and knows exactly where things stand and why.
 
+## Latest update (2026-11-18) — Article reading tools
+
+Article pages show estimated reading time and a table of contents generated
+from their Markdown headings. The outline stays on the left on desktop and
+opens inline on smaller screens. Section fragments are native links. See
+`CODEBASE_GUIDE.md` §4.2. Jason is considering how Writings, the desk, and
+professional work should share the homepage.
+
 ## Latest update (2026-11-18) — Production performance audit
 
 Production and GitHub `main` both pointed to `6591ca9`. The static homepage and

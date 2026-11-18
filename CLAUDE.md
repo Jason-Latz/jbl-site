@@ -47,6 +47,8 @@ admin, Spotify pipeline).
 7. **Release through GitHub.** Use the linked Vercel project’s automatic production build
    from GitHub `main` for reviewed releases. Verify the ready deployment’s commit and
    smoke-test the live domain. Feature branches are the preview path.
+8. **Help readers navigate articles.** Show estimated reading time and a section outline
+   from Markdown headings. Keep the Writings archive a plain chronological list.
 
 ## Design pillars
 
