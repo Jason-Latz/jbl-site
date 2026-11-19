@@ -121,6 +121,10 @@ admin, Spotify pipeline).
   write explicit commands or use `${=var}` in loops.
 - `app/layout.tsx` imported `@mdxeditor/editor/style.css` without the dependency existing
   (pre-existing break at branch point; see docs/CONTEXT.md).
+- **A revoked Spotify refresh token fails silently** (widgets just empty out). Re-run
+  `npm run spotify:token` (Jason approves in a browser), then set `SPOTIFY_REFRESH_TOKEN` in
+  Vercel (production, preview, development) and redeploy. `/api/spotify/health` is the canary
+  (docs/CONTEXT.md 2026-11-10).
 - Spotify: the live route makes ONE upstream call (now-playing); "today" / recent /
   top-artists are read from the `spotify_recent_tracks` store, and the history sync is
   throttled OFF the read path (`maybeSyncHistory`, ≤1 per 3 min). Never reintroduce the

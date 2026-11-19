@@ -4,6 +4,31 @@
 > Purpose: if context is lost, a fresh session reads CLAUDE.md → PLAN.md → this file
 > and knows exactly where things stand and why.
 
+## Latest update (2026-11-10): Spotify revived after a revoked refresh token
+
+Symptom: `/api/spotify/live` returned empty data and stored plays stopped at 2026-08-30.
+Cause: Spotify answered `invalid_grant` ("Refresh token revoked") for `SPOTIFY_REFRESH_TOKEN`.
+Local `.env` and Vercel production held the identical token (hash-compared), so it was
+Spotify revoking the grant, not a config mismatch. Every read path swallows Spotify errors
+by design, so nothing surfaced; the daily cron returned 502 unnoticed (Vercel's log
+retention is too short to show the original failure).
+
+Fixed: re-authorized with `npm run spotify:token` (now a self-contained flow: it listens on
+the `SPOTIFY_REDIRECT_URI` 127.0.0.1:8787 callback, checks `state`, and writes the new token
+into `.env` without printing it). Scopes now include `user-top-read`. The token was set in
+Vercel production, preview and development, and production was redeployed. Prod `/live`
+verified with real data.
+
+Backfill: Spotify's recently-played returns only the last 50 plays, so 2026-11-08..10 (50
+plays) were recovered. **2026-08-31 to 2026-11-07 is permanently lost** (about 70 days).
+
+Canary (uncommitted until reviewed): `lib/spotify.ts` throws a typed `SpotifyTokenRevokedError`
+and logs a loud `[Spotify] REFRESH TOKEN REVOKED` line; `GET /api/spotify/health` returns 503 if
+the token refresh fails or no play was stored for 14 days; `.github/workflows/spotify-health.yml`
+curls it daily (a failed run emails the repo owner). The workflow only runs once pushed to
+`Jason-Latz/jbl-site`'s default branch. Pure logic in `lib/spotifyHealth.ts`, tested.
+
+>>>>>>> Stashed changes
 ## Latest update (2026-11-01): social link preview
 
 Jason approved pushing and deploying the compass thumbnail. Release only this change
