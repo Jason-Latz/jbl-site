@@ -1,3 +1,4 @@
+import { evaluateSpotifyHealth, type SpotifyHealth } from "./spotifyHealth";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 type SpotifyTokenResponse = {
@@ -299,6 +300,13 @@ function normalizeArtists(artists: SpotifyArtist[] | undefined): StoredSpotifyAr
   return normalizedArtists;
 }
 
+export class SpotifyTokenRevokedError extends Error {
+  constructor() {
+    super("Spotify refresh token was revoked (invalid_grant).");
+    this.name = "SpotifyTokenRevokedError";
+  }
+}
+
 async function fetchAccessToken() {
   if (
     cachedAccessToken &&
@@ -331,6 +339,17 @@ async function fetchAccessToken() {
   });
 
   if (!response.ok) {
+    const failure = (await response.json().catch(() => null)) as {
+      error?: string;
+    } | null;
+    if (failure?.error === "invalid_grant") {
+      // The refresh token was revoked or expired: re-run `npm run spotify:token`.
+      // Loud on purpose; this used to fail silently and empty every widget.
+      console.error(
+        "[Spotify] REFRESH TOKEN REVOKED (invalid_grant). Re-authorize with `npm run spotify:token`, then update SPOTIFY_REFRESH_TOKEN in Vercel."
+      );
+      throw new SpotifyTokenRevokedError();
+    }
     throw new Error(
       `Spotify token refresh failed with status ${response.status}.`
     );
@@ -1297,4 +1316,23 @@ export async function fetchSpotifyLivePayload(): Promise<SpotifyLivePayload> {
     });
 
   return livePayloadInFlight;
+}
+
+// Canary for the daily health check (/api/spotify/health). The live widgets
+// swallow every Spotify failure by design, so a revoked token just empties
+// them; this is the one place that reports it.
+export async function checkSpotifyHealth(): Promise<SpotifyHealth> {
+  let token: SpotifyHealth["token"] = "ok";
+  try {
+    cachedAccessToken = null;
+    await fetchAccessToken();
+  } catch (error) {
+    token = error instanceof SpotifyTokenRevokedError ? "revoked" : "error";
+  }
+
+  return evaluateSpotifyHealth({
+    token,
+    latestStoredPlayedAtMs: await getLatestStoredSpotifyPlayedAtMs(),
+    nowMs: Date.now()
+  });
 }
