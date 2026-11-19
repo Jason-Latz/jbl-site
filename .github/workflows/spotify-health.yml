@@ -1,0 +1,17 @@
+name: Spotify health
+
+# Daily canary. A revoked Spotify token silently empties the site's widgets;
+# this fails the run (GitHub emails the owner) if /api/spotify/health is not 200.
+on:
+  schedule:
+    - cron: "0 15 * * *"
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Spotify health
+        run: |
+          curl --fail-with-body --silent --show-error --max-time 30 \
+            https://www.jasonlatz.com/api/spotify/health
