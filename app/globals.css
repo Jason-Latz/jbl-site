@@ -1735,6 +1735,7 @@ button.primary:disabled {
 @media (max-width: 740px) {
   .activity-ribbon {
     flex-direction: column;
+    align-items: stretch;
   }
 
   .activity-item:first-child {

@@ -89,13 +89,14 @@
   :root:has(.landing) .site-header .nav {
     grid-column: 1 / -1;
     grid-row: 2;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 0;
     overflow: visible;
     -webkit-mask-image: none;
     mask-image: none;
   }
-  :root:has(.landing) .site-header .nav a { padding-inline: 0.45em; font-size: 0.83rem; }
+  :root:has(.landing) .site-header .nav a { justify-self: start; padding-inline: 0.45em; font-size: 0.83rem; }
 }
 @media (hover: none) and (pointer: coarse) {
   .landing-desk-shortcut { display: none; }
