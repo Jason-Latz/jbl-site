@@ -10,9 +10,9 @@ This is a **Next.js 14 App Router** project for a personal website with:
 
 - Public pages: home, writings archive, an interactive 3D travel globe of geolocated photos, a photography mosaic, individual writing pages, and experience
 - A single-line home activity ribbon that shows compact Spotify now-playing + Duolingo streak summaries with expandable details
-- A protected admin editor at `/admin`
+- An owner-only Studio at `/admin` for writing, photography, and chess
 - Supabase-backed storage for posts, travel media, and editor permissions
-- A markdown-first writing flow with live preview and formatting shortcuts
+- A Markdown-first writer with inline Visual editing, draft autosave, and publication controls
 
 The site is intentionally minimal and server-rendered where possible.
 
@@ -42,9 +42,11 @@ app/
   writings/page.tsx        # Minimal chronological title/date archive
   writings/writings.css    # Plain archive and article reading layout
   writings/[slug]/page.tsx # Single published post page
-  admin/page.tsx           # Admin page wrapper
-  admin/AdminEditor.tsx    # Client-side admin dashboard (auth + posts + photo uploads)
-  admin/PostEditorPage.tsx # Client-side markdown editor + live preview
+  admin/layout.tsx         # Owner auth, sign-in, and shared Studio navigation
+  admin/page.tsx           # Writing index, back to drafts and published articles
+  admin/photos/page.tsx    # Photo Studio for batch uploads and one record at a time
+  admin/chess/page.tsx     # Current chess game and owner controls
+  admin/PostEditorPage.tsx # Single-pane Markdown and editable Visual writer
   admin/new/page.tsx       # Dedicated route for creating new posts
   admin/[id]/page.tsx      # Dedicated route for editing existing posts
   api/spotify/live/route.ts # Spotify now-playing + listening history API proxy
@@ -117,14 +119,15 @@ vercel.json                # Vercel cron schedules for Spotify history sync + tr
 4. Renders global chrome: header with site title + nav, main content container, and footer with social links.
 5. Initializes the persisted light/dark theme during HTML parsing (a native inline script reading `localStorage.site-theme`, defaulting to light mode when no stored preference exists). The theme and active poster preload do not wait for the Next.js script runtime.
 6. Adds Supabase host `preconnect` + `dns-prefetch` hints when `NEXT_PUBLIC_SUPABASE_URL` is configured to reduce connection setup cost before travel image requests.
-7. Mounts `TravelBackgroundWarmup` for idle gallery warmup on other inner routes. Home, desk, writings, travel, and photography skip this work. Its URL helper imports `lib/photo-url.ts`, avoiding the Supabase catalog client in the shared browser bundle.
+7. Mounts `TravelBackgroundWarmup` for idle gallery warmup on other inner routes. Home, desk, writings, travel, photography, and Studio skip this work. Its URL helper imports `lib/photo-url.ts`, avoiding the Supabase catalog client in the shared browser bundle.
 8. Keeps designed `not-found.tsx` and `error.tsx` recovery states inside the same shell instead of exposing framework-default dead ends.
 
 This means every route is rendered inside the same visual shell by default.
 
 ### 4.2 Public pages
 
-- `/` (`app/page.tsx`, `app/landing.css`): minimal server-rendered entry with a theme-aware overhead still of the actual desk, an "Enter the desk" link, and a compact latest-writing title/date link. There is no introductory slogan, biography, decorative picture frame, or duplicate numbered directory; direct page links remain in the header. The still is a native `/desk` link with reserved 16:9 dimensions and a maximum display width of 840 px, leaving the entry prompt visible on a typical laptop. `components/DeskEntry.tsx` adds a visible Space shortcut on devices with a pointer. It handles unmodified Space only while the entry link is in view, ignores repeats/composition/default-prevented events, and leaves focused links, buttons, form fields, and editable content alone. It uses native navigation and does not prefetch. Home never imports or mounts `DeskHero`, Three.js, panels, or desk pollers. Latest-writing data has its own Suspense boundary and a usable archive-link fallback; ISR remains `revalidate = 60`. `components/HomeActivity.tsx` reserves the compact ribbon without extra introductory copy and dynamically mounts the existing Spotify/Duolingo widgets when they are within 100 px of the viewport; their APIs and polling behavior are unchanged.
+- `/` (`app/page.tsx`, `app/landing.css`): a server-rendered overhead Blender still with three of Jason’s own pictures printed on the desk. Three selected essays are native links with dates. The slugs and provisional “Start here” selection are in `selectedSlugs`; newest published articles fill any empty slots, and the archive link provides a Suspense and empty-data fallback. At 1024 px and wider the writing sits on the rendered paper and the real site header aligns with the back edge of the desk. Narrower layouts have a separate composition and flow the essays below the image. The header links to the main sections. The footer links to Studio.
+- The “Enter the desk” link and guarded Space shortcut in `components/DeskEntry.tsx` open the interactive room. Home loads no desk model, lightmaps, or Three.js. `components/HomeActivity.tsx` reserves the shared Spotify and Duolingo ribbon and mounts the widgets within 100 px of the viewport.
 - `/desk` (`app/desk/page.tsx`): the deliberately entered interactive 3D room (`DeskHero` → `DeskInteractive` → `BakedDeskScene`). The default model remains `/desk-static-f5fbb9104223.glb`; immutable lightmaps remain on Supabase `bake/v1`. `NEXT_PUBLIC_BAKE_CDN_URL` overrides model/lightmap sources for local bake work. `/desk?focus=records|work|reading|notes|chess` opens a panel; `/desk?baked=0` retains the procedural scene. `next.config.js` redirects legacy `/?focus=…` and `/?baked=0|1` requests with HTTP 307 while keeping ordinary `/` static. The bookshelf panel links to writings; the scratch pad remains the existing moderated guestbook.
 - `/experience` (`app/experience/page.tsx`): static, resume-style sections (education, professional experience, projects, technical skills, activities) rendered as cards.
 - `/travel` (`app/travel/page.tsx`): server-rendered route that fetches `public.photos` grouped by their estimated place (`lib/travelGlobe.ts`) and hydrates the interactive 3D globe (`components/travel/TravelGlobeStage` → `TravelGlobe`, react-three-fiber). Each place with photos is a glowing pin; clicking one flies the globe to it and opens a gallery panel (thumbnails → lightbox) showing the photos shot there, with an "estimated location · NN% confidence" badge. `?place=<name>` deep-links a selection. A server-rendered place list is kept in the DOM (visually hidden) for crawlers, and is the designed fallback for no-WebGL / reduced-motion / no-JS visitors. See §4.7 for how photos get placed.
@@ -135,7 +138,7 @@ This means every route is rendered inside the same visual shell by default.
 
 `/` and both writings routes set `export const revalidate = 60`; `/travel` sets `revalidate = 3600` (newly geolocated photos appear within the hour without a redeploy). Page data is ISR-cached accordingly.
 
-For perceived gallery-load speed, other inner routes run a one-time, session-scoped background warmup. `/`, `/desk`, `/writings` (including articles), `/travel`, and `/photography` skip it so unrelated image downloads do not compete with navigation, desk startup, or reading:
+For perceived gallery-load speed, other inner routes run a one-time, session-scoped background warmup. `/`, `/desk`, `/writings` (including articles), `/travel`, `/photography`, and Studio routes skip it to keep background photo transfers clear of their primary work:
 
 1. `TravelBackgroundWarmup` waits until browser idle time.
 2. It skips warmup when `Save-Data` is enabled or the connection is `2g/3g`.
@@ -144,16 +147,13 @@ For perceived gallery-load speed, other inner routes run a one-time, session-sco
 
 #### Static homepage still
 
-- `public/desk-overhead-light.webp` (65,730 bytes) and `public/desk-overhead-dark.webp` (39,008 bytes) are 1600 × 900 offline Cycles renders of the real procedural desk. No rendering happens in the homepage browser or during a request. The CSS background selects the active theme only; the theme initialization script in `app/layout.tsx` starts a high-priority preload of that same image during HTML parsing. `/desk` continues using its separate perspective JPEG posters.
-- To regenerate, start the dev server and visit `/bake?room=window&theme=light` and `/bake?room=window&theme=dark`. Wait for the export status to report saved GLBs under the ignored `bake/` directory. `scripts/bake/render_ab.py --cam overhead` uses an orthographic camera inside the room (1.3 m above the desk, below the 1.75 m ceiling), with a 1.12 m vertical span. Inspect a 64-sample preview before making full renders.
-- Render each theme with `blender -b --python scripts/bake/render_ab.py -- --glb bake/desk-window-light.glb --room window --theme light --cam overhead --out bake/overhead --samples 256 --resx 1600 --resy 900`, changing both `light` arguments to `dark` for the other theme. Blender 5.x with Cycles/Metal is the existing offline renderer; the output PNGs stay under ignored `bake/overhead/`.
-- Encode the PNGs with the local Sharp module (offline asset tooling, not a new homepage dependency): `node -e 'const sharp=require("sharp"); Promise.all(["light","dark"].map(theme=>sharp("bake/overhead/window-"+theme+".png").webp({quality:90,effort:6}).toFile("public/desk-overhead-"+theme+".webp"))).catch(error=>{console.error(error);process.exitCode=1})'`. Commit the two WebP files in `public/`; inspect both themes at desktop and phone sizes. The temporary GLBs, PNGs, and logs are not deployment inputs.
-- October 5 overhead-home verification: the network-enabled production build, lint, and TypeScript checks passed. Dev and production previews returned 200 for `/`, `/writings`, `/travel`, and `/admin`; both WebPs returned 200 with the expected byte counts and `image/webp`. Generated HTML contained the latest published article, all three archive entries, and the real travel catalog (27 places / 33 photos). Browser checks covered both themes, 390 px phone layouts, header writing navigation, Space entry, Space on the focused theme control without navigation, and desk dragging after reveal and a theme change.
-- A temporary no-cache localhost diagnostics proxy measured light-home FCP and largest contentful paint at 92 ms, header discovery at 69 ms, zero long tasks, zero layout shift, and a maximum sampled event-loop delay of 10.5 ms over 15 seconds. Only the 65,730-byte light WebP loaded; there were no desk model/lightmap requests. A subsequent dark-theme startup loaded only the 39,008-byte dark WebP, with FCP/LCP at 68 ms. These local observations include diagnostics overhead and are not production/network latency guarantees. The diagnostics script is temporary and is not shipped.
+- The four committed assets are `public/home-desk-{desktop,mobile}-{light,dark}-v1.webp`. Desktop renders are 1600 × 900 (72 KB light and 61 KB dark). Mobile renders are 960 × 540 (38 KB light and 33 KB dark). The inline theme bootstrap in `app/layout.tsx` preloads one active image using the same 1024 px breakpoint and theme as `app/landing.css`. `next.config.js` serves the versioned WebPs with a one-year immutable cache policy. The homepage links and still work as HTML and CSS with JavaScript disabled.
+- Regenerate via `scripts/bake/render_home.py`, the matching scene GLBs from the development-only `/bake` route, and the three photo originals. See [the Blender runbook](docs/BAKING.md#11-homepage-desk-stills) for source image paths, render and encode commands, and layout checks.
+- Check that desktop titles fit on the paper at 1024 px and that both narrow and wide layouts request one WebP. In Chromium test cold home, navigation to Writings and back, and entry to `/desk` separately.
 
 #### Desk startup and model delivery
 
-- `components/desk/DeskHero.tsx` is mounted only on `/desk`. After two animation frames it checks WebGL/reduced motion, starts low-priority asset preloads, and mounts the dynamically imported `DeskInteractive.tsx`. Reduced-motion/no-WebGL visits keep the still and direct writing/home links. While the scene prepares, a plain loading dock has a writing link; after 12 seconds its message acknowledges the delay. A local scene error boundary preserves the poster/navigation and offers retry if the interactive tree throws. No-JS visits get a still and writing link. `app/layout.tsx` preloads only the active theme's overhead WebP on home; on `/desk`, it selects landscape/portrait JPEG posters by orientation.
+- `components/desk/DeskHero.tsx` is mounted only on `/desk`. After two animation frames it checks WebGL/reduced motion, starts low-priority asset preloads, and mounts the dynamically imported `DeskInteractive.tsx`. Reduced-motion/no-WebGL visits keep the still and direct writing/home links. While the scene prepares, a plain loading dock has a writing link; after 12 seconds its message acknowledges the delay. A local scene error boundary preserves the poster/navigation and offers retry if the interactive tree throws. No-JS visits get a still and writing link. `app/layout.tsx` preloads only the active theme and viewport's WebP on home; on `/desk`, it selects landscape/portrait JPEG posters by orientation.
 - `lib/desk-assets.ts` is the shared model URL and active-theme lightmap manifest (13 named units). Low-priority CORS preloads download the model and maps alongside scene code; the model no longer has to parse before map requests start. Re-check the manifest against named non-emissive materials when changing the bake.
 - `public/desk-static-f5fbb9104223.glb` removes baked duplicates of the four live overlays (MacBook, chessboard, turntable, notepad) and exported lights. The source was [the public slim bake](https://qllalbklzxtsvqzszigo.supabase.co/storage/v1/object/public/bake/v1/desk-window-uv1-slim82.glb), SHA-256 `947b8036797d25fe10e0c10e812d9c4ff0916afa4e648e80d7952cbd268ea531`: 6,363,900 bytes, 261 meshes, 188 materials, 85 textures. The static-only model is 3,125,024 bytes, 142 meshes, 130 materials, 71 textures. No visible geometry or texture quality was reduced; baked contact shadows remain in the lightmaps.
 - `scripts/bake/prune_live_overlays.mjs <source.glb> <output.glb>` regenerates the static-only model, preserving `TEXCOORD_1`, object tags, texture bytes, and placements. It requires `meshoptimizer@0.18.1`; never silently switch encoders. `scripts/bake/verify_static_glb.mjs <source.glb> <output.glb>` uses the production Three.js decoder and verifies visible vertex attributes, oriented triangle topology, placement matrices, and texture hashes. Re-encoding can rotate triangle indices or narrow their integer type without changing geometry.
@@ -185,6 +185,8 @@ The home page includes `components/SpotifyNowPlaying.tsx` and `components/Duolin
 6. A nested "Last 10 listened" dropdown inside the expanded panel (album art, track name, artists)
 7. A second nested "Top 5 artists this week" dropdown with listen counts
 8. Last successful fetch timestamp and resilient stale-data messaging on errors
+
+Artwork is mounted when the corresponding detail is opened. A closed ribbon can show the live text summary without requesting album covers or artist images.
 
 `app/api/spotify/live/route.ts` is server-side and uses `lib/spotify.ts` (read path
 only — the history WRITE path is the sync below, deliberately kept separate):
@@ -223,41 +225,15 @@ This scheduled sync is the Hobby-plan backstop for the durable history. `/api/sp
 
 Response caching is disabled (`Cache-Control: no-store`) on the Spotify route; freshness is instead bounded by a ~10s server-side micro-cache inside `lib/spotify.ts` (per warm instance). Both client pollers guard against transient non-JSON route responses (for example, dev-time HTML error pages), pause background polling when the tab is hidden, and fall back to status-based retry messaging instead of JSON parse errors.
 
-### 4.4 Admin area
+### 4.4 Studio
 
-- `/admin` is rendered by `app/admin/page.tsx` and includes `AdminEditor` dashboard.
-- `/admin/new` and `/admin/[id]` are dedicated compose/edit routes rendered with `PostEditorPage`.
-- `app/admin/page.tsx` now does a server-side profile role check:
-  - unauthenticated visitors can see the sign-in UI
-  - signed-in users without `profiles.is_editor = true` are redirected to `/writings`
-- `AdminEditor.tsx` is a client component because it needs:
-  - browser auth session state
-  - live post listing and dashboard actions
-  - photo file selection from the browser and multipart upload dispatch
-  - photo metadata editing controls (location, description, optional Spotify song link)
-  - direct API calls for list/auth/upload/metadata actions
-- `PostEditorPage.tsx` is a client component because it needs:
-  - markdown editing in a textarea
-  - single-pane write/preview mode toggling
-  - direct API calls for create/update actions
+Open **Studio** from the footer or visit `/admin`. The shared `app/admin/layout.tsx` verifies the Supabase user and editor profile on the server and marks the subtree `noindex`. It displays a single sign-in form when logged out and redirects signed-in non-owners to `/writings`. The form uses a server action in `app/admin/signIn.ts` to POST credentials, set the auth cookie, and return to the requested Studio route. Supabase Auth and the existing owner account are used.
 
-Admin UI behavior:
-
-1. The server validates the Supabase user/profile and passes the verified editor state into the client dashboard so signed-in owners do not flash the logged-out UI.
-2. If no session, it renders a labeled, browser-autofill-compatible sign-in form (`signInWithPassword`) and does not expose chess administration until editor authentication succeeds.
-3. Dashboard route (`/admin`) loads posts from `/api/posts` with explicit `401/403` handling and a `New article` action that immediately creates a draft post, then routes to `/admin/[id]`.
-4. Compose routes (`/admin/new`, `/admin/[id]`) provide metadata fields, markdown body editing, toolbar shortcuts (bold/italic/headings/lists/links/code), and a single-pane `Markdown/Visual` toggle.
-5. Markdown supports GFM features, including footnotes (`[^1]` and `[^1]: ...`).
-6. `Visual` mode is editable (`contenteditable`) and converts inline edits back into markdown automatically while typing.
-7. On existing post routes (`/admin/[id]`), compose changes autosave after a short idle delay; explicit Save remains available.
-8. Dashboard route supports selecting multiple image files and uploading them in one batch through `POST /api/travel`.
-9. Dashboard route loads photo catalog rows through `GET /api/travel`, allows per-photo metadata saves through `PATCH /api/travel`, and supports per-photo deletion through `DELETE /api/travel`.
-10. On `401/403` API responses, editor clients sign out or route away instead of silently showing empty data.
-11. Sign-out clears local editor/session state.
-12. Each admin photo card has a **Globe location** `<select>` (populated from `content/places.json`). Choosing a
-    place `PATCH`es `/api/travel` with `geoPlace`, which snaps that photo to the place's coordinates and marks
-    `geo_source = 'manual'`; choosing "Not on globe" clears the pin. This is the one-click way to correct an
-    estimated placement.
+- `/admin` lists drafts separately from published articles. **New draft** creates a private post and opens `/admin/[id]`. A chess-turn reminder links to the chess page.
+- `/admin/photos` loads the photo catalog and provides a file picker for multiple uploads. Select a thumbnail to edit its location, description, song, or globe pin. The photo API uses the same bucket and metadata tables as the public gallery.
+- `/admin/chess` loads the current game and owner controls. It uses the existing game and play endpoints.
+- `/admin/new` remains available as a direct compose route. Use the draft-first path for autosave and edit recovery.
+- `StudioNavigation.tsx` provides the section links and a shared sign-out. Each section owns its own editing and data loading.
 
 ### 4.5 Travel globe geolocation pipeline
 
@@ -405,8 +381,8 @@ This keeps auth cookies/session synchronized for route handlers and client auth 
 Each write-capable/admin API route calls `requireEditor(supabase)`:
 
 1. `supabase.auth.getUser()` validates the logged-in user
-2. Fetches profile row by user ID
-3. Requires `profile.is_editor === true`
+2. Requires the owner email (`jasonlatz0@gmail.com`, case-insensitive)
+3. Fetches the profile by user ID and requires `profile.is_editor === true`
 4. Returns structured result:
   - allowed
   - or `{ status: 401/403, message }`
@@ -475,7 +451,7 @@ This is an app-level guard layered on top of RLS.
 - Revalidates `/`, `/writings`, and `/writings/[slug]` after a successful save so public pages refresh immediately after publishing
 - Returns:
   - `400` for invalid JSON, missing required fields, or invalid slug format
-  - `409` when slug uniqueness is violated
+  - `409` when slug uniqueness is violated or the supplied revision is stale
   - `500` for unexpected database/server errors
 
 ### `GET /api/posts/:id` (`app/api/posts/[id]/route.ts`)
@@ -491,13 +467,14 @@ This is an app-level guard layered on top of RLS.
 
 - Requires editor role
 - Same validation as POST
-- Updates post fields and publication timestamp
+- Sets `published_at` on first publication and preserves it across edits, unpublish, and republish
+- Accepts optional `expectedUpdatedAt` (the last-read timestamp or `null`). Studio sends it on every update. A conditional write checks the same version and returns `409` if it changed
 - Looks up the existing slug first so both the old and new `/writings/[slug]` paths can be revalidated after slug edits
 - Revalidates `/` and `/writings` after a successful update so publish/unpublish state is reflected without waiting for ISR drift
 - Returns:
   - `400` for invalid JSON, missing required fields, or invalid slug format
   - `404` if the target post id does not exist
-  - `409` when slug uniqueness is violated
+  - `409` when slug uniqueness is violated or the supplied revision is stale
   - `500` for unexpected database/server errors
 
 ### `GET /api/travel` (`app/api/travel/route.ts`)
@@ -638,58 +615,34 @@ If env vars are missing, helpers safely return empty/null data rather than throw
   - converts a public object URL into a Supabase image render URL
   - uses width + `resize=contain` + quality params so displayed tiles keep original capture proportions without crop/distortion
 
-## 9) Editor details (`app/admin/AdminEditor.tsx`, `app/admin/PostEditorPage.tsx`)
+## 9) Studio editing workflows
 
-### 9.1 Dashboard (`/admin`)
+### Writing
 
-`AdminEditor.tsx` now serves as the admin dashboard:
+- `WritingStudio.tsx` uses `GET /api/posts` for its list and `POST /api/posts` to create a draft. Return to this list with **All writing**.
+- `PostEditorPage.tsx` puts the title and body first. **Post settings** holds the permalink and excerpt. A draft with a generated placeholder slug derives its URL from the title until the permalink is edited explicitly.
+- **Markdown** is the source. The toolbar provides emphasis, headings, lists, quotes, links, code, and footnotes. **Visual** is a directly editable render. React Markdown and GFM render the source on entry, then Turndown converts visual input back to Markdown, including tables and footnotes. Paste in Visual accepts plain text.
+- Existing private drafts autosave after 1.2 seconds of inactivity. **Save draft** (or Cmd/Ctrl+S) saves immediately. **Publish** requires a title and body. Once published, body changes stay local until **Update public post** or Cmd/Ctrl+S. **Unpublish article** in Post settings asks for confirmation and returns the article to Drafts.
+- The writer keeps unsaved fields in the current tab’s `sessionStorage` and restores them on reopen at the same server version. A conflicting write leaves the current text in place to copy; the next load shows the current server version. Closing the tab clears the recovery buffer. The legacy direct compose flow has an in-page leave check and browser unload warning until first save.
 
-- Handles auth state and sign-in form when logged out
-- Loads posts via `GET /api/posts` for editors
-- Supports selecting multiple local image files and uploading in one batch via `POST /api/travel`
-- Loads photo catalog via `GET /api/travel`
-- Supports per-photo metadata saves (location, description, song title/url) via `PATCH /api/travel`
-- Supports per-photo deletion via `DELETE /api/travel`
-- Shows post list with status/slug and actions:
-  - `New article` -> creates draft via `POST /api/posts` and routes to `/admin/[id]`
-  - `Edit` -> `/admin/[id]`
-  - `View` -> `/writings/[slug]` for published posts
-  - `View travel page` -> `/travel`
+### Photos and chess
 
-### 9.2 Compose/Edit page (`/admin/new`, `/admin/[id]`)
-
-`PostEditorPage.tsx` manages:
-
-- Auth state and sign-in fallback
-- Optional existing post load via `GET /api/posts/:id`
-- Form fields: title, slug, excerpt, published, markdown content
-- Save flow:
-  - `POST /api/posts` for create
-  - `PATCH /api/posts/:id` for update
-
-### 9.3 Markdown authoring behavior
-
-- Slug auto-generation uses `slugify()` until manual slug edits begin
-- Body editing is textarea-based markdown with toolbar actions for:
-  - bold, italic, heading, quote
-  - links, inline code, code block
-  - bulleted/numbered lists
-  - footnote insertion
-- Visual mode renders markdown with `react-markdown` + `remark-gfm`, allows direct inline editing, and converts edits back to markdown using `turndown` automatically
-- Existing posts (`/admin/[id]`) autosave after idle typing and show save-state feedback in the editor toolbar
+- `app/admin/photos/PhotoStudio.tsx` uses the existing `GET/POST/PATCH/DELETE /api/travel` endpoints. It shows a large preview of the active photo and keeps unsaved fields in memory when another thumbnail is selected. Batch uploads use the native picker and preserve existing background variant warming. Delete asks for confirmation.
+- The **Globe pin** selects from `content/places.json`. An explicit pin change sends `geoPlace` with the metadata and snaps to the place’s coordinates (`geo_source = 'manual'`). **No pin** removes the current pin. Caption and song edits preserve the current inferred or manual location.
+- `app/admin/chess/page.tsx` uses the existing board and owner move and reset logic, with `/api/chess/admin` using the same owner-and-editor guard as the other Studio APIs.
 
 ## 10) Rendering and caching model
 
 - Most public pages are server components.
 - Home, writings, and photography use ISR (`revalidate = 60`); the travel globe revalidates hourly (`revalidate = 3600`).
-- Public post reads in `lib/posts.ts` are not wrapped in React `cache()`, so route-level ISR and `revalidatePath(...)` control freshness.
+- Route-level ISR and `revalidatePath(...)` control public post freshness. `fetchPostBySlug` also deduplicates the article and metadata reads per server render with React `cache()`.
 - Home-page Spotify data is client-polled and backed by a dynamic no-store API route.
 - Admin routes are dynamic/interactive:
-  - `export const dynamic = "force-dynamic"` on `app/admin/page.tsx`, `app/admin/new/page.tsx`, and `app/admin/[id]/page.tsx`
+  - `export const dynamic = "force-dynamic"` on `app/admin/layout.tsx`
   - runtime auth + fetch-based state updates in browser clients
 - Admin/editor API route handlers (`/api/posts`, `/api/posts/[id]`, `/api/travel` + its `/api/photos` re-export) build their cookie-bound Supabase client via `createFreshRouteHandlerClient()` (`lib/supabaseRoute.ts`), which overrides `global.fetch` with `cache: "no-store"`. Without it, Next 14 data-caches the `requireEditor` auth check and post/photo reads within a warm instance — same bug class as the `lib/spotify.ts` service client.
 
-Because admin uses fetch calls to API routes, there is no server action dependency.
+Studio uses one server action for sign-in. Content changes use the existing route handlers.
 
 ## 11) Styling system
 
@@ -815,7 +768,7 @@ For this project reference (`qllalbklzxtsvqzszigo`):
 The app depends on three layers together:
 
 1. Supabase auth session cookies (middleware + auth helpers)
-2. App-level role checks (`requireEditor`) in protected API routes
+2. App-level checks for the owner email and editor role (`requireEditor`) in Studio and its protected API routes
 3. Supabase RLS policies (authoritative DB enforcement, including restricted self-assignment of editor role)
 
 Even if an API check were missed, RLS still limits unauthorized post/storage mutations.
@@ -823,10 +776,10 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 ## 14) Known limitations and behavior edges
 
 1. `dangerouslySetInnerHTML` renders stored HTML directly on post pages. There is no explicit sanitization in code, so trust currently relies on editor-only access.
-2. Updating a published post resets `published_at`, which changes archive ordering and apparent publish date.
+2. A changed permalink requires using the new article URL; old slugs are revalidated so they stop serving the article.
 3. No delete/unpublish history or versioning.
 4. Unit tests cover editor text/markdown commands and publish-date behavior, but there are no integration or end-to-end test suites yet.
-5. `app/loading.tsx` provides a shared loading state that leaves navigation available. Home's latest-writing link and the writings archive have local Suspense fallbacks; desk loading keeps a poster and direct links available.
+5. `app/loading.tsx` provides a shared loading state that leaves navigation available. Home's selected writing and the writings archive have local Suspense fallbacks; desk loading keeps a poster and direct links available.
 6. Page metadata now has route-specific titles/descriptions for the primary public pages, but it does not yet include a configured production `metadataBase`, canonical URLs, or custom Open Graph imagery.
 7. Spotify "today" stats are approximate because `/me/player/recently-played` returns only the latest 50 tracks.
 8. Spotify now-playing and recent-play endpoints depend on account/app permissions and may return `502` via `/api/spotify/live` when OAuth scope or account constraints are not satisfied.
@@ -847,25 +800,25 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 ### Admin save post (`/admin`)
 
 1. User opens `/admin`; signed-in non-editors are redirected to `/writings`.
-2. Editor signs in via Supabase auth client (if not already signed in).
-3. Editor clicks `New article`; dashboard creates a draft and routes to `/admin/:id`.
+2. Editor signs in through the Studio form.
+3. Editor clicks **New draft**; dashboard creates a draft and routes to `/admin/:id`.
 4. Editor writes in markdown mode or visual mode; visual edits sync back to markdown automatically.
 5. Client submits JSON to `PATCH /api/posts/:id` (or `POST /api/posts` when using `/admin/new` fallback).
 6. Route handler creates Supabase route client from request cookies.
-7. `requireEditor` checks authenticated user + `profiles.is_editor`.
+7. `requireEditor` checks authenticated owner email and `profiles.is_editor`.
 8. On success, handler writes to `public.posts`.
 9. RLS re-validates permission at DB layer.
-10. Once `published = true`, the article appears on `/writings` and in the home page latest-writing link.
+10. A published article appears on `/writings` and can appear in the homepage selection.
 
-### Admin upload travel photos (`/admin`)
+### Admin upload travel photos (`/admin/photos`)
 
-1. Editor opens `/admin` and signs in (if needed).
+1. Editor opens `/admin/photos` and signs in (if needed).
 2. Editor chooses multiple files from the browser file picker.
 3. Client sends multipart request to `POST /api/travel` with `files[]`.
 4. Route handler builds Supabase route client from cookies and runs `requireEditor`.
 5. Accepted files upload to bucket `photos`; matching metadata rows are created/upserted in `public.photos`.
 6. After upload success, admin triggers deep client-side warmup for uploaded photos using `UPLOAD_WARM_WIDTHS` (`320..2200` step `96`) so first visitors are more likely to hit warm transformed variants.
-7. Dashboard loads editable photo cards via `GET /api/travel`; metadata saves use `PATCH /api/travel`; photo deletions use `DELETE /api/travel`.
+7. Photos loads the catalog via `GET /api/travel`; metadata saves use `PATCH /api/travel`; photo deletions use `DELETE /api/travel`.
 8. Storage and table policies re-validate editor permission on write operations.
 9. `/photography` reads merged storage + metadata rows via `lib/photos.ts`; `PhotoMosaic` mounts only the first batch of photos at first paint and appends the next batches via an intersection sentinel so network fetches happen progressively during scroll.
 10. `PhotoMosaic` computes justified rows from per-photo aspect ratios so visible photos rewrap for best fit as viewport or zoom changes, and chooses row breaks that keep visual scale close to the selected zoom value.
@@ -880,16 +833,15 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 - `app/layout.tsx`: global app shell and typography setup, plus Supabase preconnect/dns-prefetch hints and background travel warmup mount.
 - `app/not-found.tsx`: designed 404 recovery with links back home and to writings.
 - `app/error.tsx`: client error boundary with retry and home recovery actions.
-- `app/page.tsx`, `app/landing.css`, `public/desk-overhead-{light,dark}.webp`: minimal static desk view, explicit entry, latest-writing link, and viewport-deferred activity ribbon.
-  - latest writing card is dynamically populated from a dedicated newest-post query instead of loading the full archive
+- `app/page.tsx`, `app/landing.css`, `public/home-desk-{desktop,mobile}-{light,dark}-v1.webp`: Blender desk still, selected writings, explicit desk entry, viewport-deferred activity ribbon.
 - `app/travel/page.tsx`: interactive 3D globe shell backed by cached geolocated photo groupings.
 - `app/travel/quality-lab/page.tsx`: side-by-side travel image quality comparison route for evaluating `q92`, `q90`, and original delivery against the same photos.
 - `app/photography/page.tsx`: public gapless justified photo mosaic with zoom controls and metadata details.
 - `app/writings/page.tsx`, `app/writings/writings.css`: minimal chronological title/date archive and plain article styling.
 - `app/writings/[slug]/page.tsx`: individual published post renderer + metadata.
 - `app/experience/page.tsx`: static resume-style profile sections for education, work, projects, skills, and activities.
-- `app/admin/page.tsx`: admin route wrapper, forced dynamic render, and signed-in non-editor redirect to `/writings`.
-- `app/admin/AdminEditor.tsx`: auth UI + dashboard post list, multi-photo upload, per-photo metadata editing, and per-photo delete controls.
+- `app/admin/layout.tsx`, `signIn.ts`: Studio owner gate and sign-in.
+- `app/admin/page.tsx`, `photos/page.tsx`, `chess/page.tsx`: Writing, Photos, and Chess Studio sections.
 - `app/admin/PostEditorPage.tsx`: markdown editor form, toolbar shortcuts, and editable single-pane markdown/visual toggle.
 - `app/admin/new/page.tsx`: dedicated create route wrapping `PostEditorPage`.
 - `app/admin/[id]/page.tsx`: dedicated edit route wrapping `PostEditorPage`.

@@ -1,5 +1,14 @@
 # The Desk — staged roadmap
 
+## November 19, 2026 — desk still and Studio
+
+- [x] Render light and dark overhead scenes with Jason’s Chicagohenge, Phoenix, and Swiss Alps photos
+- [x] Frame the desktop essay selection on the writing paper and keep direct links visible on mobile
+- [x] Keep the interactive room opt-in and defer Spotify artwork until its panel opens
+- [x] Give Writing, Photos, and Chess distinct owner-only Studio pages
+- [x] Bring back inline Visual editing with Markdown sync, draft autosave, and explicit publication controls
+- [ ] Jason reviews the artwork and confirms the recommended essay before release through GitHub
+
 ## November 1, 2026: social link preview
 
 - [x] Original compass-emblem thumbnail (1200 × 630 PNG plus editable SVG)

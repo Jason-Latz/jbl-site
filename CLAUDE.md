@@ -2,14 +2,12 @@
 
 Personal website of Jason Latz — Next.js 14 (App Router) + Supabase + plain CSS, deployed on Vercel.
 
-**Active project: "The Desk"** — a warm, hyper-detailed Three.js desk scene where every
-object is a doorway into part of the site. **The preliminary site is LAUNCHED (2026-06-16):
-the baked desk is the live homepage on www.jasonlatz.com** (`?baked=0` falls back to the
-live procedural scene). Before doing any work, read `docs/PLAN.md` (staged roadmap —
-remaining work is Stage 4 polish) and `docs/CONTEXT.md` (live state of the build).
-`docs/BAKING.md` is the bake + CDN runbook (re-bake → slim → re-host on Supabase →
-redeploy; see its §8). `CODEBASE_GUIDE.md` covers the pre-existing site (Supabase model,
-admin, Spotify pipeline).
+**Active project: “The Desk.”** The current release candidate uses a Cycles
+still and personal photo prints at `/`, with direct links to selected essays.
+The interactive Three.js room opens on demand at `/desk`. Start with
+`CODEBASE_GUIDE.md` for the architecture, `docs/PLAN.md` for the roadmap,
+`docs/CONTEXT.md` for release status, and `docs/BAKING.md` for the still and
+interactive bake runbooks.
 
 ## Commands
 
@@ -39,9 +37,9 @@ admin, Spotify pipeline).
 4. **Content correctness.** Verify titles/authors/facts before rendering them
    (e.g. *The Wise Man's Fear* is by Patrick Rothfuss — Jason initially misattributed it;
    *The Power Law* is Sebastian Mallaby; *Moonwalking with Einstein* is Joshua Foer).
-5. **The desk is the front door, not the house.** Real routes (`/writings`, `/travel`,
-   `/experience`) remain ordinary server-rendered pages. Clicking a desk object opens
-   crisp HTML panels / navigates to real routes. Never bury content inside WebGL.
+5. **Direct links come first.** Home uses the actual desk as an offline still and
+   keeps writing and site navigation in HTML. Open the interactive desk on demand.
+   Use Jason’s own photographs for the desk prints.
 6. **Graceful degradation is non-negotiable.** No-WebGL, reduced-motion, and weak devices
    get a designed fallback (not an apology). Content below the canvas stays real HTML.
 7. **Release through GitHub.** Use the linked Vercel project’s automatic production build

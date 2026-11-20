@@ -390,3 +390,57 @@ name the file with the first 12 SHA-256 hex digits, update `BAKED_GLB_URL` and
 the lightmap manifest in `lib/desk-assets.ts`, and commit the asset. Its URL is
 served with a one-year immutable cache policy; never overwrite an existing hash
 URL. Check both themes and startup navigation in a browser before shipping.
+
+## 11. Homepage desk stills
+
+The landing page uses four offline Cycles renders. Desktop includes a physical
+sheet aligned to the HTML essay list in `app/landing.css`. The mobile render
+moves the prints toward the middle and leaves the HTML essays above the scene.
+The interactive desk has its own renderer and delivery pipeline.
+
+1. Run `npm run dev`. Visit `/bake?room=window&theme=light` and
+   `/bake?room=window&theme=dark` to generate `bake/desk-window-light.glb` and
+   `bake/desk-window-dark.glb`.
+2. Download Jason’s three public originals from the Supabase `photos` bucket.
+   Orient from EXIF and resize each to at most 900 px on the longest edge.
+   Save the results as `bake/home/chicago.jpg`, `phoenix.jpg`, and
+   `switzerland.jpg`.
+
+   | Print | Storage path |
+   | --- | --- |
+   | Chicagohenge | `1772606246175-3-7a726b34-f582-4df1-93d4-7ecc21fb8631-img-3242.jpeg` |
+   | Phoenix sunset | `1772606246175-5-faaac8c6-47ea-4334-9553-ee841e74112c-img-3676.jpeg` |
+   | Swiss Alps | `1772606060693-11-b56f0a22-4a6f-4611-9011-746f7008c420-img-0208.jpeg` |
+
+3. Render from the repository root with Blender 5.x (Metal if available).
+   Use `--cpu` to force CPU rendering. Repeat for dark by changing `light`
+   in the GLB, theme, and output path. For the mobile pair, use `--mobile`,
+   `--width 960`, and `mobile-<theme>.png` for the output filename.
+
+   ```sh
+   /Applications/Blender.app/Contents/MacOS/Blender -b \
+     --python scripts/bake/render_home.py -- \
+     --glb bake/desk-window-light.glb --theme light \
+     --chicago bake/home/chicago.jpg --phoenix bake/home/phoenix.jpg \
+     --switzerland bake/home/switzerland.jpg \
+     --output bake/home/desktop-light.png --width 1600 --samples 128
+   ```
+
+4. Encode the PNGs with Sharp. At desktop and mobile sizes inspect the print
+   borders, warm shadows, and small photographic detail before choosing quality.
+
+   ```js
+   const sharp = require("sharp");
+   const variants = ["desktop-light", "desktop-dark", "mobile-light", "mobile-dark"];
+   Promise.all(variants.map((variant) =>
+     sharp(`bake/home/${variant}.png`).webp({ quality: 89, effort: 6 })
+       .toFile(`public/home-desk-${variant}-v1.webp`)
+   )).catch((error) => { console.error(error); process.exitCode = 1; });
+   ```
+
+5. Commit the WebPs and script changes. `next.config.js` caches the WebPs by
+   filename for one year, so use a new version suffix for changed assets. When changing the suffix,
+   update both `app/landing.css` and the matching preload in `app/layout.tsx`.
+   Verify cold load and back navigation, both themes, print framing at 390 px,
+   and text alignment to the paper near 1024 px. The GLBs, source photos, and
+   render PNGs are local inputs under ignored `bake/`.

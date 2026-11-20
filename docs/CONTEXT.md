@@ -4,6 +4,36 @@
 > Purpose: if context is lost, a fresh session reads CLAUDE.md → PLAN.md → this file
 > and knows exactly where things stand and why.
 
+## November 19, 2026 — photographic homepage and owner Studio
+
+The review candidate is local on `codex/social-compass-preview` and includes
+the latest `origin/main` Spotify health work. GitHub `main` remains the
+production release path after review.
+
+- Blender renders place Jason’s Chicagohenge, Phoenix, and Swiss Alps photos
+  on the real desk as separate prints. Desktop aligns the site header and
+  three essay links with the scene. Mobile has its own framing and visible
+  links. “I’m Losing My Voice” is the provisional recommended essay. Source
+  files and regeneration steps are in [BAKING.md](BAKING.md#11-homepage-desk-stills).
+- The homepage is static HTML and a versioned WebP. The browser requests one
+  light or dark asset per viewport and can reuse it on Back. 3D loads at
+  `/desk`. Spotify still uses the live API; artwork loads on expansion.
+- Open Studio from the footer. Writing, Photos, and Chess have dedicated
+  routes. The private writer autosaves, Visual edits sync to Markdown, and
+  public updates are explicit. The photo editor preserves geolocation during
+  caption and song edits. Studio uses the existing Supabase data and storage.
+  See [CODEBASE_GUIDE.md](../CODEBASE_GUIDE.md) §§4.4 and 9.
+
+Verification used a local production build with real public data and Chromium
+on desktop and mobile. Spotify live and health, Duolingo, and the public
+chess game responded successfully. The Chromium suite verified cached Back
+navigation, all four WebP cache headers, and no 3D requests on the homepage.
+The isolated Supabase fixture passed owner sign-in, non-owner rejection,
+draft creation and recovery, Visual footnotes and tables, two-tab edit
+conflicts, publishing and unpublishing, photo metadata and pin edits, batch
+upload and delete, and a legal chess move. The 38 unit tests passed. The
+live checks covered public reads. Owner sign-in and writes ran on the fixture.
+
 ## Latest update (2026-11-18) — Article reading tools
 
 Article pages show estimated reading time and a table of contents generated
