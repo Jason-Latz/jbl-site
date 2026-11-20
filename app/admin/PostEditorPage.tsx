@@ -1,461 +1,219 @@
 "use client";
 
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import type { Session } from "@supabase/supabase-js";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { Post } from "@/lib/postTypes";
 import MarkdownEditor from "./MarkdownEditor";
 
-type Post = {
-  id: string;
-  title: string;
-  slug: string;
-  excerpt: string | null;
-  content: string | null;
-  published: boolean;
-  published_at: string | null;
-  created_at: string;
-  updated_at: string | null;
-};
+type Fields = { title: string; slug: string; excerpt: string; content: string };
+type SavedPost = Pick<Post, "id" | "published" | "published_at" | "updated_at"> & Fields;
+type SaveAction = "save" | "autosave" | "publish" | "unpublish";
 
-type SavePayload = {
-  title: string;
-  slug: string;
-  excerpt: string | null;
-  content: string;
-  published: boolean;
-};
+const blank: Fields = { title: "", slug: "", excerpt: "", content: "" };
+const AUTOSAVE_MS = 1200;
 
-const slugify = (value: string) =>
-  value
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9\s-]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-");
+function postFields(post: Pick<Post, keyof Fields>): Fields {
+  return { title: post.title, slug: post.slug, excerpt: post.excerpt ?? "", content: post.content ?? "" };
+}
 
-const getPayloadSignature = (payload: SavePayload) => JSON.stringify(payload);
-const AUTOSAVE_DELAY_MS = 1500;
+function payloadFor(fields: Fields): Fields {
+  return { title: fields.title.trim(), slug: fields.slug.trim(), excerpt: fields.excerpt.trim(), content: fields.content };
+}
 
-export default function PostEditorPage({
-  postId
-}: {
-  postId?: string;
-}) {
+function signature(fields: Fields) {
+  return JSON.stringify(payloadFor(fields));
+}
+
+function slugFromTitle(value: string) {
+  return value.toLowerCase().normalize("NFKD").replace(/\p{M}/gu, "")
+    .replace(/['’]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+function recoverFields(key: string, saved: SavedPost): Fields {
+  const original = postFields(saved);
+  try {
+    const recovery = JSON.parse(sessionStorage.getItem(key) ?? "null");
+    if (recovery?.id !== saved.id || recovery.updatedAt !== saved.updated_at) return original;
+    const candidate = recovery.fields;
+    return candidate && Object.keys(blank).every((field) => typeof candidate[field] === "string") ? candidate : original;
+  } catch {
+    return original;
+  }
+}
+
+export default function PostEditorPage({ postId }: { postId?: string }) {
   const router = useRouter();
-  const supabase = useMemo(() => createClientComponentClient(), []);
-  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const [session, setSession] = useState<Session | null>(null);
-  const [authMessage, setAuthMessage] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-
-  const [loadingPost, setLoadingPost] = useState(Boolean(postId));
+  const [fields, setFields] = useState<Fields>(blank);
+  const [saved, setSaved] = useState<SavedPost | null>(null);
   const [loadError, setLoadError] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [statusMessage, setStatusMessage] = useState("");
-  const [autosaveMessage, setAutosaveMessage] = useState("");
-
-  const [title, setTitle] = useState("");
-  const [slug, setSlug] = useState("");
-  const [excerpt, setExcerpt] = useState("");
-  const [published, setPublished] = useState(false);
-  const [content, setContent] = useState("");
-  const [slugEdited, setSlugEdited] = useState(false);
-  const [savedSignature, setSavedSignature] = useState<string | null>(null);
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session ?? null);
-    });
-
-    const {
-      data: { subscription }
-    } = supabase.auth.onAuthStateChange((event, nextSession) => {
-      setSession(nextSession);
-      if (event === "SIGNED_IN" || event === "SIGNED_OUT") {
-        router.refresh();
-      }
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [router, supabase]);
+  const [loading, setLoading] = useState(Boolean(postId));
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const [saving, setSaving] = useState<SaveAction | null>(null);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [failedSignature, setFailedSignature] = useState("");
+  const autoSlug = useRef(!postId);
+  const inFlight = useRef(false);
+  const recoveryKey = postId ? `studio-draft-v1:${postId}` : "studio-new-draft-v1";
+  const currentSignature = signature(fields);
+  const dirty = currentSignature !== signature(saved ?? blank);
+  const published = saved?.published ?? false;
 
   useEffect(() => {
-    if (!session) {
-      return;
-    }
-
-    if (!postId) {
-      setLoadingPost(false);
-      setLoadError("");
-      setSavedSignature(null);
-      setAutosaveMessage("");
-      return;
-    }
-
-    const loadPost = async () => {
-      setLoadingPost(true);
-      setLoadError("");
-
+    if (!postId) return;
+    const controller = new AbortController();
+    async function load() {
       try {
-        const response = await fetch(`/api/posts/${postId}`, {
-          cache: "no-store"
-        });
-        const data = (await response.json()) as { error?: string; post?: Post };
-
-        if (!response.ok) {
-          const message = data.error ?? "Unable to load this post.";
-          setLoadError(message);
-
-          if (response.status === 401) {
-            await supabase.auth.signOut();
-          } else if (response.status === 403) {
-            router.replace("/writings");
-          }
-
-          return;
-        }
-
-        if (!data.post) {
-          setLoadError("Post not found.");
-          return;
-        }
-
-        setTitle(data.post.title);
-        setSlug(data.post.slug);
-        setExcerpt(data.post.excerpt ?? "");
-        setPublished(data.post.published);
-        const nextContent = data.post.content ?? "";
-        setContent(nextContent);
-        setSlugEdited(true);
-        const loadedPayload: SavePayload = {
-          title: data.post.title.trim(),
-          slug: data.post.slug.trim(),
-          excerpt: (data.post.excerpt ?? "").trim() || null,
-          content: nextContent,
-          published: data.post.published
-        };
-        setSavedSignature(getPayloadSignature(loadedPayload));
-        setAutosaveMessage("All changes saved.");
-      } catch {
-        setLoadError("Unable to load this post.");
+        const response = await fetch(`/api/posts/${postId}`, { cache: "no-store", signal: controller.signal });
+        const data = await response.json();
+        if (response.status === 401) { router.refresh(); return; }
+        if (response.status === 403) { router.replace("/writings"); return; }
+        if (!response.ok || !data.post) throw new Error(data.error ?? "Couldn’t open the article.");
+        const post: Post = data.post;
+        const next = { ...postFields(post), id: post.id, published: post.published, published_at: post.published_at, updated_at: post.updated_at };
+        autoSlug.current = !next.published_at && next.slug.startsWith("draft-");
+        setSaved(next);
+        const recovered = recoverFields(recoveryKey, next);
+        if (signature(recovered) !== signature(next)) setSuccess("Restored unsaved edits from this tab.");
+        setFields(recovered);
+      } catch (err) {
+        if (!controller.signal.aborted) setLoadError(err instanceof Error ? err.message : "Couldn’t open the article.");
       } finally {
-        setLoadingPost(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
-    };
-
-    void loadPost();
-  }, [postId, router, session, supabase]);
-
-  const handleSignIn = async () => {
-    setAuthMessage("");
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    });
-
-    if (error) {
-      setAuthMessage(error.message);
     }
-  };
+    void load();
+    return () => controller.abort();
+  }, [postId, recoveryKey, router, loadAttempt]);
 
-  const handleSignOut = async () => {
-    if (autosaveTimerRef.current) {
-      clearTimeout(autosaveTimerRef.current);
-      autosaveTimerRef.current = null;
-    }
-    await supabase.auth.signOut();
-    setStatusMessage("");
-    setAutosaveMessage("");
-    setSavedSignature(null);
-  };
-
-  const handleTitleChange = (value: string) => {
-    setTitle(value);
-    if (!slugEdited) {
-      setSlug(slugify(value));
-    }
-  };
-
-  const buildPayload = useCallback(
-    (contentValue = content): SavePayload => ({
-      title: title.trim(),
-      slug: slug.trim(),
-      excerpt: excerpt.trim() || null,
-      content: contentValue,
-      published
-    }),
-    [content, excerpt, published, slug, title]
-  );
-
-  const currentPayloadSignature = useMemo(
-    () => getPayloadSignature(buildPayload()),
-    [buildPayload]
-  );
-
-  const persistPost = useCallback(
-    async ({
-      source,
-      contentOverride
-    }: {
-      source: "manual" | "autosave";
-      contentOverride?: string;
-    }) => {
-      if (saving || (source === "autosave" && !postId)) {
-        return;
-      }
-
-      const payload = buildPayload(contentOverride);
-      if (!payload.title || !payload.slug) {
-        if (source === "manual") {
-          setStatusMessage("Title and slug are required.");
-        } else {
-          setAutosaveMessage("Autosave paused until title and slug are filled.");
-        }
-        return;
-      }
-
-      if (source === "manual") {
-        setStatusMessage("");
+  useEffect(() => {
+    if (!saved) return;
+    try {
+      if (dirty) {
+        sessionStorage.setItem(recoveryKey, JSON.stringify({ id: saved.id, updatedAt: saved.updated_at, fields }));
       } else {
-        setAutosaveMessage("Autosaving...");
+        sessionStorage.removeItem(recoveryKey);
       }
+    } catch {
+      // Saving and leaving warnings still work when browser storage is disabled.
+    }
+  }, [dirty, fields, recoveryKey, saved]);
 
-      setSaving(true);
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = true; };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
 
-      try {
-        const response = await fetch(postId ? `/api/posts/${postId}` : "/api/posts", {
-          method: postId ? "PATCH" : "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
-        });
+  const save = useCallback(async (action: SaveAction) => {
+    if (inFlight.current) return;
+    const payload = payloadFor(fields);
+    const submittedSignature = signature(payload);
+    const makePublic = action === "publish" || (action !== "unpublish" && Boolean(saved?.published));
+    if (!payload.title || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(payload.slug)) {
+      if (action !== "autosave") setError("Add a title and check the post URL in Post settings.");
+      return;
+    }
+    if (makePublic && (!payload.content.trim() || payload.title === "Untitled draft")) {
+      setError("Add a title and some writing before publishing.");
+      return;
+    }
+    if (action === "unpublish" && !window.confirm("Take this article off the public site? It will stay in Drafts.")) return;
+    inFlight.current = true;
+    setSaving(action);
+    setError("");
+    setSuccess("");
+    try {
+      const response = await fetch(postId ? `/api/posts/${postId}` : "/api/posts", {
+        method: postId ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...payload, published: makePublic, ...(saved ? { expectedUpdatedAt: saved.updated_at } : {}) })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.status === 401) router.refresh();
+      if (response.status === 403) router.replace("/writings");
+      if (!response.ok || !data.post) throw new Error(data.error ?? "Couldn’t save this article.");
+      const post: Post = data.post;
+      setSaved({ ...postFields(post), id: post.id, published: post.published, published_at: post.published_at, updated_at: post.updated_at });
+      if (post.published_at) autoSlug.current = false;
+      setFailedSignature("");
+      setSuccess(action === "unpublish" ? "Moved to Drafts." : post.published ? "Public article updated." : "Draft saved.");
+      if (!postId) router.replace(`/admin/${post.id}`);
+    } catch (err) {
+      setFailedSignature(submittedSignature);
+      setError(err instanceof Error ? err.message : "Couldn’t save this article.");
+    } finally {
+      inFlight.current = false;
+      setSaving(null);
+    }
+  }, [fields, postId, router, saved]);
 
-        const data = (await response.json()) as { error?: string; post?: Post };
+  useEffect(() => {
+    if (!postId || !saved || published || !dirty || saving || failedSignature === currentSignature) return;
+    const timer = setTimeout(() => void save("autosave"), AUTOSAVE_MS);
+    return () => clearTimeout(timer);
+  }, [currentSignature, dirty, failedSignature, postId, published, save, saved, saving]);
 
-        if (!response.ok) {
-          const message = data.error ?? "Unable to save post.";
-          if (source === "manual") {
-            setStatusMessage(message);
-          } else {
-            setAutosaveMessage(`Autosave failed: ${message}`);
-          }
+  const keyboardSave = useCallback(() => { void save("save"); }, [save]);
 
-          if (response.status === 401) {
-            await supabase.auth.signOut();
-          } else if (response.status === 403) {
-            router.replace("/writings");
-          }
+  function change<K extends keyof Fields>(key: K, value: Fields[K]) {
+    setFields((current) => ({
+      ...current,
+      [key]: value,
+      ...(key === "title" && autoSlug.current ? { slug: slugFromTitle(value) || saved?.slug || "" } : {})
+    }));
+  }
 
-          return;
-        }
-
-        setSavedSignature(getPayloadSignature(payload));
-
-        if (source === "manual") {
-          setStatusMessage(postId ? "Post updated." : "Post created.");
-        } else {
-          const savedAt = new Date().toLocaleTimeString([], {
-            hour: "numeric",
-            minute: "2-digit"
-          });
-          setAutosaveMessage(`Autosaved at ${savedAt}.`);
-        }
-
-        if (!postId && data.post?.id) {
-          router.replace(`/admin/${data.post.id}`);
-          router.refresh();
-        }
-      } catch {
-        if (source === "manual") {
-          setStatusMessage("Unable to save post.");
-        } else {
-          setAutosaveMessage("Autosave failed.");
-        }
-      } finally {
-        setSaving(false);
-      }
-    },
-    [buildPayload, postId, router, saving, supabase]
+  if (loading) return <p role="status">Opening the article…</p>;
+  if (loadError) return (
+    <section>
+      <h1>Article</h1>
+      <p role="alert">{loadError}</p>
+      <div className="studio-actions">
+        <button className="secondary" onClick={() => { setLoadError(""); setLoading(true); setLoadAttempt((count) => count + 1); }}>Try again</button>
+        <Link href="/admin">All writing</Link>
+      </div>
+    </section>
   );
-
-  useEffect(() => {
-    return () => {
-      if (autosaveTimerRef.current) {
-        clearTimeout(autosaveTimerRef.current);
-        autosaveTimerRef.current = null;
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!postId || !session || loadingPost || !savedSignature || saving) {
-      return;
-    }
-
-    if (currentPayloadSignature === savedSignature) {
-      setAutosaveMessage("All changes saved.");
-      return;
-    }
-
-    const payload = buildPayload();
-    if (!payload.title || !payload.slug) {
-      setAutosaveMessage("Autosave paused until title and slug are filled.");
-      return;
-    }
-
-    setAutosaveMessage("Unsaved changes...");
-    if (autosaveTimerRef.current) {
-      clearTimeout(autosaveTimerRef.current);
-    }
-    autosaveTimerRef.current = setTimeout(() => {
-      autosaveTimerRef.current = null;
-      void persistPost({ source: "autosave" });
-    }, AUTOSAVE_DELAY_MS);
-
-    return () => {
-      if (autosaveTimerRef.current) {
-        clearTimeout(autosaveTimerRef.current);
-        autosaveTimerRef.current = null;
-      }
-    };
-  }, [
-    buildPayload,
-    currentPayloadSignature,
-    loadingPost,
-    persistPost,
-    postId,
-    savedSignature,
-    saving,
-    session
-  ]);
-
-  const handleSave = useCallback(() => {
-    void persistPost({ source: "manual" });
-  }, [persistPost]);
-
-  if (!session) {
-    return (
-      <div className="card auth-panel">
-        <h2>Editor sign in</h2>
-        <div className="form-grid">
-          <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-          />
-          <button className="primary" onClick={handleSignIn}>
-            Sign in
-          </button>
-          {authMessage && <p className="post-meta">{authMessage}</p>}
-        </div>
-      </div>
-    );
-  }
-
-  if (loadingPost) {
-    return <p className="post-meta">Loading editor...</p>;
-  }
-
-  if (loadError) {
-    return (
-      <div className="card">
-        <p>{loadError}</p>
-        <div className="editor-toolbar">
-          <Link className="secondary" href="/admin">
-            Back to posts
-          </Link>
-        </div>
-      </div>
-    );
-  }
 
   return (
-    <div className="editor-shell">
-      <div className="editor-toolbar">
-        <Link className="secondary" href="/admin">
-          Back to posts
-        </Link>
-        <button className="secondary" onClick={handleSignOut}>
-          Sign out
-        </button>
-        {published && slug && (
-          <a
-            className="secondary"
-            href={`/writings/${slug}`}
-            target="_blank"
-            rel="noreferrer"
-          >
-            View published
-          </a>
-        )}
+    <section className="studio-writer">
+      <h1 className="sr-only">Article editor</h1>
+      <div className="studio-actions">
+        <Link href="/admin" prefetch={false} onClick={(event) => {
+          if (dirty && !postId && !window.confirm("Leave this unsaved draft?")) event.preventDefault();
+        }}>← All writing</Link>
+        {published && saved ? <a href={`/writings/${saved.slug}`} target="_blank" rel="noreferrer">View live ↗</a> : null}
+        <span className="studio-write-status" role="status">
+          {saving ? "Saving…" : dirty ? published ? "Unpublished edits" : "Unsaved draft edits" : success || (published ? "Published" : "Draft")}
+        </span>
       </div>
-
-      <div className="card editor-panel editor-single-pane">
-        <div className="form-grid meta-grid">
-          <input
-            type="text"
-            placeholder="Title"
-            value={title}
-            onChange={(event) => handleTitleChange(event.target.value)}
-          />
-          <input
-            type="text"
-            placeholder="Slug"
-            value={slug}
-            onChange={(event) => {
-              setSlug(event.target.value);
-              setSlugEdited(true);
-            }}
-          />
-          <textarea
-            placeholder="Short excerpt"
-            rows={3}
-            value={excerpt}
-            onChange={(event) => setExcerpt(event.target.value)}
-          />
-          <label className="checkbox-row">
-            <input
-              type="checkbox"
-              checked={published}
-              onChange={(event) => setPublished(event.target.checked)}
-            />
-            <span>Published</span>
-          </label>
-        </div>
-
-        <MarkdownEditor
-          value={content}
-          onChange={setContent}
-          onSave={handleSave}
-          previewHeader={
-            <>
-              <h1>{title || "Untitled article"}</h1>
-              <p className="post-meta">{published ? "Published" : "Draft"}</p>
-              {excerpt && <p className="editor-preview-excerpt">{excerpt}</p>}
-            </>
-          }
+      <label className="form-field">
+        <span className="sr-only">Article title</span>
+        <input
+          className="studio-title-input" value={fields.title} placeholder="Article title"
+          onChange={(event) => change("title", event.currentTarget.value)}
         />
-
-        <div className="editor-toolbar">
-          <button className="primary" onClick={handleSave} disabled={saving}>
-            {saving ? "Saving..." : postId ? "Save changes" : "Create article"}
-          </button>
-          {statusMessage && <p className="post-meta">{statusMessage}</p>}
-          {postId && autosaveMessage && <p className="post-meta">{autosaveMessage}</p>}
-        </div>
+      </label>
+      <details className="studio-settings">
+        <summary>Post settings</summary>
+        <label className="form-field">Post URL
+          <input spellCheck={false} value={fields.slug} onChange={(event) => { autoSlug.current = false; change("slug", event.currentTarget.value); }} />
+        </label>
+        <label className="form-field">Excerpt
+          <textarea rows={2} value={fields.excerpt} onChange={(event) => change("excerpt", event.currentTarget.value)} />
+        </label>
+        {published ? <button type="button" className="studio-danger" disabled={Boolean(saving)} onClick={() => void save("unpublish")}>Unpublish article</button> : null}
+      </details>
+      <MarkdownEditor value={fields.content} onChange={(value) => change("content", value)} onSave={keyboardSave} disabled={Boolean(saving && !postId)} />
+      <div className="studio-actions">
+        <button type="button" className={published ? "primary" : "secondary"} disabled={Boolean(saving)}
+          onClick={() => void save("save")}>{published ? "Update public post" : "Save draft"}</button>
+        {!published ? <button type="button" className="primary" disabled={Boolean(saving)} onClick={() => void save("publish")}>Publish</button> : null}
+        {error ? <p role="alert">{error}</p> : null}
       </div>
-    </div>
+    </section>
   );
 }

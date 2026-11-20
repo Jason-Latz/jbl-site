@@ -82,7 +82,7 @@ export async function PATCH(
 
   const { data: existingPost, error: existingPostError } = await supabase
     .from("posts")
-    .select("slug, published_at")
+    .select("slug, published_at, updated_at")
     .eq("id", params.id)
     .single();
 
@@ -103,7 +103,17 @@ export async function PATCH(
     typeof payload.excerpt === "string" ? payload.excerpt.trim() || null : null;
   const content = typeof payload.content === "string" ? payload.content : null;
 
-  const { data, error } = await supabase
+  const hasExpectedVersion = Object.hasOwn(payload, "expectedUpdatedAt");
+  const expected = payload.expectedUpdatedAt;
+  if (hasExpectedVersion && expected !== null && typeof expected !== "string") {
+    return NextResponse.json({ error: "Invalid article version." }, { status: 400 });
+  }
+  const conflict = () => NextResponse.json({
+    error: "This article changed in another tab. Copy your edits before reopening it."
+  }, { status: 409 });
+  if (hasExpectedVersion && expected !== existingPost.updated_at) return conflict();
+
+  let update = supabase
     .from("posts")
     .update({
       title,
@@ -113,9 +123,11 @@ export async function PATCH(
       published,
       published_at: resolvePublishedAt(published, existingPost.published_at, now)
     })
-    .eq("id", params.id)
-    .select()
-    .single();
+    .eq("id", params.id);
+  if (hasExpectedVersion) {
+    update = expected === null ? update.is("updated_at", null) : update.eq("updated_at", expected);
+  }
+  const { data, error } = await update.select().maybeSingle();
 
   if (error) {
     if (error.code === "PGRST116") {
@@ -130,6 +142,11 @@ export async function PATCH(
     }
 
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  if (!data) {
+    if (hasExpectedVersion) return conflict();
+    return NextResponse.json({ error: "Post not found." }, { status: 404 });
   }
 
   revalidatePath("/");

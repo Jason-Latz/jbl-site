@@ -1,9 +1,8 @@
 "use client";
 
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
-import type { ClipboardEvent, KeyboardEvent, ReactNode } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import type { ClipboardEvent, KeyboardEvent } from "react";
+import dynamic from "next/dynamic";
 import {
   continueList,
   indentSelection,
@@ -21,29 +20,29 @@ import {
 } from "@/lib/editor/markdownCommands";
 import { describeLength } from "@/lib/editor/text";
 
+const VisualEditor = dynamic(() => import("./VisualEditor"), { ssr: false });
+
 type MarkdownEditorProps = {
   value: string;
   onChange: (value: string) => void;
   onSave?: () => void;
-  previewHeader?: ReactNode;
+  disabled?: boolean;
 };
 
 /**
  * The writing surface: a Markdown textarea with a formatting toolbar,
- * keyboard shortcuts, list continuation, smart paste, a live word count,
- * and a read-only Preview that renders through the same pipeline as the
- * published page. Purely presentational: it owns no persistence or auth,
- * so it is drivable in isolation.
+ * keyboard shortcuts, list continuation, smart paste, and a visual mode
+ * that syncs edits back to the Markdown source.
  */
 export default function MarkdownEditor({
   value,
   onChange,
   onSave,
-  previewHeader
+  disabled
 }: MarkdownEditorProps) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const pendingSelectionRef = useRef<{ start: number; end: number } | null>(null);
-  const [mode, setMode] = useState<"write" | "preview">("write");
+  const [mode, setMode] = useState<"write" | "visual">("write");
 
   // Restore the caret/selection a command asked for, but only after React has
   // committed the new value to the DOM. Doing it here (rather than in a
@@ -110,6 +109,7 @@ export default function MarkdownEditor({
 
   const handleKeyDown = useCallback(
     (event: KeyboardEvent<HTMLTextAreaElement>) => {
+      if (event.nativeEvent.isComposing) return;
       const mod = event.metaKey || event.ctrlKey;
 
       if (mod && !event.altKey) {
@@ -138,7 +138,7 @@ export default function MarkdownEditor({
         }
       }
 
-      if (event.key === "Tab") {
+      if (event.key === "Tab" && event.currentTarget.selectionStart !== event.currentTarget.selectionEnd) {
         event.preventDefault();
         runCommand((state) => indentSelection(state, event.shiftKey));
         return;
@@ -169,26 +169,28 @@ export default function MarkdownEditor({
 
   return (
     <div className="markdown-editor-shell">
-      <div className="editor-toolbar editor-mode-toggle" role="tablist">
+      <div className="editor-toolbar editor-mode-toggle" role="group" aria-label="Writing mode">
         <button
           type="button"
           className={mode === "write" ? "mode-active" : ""}
+          aria-pressed={mode === "write"}
           onClick={() => setMode("write")}
         >
-          Write
+          Markdown
         </button>
         <button
           type="button"
-          className={mode === "preview" ? "mode-active" : ""}
-          onClick={() => setMode("preview")}
+          className={mode === "visual" ? "mode-active" : ""}
+          aria-pressed={mode === "visual"}
+          onClick={() => setMode("visual")}
         >
-          Preview
+          Visual
         </button>
       </div>
 
       {mode === "write" ? (
         <>
-          <div className="editor-toolbar markdown-toolbar">
+          <fieldset className="editor-toolbar markdown-toolbar" disabled={disabled}>
             <button
               className="secondary"
               type="button"
@@ -269,11 +271,13 @@ export default function MarkdownEditor({
             >
               Footnote
             </button>
-          </div>
+          </fieldset>
 
           <textarea
             ref={textareaRef}
             className="markdown-editor"
+            aria-label="Article body in Markdown mode"
+            disabled={disabled}
             placeholder="Write your article in Markdown..."
             value={value}
             onChange={(event) => onChange(event.target.value)}
@@ -283,20 +287,13 @@ export default function MarkdownEditor({
           />
         </>
       ) : (
-        <div className="editor-preview-surface">
-          <article className="content">
-            {previewHeader}
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {value.trim() ? value : "_Nothing to preview yet._"}
-            </ReactMarkdown>
-          </article>
-        </div>
+        <VisualEditor value={value} onChange={onChange} onSave={onSave} disabled={disabled} />
       )}
 
       <div className="editor-statusbar">
         <span className="post-meta editor-count">{describeLength(value)}</span>
         <span className="post-meta editor-hint">
-          Markdown supported · ⌘B bold · ⌘I italic · ⌘K link · ⌘S save
+          {mode === "write" ? "⌘B bold · ⌘I italic · ⌘K link · ⌘S save" : "⌘S save"}
         </span>
       </div>
     </div>
