@@ -1,28 +1,101 @@
-/* The homepage renders a still; the interactive room lives at /desk. */
-:root:has(.landing) main { padding-top: 2rem; }
-.landing { display: grid; gap: 2.5rem; }
-.landing .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
-.landing-desk { display: grid; justify-items: center; gap: 1.5rem; }
-.landing-desk-view { display: block; width: min(100%, 840px); }
-.landing-desk-image { aspect-ratio: 16 / 9; background: #302117 url(/desk-overhead-light.webp) center / cover no-repeat; }
-:root[data-theme="dark"] .landing-desk-image { background-image: url(/desk-overhead-dark.webp); background-color: #17100d; }
-.landing-desk-entry { display: flex; align-items: center; flex-direction: column; gap: 0.65rem; }
-.landing-desk-action { display: inline-flex; gap: 2rem; align-items: center; min-height: 48px; padding: 0.7rem 1.2rem; background: var(--fg); color: var(--bg); border-radius: 3px; font-size: 0.9rem; font-weight: 500; }
-.landing-desk-action:hover { background: var(--accent); }
+:root:has(.landing) main { padding: 0 0 3rem; }
+:root:has(.landing) main > .container { max-width: none; }
+.landing { --home-still: url("/home-desk-mobile-light-v1.webp"); }
+:root[data-theme="dark"] .landing { --home-still: url("/home-desk-mobile-dark-v1.webp"); }
+.landing-desktop { background: #201610; }
+.landing-desk { display: flex; flex-direction: column; margin-inline: auto; max-width: 1600px; }
+.landing-illustration {
+  aspect-ratio: 16 / 9;
+  background: #38251b var(--home-still) center / cover no-repeat;
+}
+.landing-sheet {
+  order: -1;
+  background: var(--bg);
+  color: var(--fg);
+  padding: 1.75rem max(1.25rem, 6vw) 1.5rem;
+}
+.landing-sheet h2 { margin: 0 0 0.8em; font-size: 1.37rem; font-weight: 500; }
+.landing-essays { list-style: none; margin: 0; padding: 0; }
+.landing-essays li + li { margin-top: 0.72em; }
+.landing-essays a {
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 1.16em;
+  text-decoration: underline;
+  text-decoration-color: currentColor;
+  text-decoration-thickness: 0.055em;
+  text-underline-offset: 0.16em;
+}
+.landing-essays a:hover { color: var(--accent); }
+.landing-essays time { display: block; margin-top: 0.18em; font-size: 0.73em; color: var(--muted); }
+.landing-recommended {
+  display: inline-block;
+  margin-inline-start: 0.55em;
+  font-size: 0.71em;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.landing-below { display: grid; gap: 1.4rem; max-width: 55rem; padding: 1.3rem 1.25rem 0; margin: 0 auto; }
+.landing-desk-entry { display: flex; align-items: baseline; gap: 0.85rem; flex-wrap: wrap; }
+.landing-desk-action { display: inline-flex; align-items: center; gap: 0.5rem; min-height: 44px; text-decoration: underline; text-underline-offset: 0.2em; }
 .landing-desk-shortcut { color: var(--muted); font-size: 0.75rem; }
-.landing-desk-shortcut kbd { font: inherit; border: 1px solid var(--hairline-strong); border-bottom-width: 2px; border-radius: 3px; padding: 0.15rem 0.5rem; margin: 0 0.15rem; color: var(--fg); }
-.landing-writing { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.5rem 1rem; padding-top: 1.5rem; border-top: 1px solid var(--hairline); font-size: 0.85rem; }
-.landing-writing-label, .landing-writing-date { color: var(--muted); font-size: 0.75rem; }
-.landing-writing-date { margin-left: auto; }
-.landing-writing:hover .landing-writing-title { color: var(--accent); }
+.landing-desk-shortcut kbd { font: inherit; border: 1px solid var(--hairline-strong); border-radius: 3px; padding: 0.15rem 0.5rem; color: var(--fg); }
 .landing-activity .activity-ribbon { min-height: 58px; }
-.landing a:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 5px; }
+.landing a:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
 
-@media (max-width: 760px) {
-  :root:has(.landing) main { padding-top: 1.5rem; }
-  .landing { gap: 2rem; }
-  .landing-desk { gap: 1.5rem; }
-  .landing-writing-label { flex-basis: 100%; }
+@media (min-width: 1024px) {
+  :root:has(.landing) .site-header {
+    position: absolute;
+    inset: 0 0 auto;
+    margin-inline: auto;
+    width: min(100%, 1600px);
+    border: 0;
+    padding: clamp(15px, 2.2vw, 33px) 5%;
+    color: #fbecda;
+    background: transparent;
+    backdrop-filter: none;
+  }
+  :root:has(.landing) .site-header > .container { max-width: none; }
+  :root:has(.landing) .site-header .nav a { color: #f0dcca; }
+  :root:has(.landing) .site-header .nav a:hover,
+  :root:has(.landing) .site-header .nav a[aria-current] { color: #fff4e9; background: transparent; }
+  :root:has(.landing) .site-header .theme-toggle { color: #fff0de; border-color: #c4a18578; background: #241813c0; }
+  .landing { --home-still: url("/home-desk-desktop-light-v1.webp"); }
+  :root[data-theme="dark"] .landing { --home-still: url("/home-desk-desktop-dark-v1.webp"); }
+  .landing-desk { position: relative; container-type: inline-size; }
+  .landing-sheet {
+    order: 0;
+    position: absolute;
+    top: 40.9%;
+    left: 35.6%;
+    width: 29%;
+    padding: 0;
+    background: transparent;
+    color: #241b14;
+    --accent: #643b23;
+    --muted: #453528;
+    font-size: clamp(0.95rem, 1.35cqw, 1.35rem);
+  }
+  .landing-sheet h2 { font-size: 1.23em; }
+}
+@media (max-width: 600px) {
+  :root:has(.landing) .site-header { position: relative; padding-bottom: 0.35rem; }
+  :root:has(.landing) .site-header-top {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0;
+  }
+  :root:has(.landing) .site-header-controls { display: contents; }
+  :root:has(.landing) .site-header .theme-toggle { grid-column: 2; grid-row: 1; }
+  :root:has(.landing) .site-header .nav {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    flex-wrap: wrap;
+    gap: 0;
+    overflow: visible;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+  :root:has(.landing) .site-header .nav a { padding-inline: 0.45em; font-size: 0.83rem; }
 }
 @media (hover: none) and (pointer: coarse) {
   .landing-desk-shortcut { display: none; }

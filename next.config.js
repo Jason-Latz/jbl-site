@@ -25,6 +25,12 @@ const nextConfig = {
         headers: [
           { key: "Cache-Control", value: "public, max-age=31536000, immutable" }
         ]
+      },
+      {
+        source: "/home-desk-:layout(desktop|mobile)-:theme(light|dark)-v:version(\\d+).webp",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=31536000, immutable" }
+        ]
       }
     ];
   }
