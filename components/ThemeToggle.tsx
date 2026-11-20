@@ -15,7 +15,7 @@ function readDocumentTheme(): Theme {
   return isTheme(attr) ? attr : "light";
 }
 
-export default function ThemeToggle() {
+export default function ThemeToggle({ className = "" }: { className?: string }) {
   const [theme, setTheme] = useState<Theme>("light");
   const [isReady, setIsReady] = useState(false);
 
@@ -57,7 +57,7 @@ export default function ThemeToggle() {
   return (
     <button
       type="button"
-      className="theme-toggle"
+      className={`theme-toggle ${className}`}
       onClick={toggleTheme}
       aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
       title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}

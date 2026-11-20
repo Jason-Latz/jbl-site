@@ -29,11 +29,8 @@ export default function DeskEntry() {
   }, []);
 
   return (
-    <div className="landing-desk-entry">
-      <a ref={link} className="landing-desk-action" href="/desk" aria-keyshortcuts="Space">
-        Enter the desk <span aria-hidden="true">→</span>
-      </a>
-      <span className="landing-desk-shortcut">or press <kbd>Space</kbd> to enter</span>
-    </div>
+    <a ref={link} className="landing-key landing-key-desk" href="/desk" title="Desk (Space)" aria-keyshortcuts="Space">
+      <span className="sr-only">Desk</span>
+    </a>
   );
 }

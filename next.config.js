@@ -31,6 +31,12 @@ const nextConfig = {
         headers: [
           { key: "Cache-Control", value: "public, max-age=31536000, immutable" }
         ]
+      },
+      {
+        source: "/home-desk-controls-v:version(\\d+).webp",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=31536000, immutable" }
+        ]
       }
     ];
   }
