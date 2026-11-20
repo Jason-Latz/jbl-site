@@ -205,6 +205,9 @@ export default function SpotifyNowPlaying() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [consecutiveErrors, setConsecutiveErrors] = useState(0);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [artistsOpen, setArtistsOpen] = useState(false);
   const [isPageVisible, setIsPageVisible] = useState(getIsDocumentVisible);
   const consecutiveErrorsRef = useRef(0);
   const hasFetchedRef = useRef(false);
@@ -399,7 +402,7 @@ export default function SpotifyNowPlaying() {
 
   return (
     <section className="activity-item" aria-live="polite">
-      <details className="activity-panel">
+      <details className="activity-panel" onToggle={(event) => setDetailsOpen(event.currentTarget.open)}>
         <summary className="activity-summary activity-summary-spotify">
           <span className="activity-summary-label-row">
             <SpotifyGlyph />
@@ -445,7 +448,7 @@ export default function SpotifyNowPlaying() {
             </div>
 
             <div className="spotify-track-row">
-              {leadTrackArtwork ? (
+              {detailsOpen && leadTrackArtwork ? (
                 <img
                   className="spotify-artwork"
                   src={leadTrackArtwork}
@@ -482,7 +485,7 @@ export default function SpotifyNowPlaying() {
             ) : null}
 
             {data?.recentTracks.length ? (
-              <details className="spotify-history-panel">
+              <details className="spotify-history-panel" onToggle={(event) => setHistoryOpen(event.currentTarget.open)}>
                 <summary className="spotify-history-summary">
                   <p className="spotify-history-title">Last 10 listened</p>
                   <span className="spotify-history-caret" aria-hidden="true" />
@@ -493,7 +496,7 @@ export default function SpotifyNowPlaying() {
                       key={`${track.trackUrl ?? track.trackName}-${index}`}
                       className="spotify-history-item"
                     >
-                      {track.albumImageUrl ? (
+                      {detailsOpen && historyOpen && track.albumImageUrl ? (
                         <img
                           className="spotify-history-artwork"
                           src={track.albumImageUrl}
@@ -530,7 +533,7 @@ export default function SpotifyNowPlaying() {
             ) : null}
 
             {data?.topArtistsThisWeek.length ? (
-              <details className="spotify-history-panel">
+              <details className="spotify-history-panel" onToggle={(event) => setArtistsOpen(event.currentTarget.open)}>
                 <summary className="spotify-history-summary">
                   <p className="spotify-history-title">Top 5 artists this week</p>
                   <span className="spotify-history-caret" aria-hidden="true" />
@@ -541,7 +544,7 @@ export default function SpotifyNowPlaying() {
                       key={`${artist.artistUrl ?? artist.name}-${index}`}
                       className="spotify-history-item"
                     >
-                      {artist.imageUrl ? (
+                      {detailsOpen && artistsOpen && artist.imageUrl ? (
                         <img
                           className="spotify-history-artwork"
                           src={artist.imageUrl}
