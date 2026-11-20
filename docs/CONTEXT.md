@@ -28,6 +28,8 @@ Verification used a local production build with real public data and Chromium
 on desktop and mobile. Spotify live and health, Duolingo, and the public
 chess game responded successfully. The Chromium suite verified cached Back
 navigation, all four WebP cache headers, and no 3D requests on the homepage.
+The opt-in desk rendered and responded to dragging in both themes in
+Chromium using Metal. All three selected articles served estimated reading time.
 The isolated Supabase fixture passed owner sign-in, non-owner rejection,
 draft creation and recovery, Visual footnotes and tables, two-tab edit
 conflicts, publishing and unpublishing, photo metadata and pin edits, batch
