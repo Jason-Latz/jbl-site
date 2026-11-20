@@ -94,9 +94,16 @@ export function insertCodeBlock(state: EditorState): EditorState {
  * Insert a Markdown link. If a URL is selected it becomes the target; any
  * other selection becomes the link text with a placeholder target.
  */
-export function insertLink(state: EditorState): EditorState {
+export function insertLink(state: EditorState, href?: string): EditorState {
   const { value, selectionStart: start, selectionEnd: end } = state;
   const selected = value.slice(start, end);
+
+  if (href) {
+    const text = (selected || href).replace(/[\[\]]/g, "\\$&");
+    const url = href.replace(/[<>]/g, (character) => encodeURIComponent(character));
+    const insert = `[${text}](<${url}>)`;
+    return { value: value.slice(0, start) + insert + value.slice(end), selectionStart: start + insert.length, selectionEnd: start + insert.length };
+  }
 
   if (selected && isUrl(selected)) {
     const insert = `[link](${selected.trim()})`;

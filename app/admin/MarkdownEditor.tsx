@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useLayoutEffect, useRef, useState } from "react";
-import type { ClipboardEvent, KeyboardEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import type { ClipboardEvent, FormEvent, KeyboardEvent } from "react";
 import dynamic from "next/dynamic";
 import {
   continueList,
@@ -19,8 +19,24 @@ import {
   type EditorState
 } from "@/lib/editor/markdownCommands";
 import { describeLength } from "@/lib/editor/text";
+import { allowedLink, writerFormats, type ApplyVisualFormat, type WriterFormat } from "./writerFormats";
 
-const VisualEditor = dynamic(() => import("./VisualEditor"), { ssr: false });
+const VisualEditor = dynamic(() => import("./VisualEditor"), {
+  ssr: false,
+  loading: () => <p className="writer-loading" role="status">Opening Visual editor…</p>
+});
+
+const textFormats: Record<Exclude<WriterFormat, "link">, (state: EditorState) => EditorState> = {
+  bold: (state) => wrapSelection(state, "**", "**", "bold"),
+  italic: (state) => wrapSelection(state, "*", "*", "italic"),
+  heading: toggleHeading,
+  bullets: toggleBulletList,
+  numbers: toggleNumberedList,
+  quote: toggleQuote,
+  inlineCode: insertInlineCode,
+  codeBlock: insertCodeBlock,
+  footnote: insertFootnote
+};
 
 type MarkdownEditorProps = {
   value: string;
@@ -43,6 +59,24 @@ export default function MarkdownEditor({
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const pendingSelectionRef = useRef<{ start: number; end: number } | null>(null);
   const [mode, setMode] = useState<"write" | "visual">("write");
+  const visualFormat = useRef<ApplyVisualFormat | null>(null);
+  const [openLink, setOpenLink] = useState(false);
+  const [linkValue, setLinkValue] = useState("");
+  const [linkError, setLinkError] = useState(false);
+  const [activeMarks, setActiveMarks] = useState(0);
+  const linkInput = useRef<HTMLInputElement>(null);
+  const linkButton = useRef<HTMLButtonElement>(null);
+  const markdownLinkSelection = useRef<EditorState>();
+
+  useEffect(() => {
+    try {
+      if (localStorage.getItem("studio-writing-mode") === "visual") setMode("visual");
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (openLink) linkInput.current?.focus();
+  }, [openLink]);
 
   // Restore the caret/selection a command asked for, but only after React has
   // committed the new value to the DOM. Doing it here (rather than in a
@@ -107,6 +141,41 @@ export default function MarkdownEditor({
     [applyEditorState, readEditorState]
   );
 
+  const requestLink = useCallback(() => {
+    markdownLinkSelection.current = textareaRef.current ? readEditorState() : undefined;
+    setLinkValue("");
+    setLinkError(false);
+    setOpenLink(true);
+  }, [readEditorState]);
+
+  function chooseMode(next: "write" | "visual") {
+    setOpenLink(false);
+    setMode(next);
+    setActiveMarks(0);
+    try { localStorage.setItem("studio-writing-mode", next); } catch {}
+  }
+
+  function format(action: WriterFormat) {
+    if (action === "link") {
+      requestLink();
+      return;
+    }
+    if (mode === "write") runCommand(textFormats[action]);
+    else if (action !== "footnote") visualFormat.current?.(action);
+  }
+
+  function addLink(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const url = linkValue.trim();
+    if (!allowedLink(url)) {
+      setLinkError(true);
+      return;
+    }
+    setOpenLink(false);
+    if (mode === "write") applyEditorState(insertLink(markdownLinkSelection.current ?? readEditorState(), url));
+    else visualFormat.current?.("link", url);
+  }
+
   const handleKeyDown = useCallback(
     (event: KeyboardEvent<HTMLTextAreaElement>) => {
       if (event.nativeEvent.isComposing) return;
@@ -126,7 +195,7 @@ export default function MarkdownEditor({
         }
         if (key === "k") {
           event.preventDefault();
-          runCommand(insertLink);
+          requestLink();
           return;
         }
         if (key === "s") {
@@ -152,7 +221,7 @@ export default function MarkdownEditor({
         }
       }
     },
-    [applyEditorState, onSave, readEditorState, runCommand]
+    [applyEditorState, onSave, readEditorState, requestLink, runCommand]
   );
 
   const handlePaste = useCallback(
@@ -168,134 +237,64 @@ export default function MarkdownEditor({
   );
 
   return (
-    <div className="markdown-editor-shell">
-      <div className="editor-toolbar editor-mode-toggle" role="group" aria-label="Writing mode">
-        <button
-          type="button"
-          className={mode === "write" ? "mode-active" : ""}
-          aria-pressed={mode === "write"}
-          onClick={() => setMode("write")}
-        >
-          Markdown
-        </button>
-        <button
-          type="button"
-          className={mode === "visual" ? "mode-active" : ""}
-          aria-pressed={mode === "visual"}
-          onClick={() => setMode("visual")}
-        >
-          Visual
-        </button>
+    <div className="writer-composer">
+      <div className="writer-tools">
+        <fieldset className="writer-format" aria-label="Formatting" disabled={disabled}>
+          {writerFormats.slice(0, 8).map((item) => (
+            <button key={item.id} type="button" data-format={item.id}
+              ref={item.id === "link" ? linkButton : undefined}
+              aria-label={item.label} title={item.label}
+              aria-keyshortcuts={"shortcut" in item ? item.shortcut : undefined}
+              aria-pressed={mode === "visual" && (item.id === "bold" || item.id === "italic")
+                ? Boolean(activeMarks & (item.id === "bold" ? 1 : 2)) : undefined}
+              onMouseDown={(event) => event.preventDefault()} onClick={() => format(item.id)}>
+              {item.id === "link" ? (
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+                  <path d="M10.2 13.8 14 10m-6 6-1 1a3.53 3.53 0 0 1-5-5l4-4a3.53 3.53 0 0 1 5 0m5 0 1-1a3.53 3.53 0 0 1 5 5l-4 4a3.53 3.53 0 0 1-5 0" transform="rotate(-22 12 12)" />
+                </svg>
+              ) : <span aria-hidden="true">{item.symbol}</span>}
+            </button>
+          ))}
+          <details className="writer-more">
+            <summary title="More formatting" aria-label="More formatting">···</summary>
+            <div>
+              {writerFormats.slice(8).filter(({ id }) => mode === "write" || id !== "footnote").map(({ id, label }) => (
+                <button key={id} type="button" onMouseDown={(event) => event.preventDefault()}
+                  onClick={(event) => {
+                    event.currentTarget.closest("details")?.removeAttribute("open");
+                    format(id);
+                  }}>{label}</button>
+              ))}
+            </div>
+          </details>
+        </fieldset>
+        <div className="writer-mode" role="group" aria-label="Writing mode">
+          <button type="button" aria-pressed={mode === "write"} onClick={() => chooseMode("write")}>Markdown</button>
+          <button type="button" aria-pressed={mode === "visual"} onClick={() => chooseMode("visual")}>Visual</button>
+        </div>
+        {openLink ? (
+          <form className="writer-link-box" onSubmit={addLink} onKeyDown={(event) => {
+            if (event.key !== "Escape") return;
+            setOpenLink(false);
+            linkButton.current?.focus();
+          }}>
+            <input ref={linkInput} aria-label="Link URL" placeholder="Paste or type a link" value={linkValue}
+              onChange={(event) => { setLinkValue(event.target.value); setLinkError(false); }} />
+            <button type="submit">Apply</button>
+            <button type="button" onClick={() => { setOpenLink(false); linkButton.current?.focus(); }}>Cancel</button>
+            {linkError ? <small role="alert">Enter a valid link.</small> : null}
+          </form>
+        ) : null}
       </div>
-
       {mode === "write" ? (
-        <>
-          <fieldset className="editor-toolbar markdown-toolbar" disabled={disabled}>
-            <button
-              className="secondary"
-              type="button"
-              title="Bold (⌘B)"
-              onClick={() => runCommand((s) => wrapSelection(s, "**", "**", "bold"))}
-            >
-              Bold
-            </button>
-            <button
-              className="secondary"
-              type="button"
-              title="Italic (⌘I)"
-              onClick={() => runCommand((s) => wrapSelection(s, "*", "*", "italic"))}
-            >
-              Italic
-            </button>
-            <button
-              className="secondary"
-              type="button"
-              title="Heading"
-              onClick={() => runCommand(toggleHeading)}
-            >
-              H2
-            </button>
-            <button
-              className="secondary"
-              type="button"
-              title="Quote"
-              onClick={() => runCommand(toggleQuote)}
-            >
-              Quote
-            </button>
-            <button
-              className="secondary"
-              type="button"
-              title="Link (⌘K)"
-              onClick={() => runCommand(insertLink)}
-            >
-              Link
-            </button>
-            <button
-              className="secondary"
-              type="button"
-              title="Inline code"
-              onClick={() => runCommand(insertInlineCode)}
-            >
-              Inline code
-            </button>
-            <button
-              className="secondary"
-              type="button"
-              title="Code block"
-              onClick={() => runCommand(insertCodeBlock)}
-            >
-              Code block
-            </button>
-            <button
-              className="secondary"
-              type="button"
-              title="Bulleted list"
-              onClick={() => runCommand(toggleBulletList)}
-            >
-              Bulleted list
-            </button>
-            <button
-              className="secondary"
-              type="button"
-              title="Numbered list"
-              onClick={() => runCommand(toggleNumberedList)}
-            >
-              Numbered list
-            </button>
-            <button
-              className="secondary"
-              type="button"
-              title="Footnote"
-              onClick={() => runCommand(insertFootnote)}
-            >
-              Footnote
-            </button>
-          </fieldset>
-
-          <textarea
-            ref={textareaRef}
-            className="markdown-editor"
-            aria-label="Article body in Markdown mode"
-            disabled={disabled}
-            placeholder="Write your article in Markdown..."
-            value={value}
-            onChange={(event) => onChange(event.target.value)}
-            onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
-            spellCheck
-          />
-        </>
+        <textarea ref={textareaRef} className="writer-source" aria-label="Article body in Markdown mode"
+          disabled={disabled} placeholder="Write your article…" value={value}
+          onChange={(event) => onChange(event.target.value)} onKeyDown={handleKeyDown} onPaste={handlePaste} spellCheck />
       ) : (
-        <VisualEditor value={value} onChange={onChange} onSave={onSave} disabled={disabled} />
+        <VisualEditor value={value} onChange={onChange} onSave={onSave} disabled={disabled}
+          formatRef={visualFormat} onMarksChange={setActiveMarks} onLinkRequest={requestLink} />
       )}
-
-      <div className="editor-statusbar">
-        <span className="post-meta editor-count">{describeLength(value)}</span>
-        <span className="post-meta editor-hint">
-          {mode === "write" ? "⌘B bold · ⌘I italic · ⌘K link · ⌘S save" : "⌘S save"}
-        </span>
-      </div>
+      <div className="writer-length">{describeLength(value)}</div>
     </div>
   );
 }

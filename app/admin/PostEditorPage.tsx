@@ -181,7 +181,7 @@ export default function PostEditorPage({ postId }: { postId?: string }) {
   return (
     <section className="studio-writer">
       <h1 className="sr-only">Article editor</h1>
-      <div className="studio-actions">
+      <div className="writer-document-bar">
         <Link href="/admin" prefetch={false} onClick={(event) => {
           if (dirty && !postId && !window.confirm("Leave this unsaved draft?")) event.preventDefault();
         }}>← All writing</Link>
@@ -189,8 +189,12 @@ export default function PostEditorPage({ postId }: { postId?: string }) {
         <span className="studio-write-status" role="status">
           {saving ? "Saving…" : dirty ? published ? "Unpublished edits" : "Unsaved draft edits" : success || (published ? "Published" : "Draft")}
         </span>
+        <button type="button" className={published ? "primary" : "secondary"} disabled={Boolean(saving)}
+          onClick={() => void save("save")}>{published ? "Update public post" : "Save draft"}</button>
+        {!published ? <button type="button" className="primary" disabled={Boolean(saving)} onClick={() => void save("publish")}>Publish</button> : null}
       </div>
-      <label className="form-field">
+      {error ? <p role="alert">{error}</p> : null}
+      <label className="form-field writer-title">
         <span className="sr-only">Article title</span>
         <input
           className="studio-title-input" value={fields.title} placeholder="Article title"
@@ -208,12 +212,6 @@ export default function PostEditorPage({ postId }: { postId?: string }) {
         {published ? <button type="button" className="studio-danger" disabled={Boolean(saving)} onClick={() => void save("unpublish")}>Unpublish article</button> : null}
       </details>
       <MarkdownEditor value={fields.content} onChange={(value) => change("content", value)} onSave={keyboardSave} disabled={Boolean(saving && !postId)} />
-      <div className="studio-actions">
-        <button type="button" className={published ? "primary" : "secondary"} disabled={Boolean(saving)}
-          onClick={() => void save("save")}>{published ? "Update public post" : "Save draft"}</button>
-        {!published ? <button type="button" className="primary" disabled={Boolean(saving)} onClick={() => void save("publish")}>Publish</button> : null}
-        {error ? <p role="alert">{error}</p> : null}
-      </div>
     </section>
   );
 }
