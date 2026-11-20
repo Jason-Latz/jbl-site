@@ -1,5 +1,12 @@
 # The Desk — staged roadmap
 
+## November 20, 2026 — full-screen desk and writer refinement
+
+- [x] Render physical copper keys for the homepage routes and lamp
+- [x] Make the desk fill the first viewport with independent portrait and landscape framing
+- [x] Give Markdown and Visual a shared selection-preserving formatting toolbar
+- [ ] Review the homepage and writer before publishing through GitHub
+
 ## November 19, 2026 — desk still and Studio
 
 - [x] Render light and dark overhead scenes with Jason’s Chicagohenge, Phoenix, and Swiss Alps photos

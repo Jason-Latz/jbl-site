@@ -393,9 +393,10 @@ URL. Check both themes and startup navigation in a browser before shipping.
 
 ## 11. Homepage desk stills
 
-The landing page uses four offline Cycles renders. Desktop includes a physical
-sheet aligned to the HTML essay list in `app/landing.css`. The mobile render
-moves the prints toward the middle and leaves the HTML essays above the scene.
+The landing page fills the first viewport with one of four offline Cycles
+renders and a separate transparent keycap atlas. Landscape scenes include a
+physical sheet aligned with the HTML essay list in `app/landing.css`.
+Portrait scenes frame the three prints and flow the writing below the hero.
 The interactive desk has its own renderer and delivery pipeline.
 
 1. Run `npm run dev`. Visit `/bake?room=window&theme=light` and
@@ -415,7 +416,7 @@ The interactive desk has its own renderer and delivery pipeline.
 3. Render from the repository root with Blender 5.x (Metal if available).
    Use `--cpu` to force CPU rendering. Repeat for dark by changing `light`
    in the GLB, theme, and output path. For the mobile pair, use `--mobile`,
-   `--width 960`, and `mobile-<theme>.png` for the output filename.
+   `--width 780`, and `mobile-<theme>.png` for the output filename.
 
    ```sh
    /Applications/Blender.app/Contents/MacOS/Blender -b \
@@ -423,24 +424,40 @@ The interactive desk has its own renderer and delivery pipeline.
      --glb bake/desk-window-light.glb --theme light \
      --chicago bake/home/chicago.jpg --phoenix bake/home/phoenix.jpg \
      --switzerland bake/home/switzerland.jpg \
-     --output bake/home/desktop-light.png --width 1600 --samples 128
+     --output bake/home/desktop-light.png --width 1760 --samples 128
    ```
 
-4. Encode the PNGs with Sharp. At desktop and mobile sizes inspect the print
+4. Render the keycaps in a separate pass. The atlas has two columns and four
+   rows of 320 × 132 px cells, in the order Jason Latz, Desk, Writings, Travel,
+   Photography, Experience, Lamp, then an empty cell. The label order maps to
+   `--key-x` and `--key-y` in `app/landing.css`. If the cell dimensions
+   change, update the CSS aspect ratio and registration.
+
+   ```sh
+   /Applications/Blender.app/Contents/MacOS/Blender -b \
+     --python scripts/bake/render_home_controls.py -- \
+     --output bake/home/controls.png
+   ```
+
+5. Encode the PNGs with Sharp. At desktop and mobile sizes inspect the print
    borders, warm shadows, and small photographic detail before choosing quality.
 
    ```js
    const sharp = require("sharp");
    const variants = ["desktop-light", "desktop-dark", "mobile-light", "mobile-dark"];
-   Promise.all(variants.map((variant) =>
-     sharp(`bake/home/${variant}.png`).webp({ quality: 89, effort: 6 })
-       .toFile(`public/home-desk-${variant}-v1.webp`)
-   )).catch((error) => { console.error(error); process.exitCode = 1; });
+   Promise.all([
+     ...variants.map((variant) =>
+       sharp(`bake/home/${variant}.png`).webp({ quality: 89, effort: 6 })
+         .toFile(`public/home-desk-${variant}-v2.webp`)
+     ),
+     sharp("bake/home/controls.png").webp({ quality: 92, effort: 6 })
+       .toFile("public/home-desk-controls-v1.webp")
+   ]).catch((error) => { console.error(error); process.exitCode = 1; });
    ```
 
-5. Commit the WebPs and script changes. `next.config.js` caches the WebPs by
+6. Commit the WebPs and script changes. `next.config.js` caches the WebPs by
    filename for one year, so use a new version suffix for changed assets. When changing the suffix,
    update both `app/landing.css` and the matching preload in `app/layout.tsx`.
-   Verify cold load and back navigation, both themes, print framing at 390 px,
-   and text alignment to the paper near 1024 px. The GLBs, source photos, and
+   Verify cold load and back navigation, both themes, key registration at 320 and 390 px,
+   and text alignment on both wide and landscape tablet viewports. The GLBs, source photos, and
    render PNGs are local inputs under ignored `bake/`.

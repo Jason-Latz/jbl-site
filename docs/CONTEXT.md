@@ -4,6 +4,28 @@
 > Purpose: if context is lost, a fresh session reads CLAUDE.md → PLAN.md → this file
 > and knows exactly where things stand and why.
 
+## November 20, 2026 — desk keycaps and writer
+
+The homepage fills the first viewport with a new Blender render. Seven
+raised, amber-lit keycaps come from a transparent Blender atlas. The six
+navigation links and lamp control remain keyboard accessible. Landscape
+layouts place the featured essays on the sheet. Portrait layouts show the
+essays directly below the desk. The lighting and physical keycap source
+are documented in [BAKING.md](BAKING.md#11-homepage-desk-stills).
+
+The Studio writer has a shared compact toolbar for Markdown and Visual,
+selection-preserving formatting, and an inline URL field. Save and publish
+controls are above the document. The last selected mode is remembered in
+the browser. The existing autosave and publication data flow is preserved.
+
+The production build and 38 unit tests passed. Chromium exercised the
+homepage in both themes from 320 px phones through 1920 px desktop, native
+navigation with JavaScript disabled, keyboard entry, theme, and Back
+without repeat still or atlas downloads. Spotify and Duolingo responded.
+On the isolated Studio fixture, formatting, links, Markdown/Visual
+round-tripping of a footnote and table, autosave, and reopening the same
+Visual draft passed. This revision is local for review.
+
 ## November 19, 2026 — photographic homepage and owner Studio
 
 The review candidate is local on `codex/social-compass-preview` and includes
