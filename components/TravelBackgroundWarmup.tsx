@@ -120,7 +120,8 @@ export default function TravelBackgroundWarmup() {
       pathname?.startsWith("/desk") ||
       pathname?.startsWith("/writings") ||
       pathname?.startsWith("/travel") ||
-      pathname?.startsWith("/photography")
+      pathname?.startsWith("/photography") ||
+      pathname?.startsWith("/admin")
     ) {
       return;
     }

@@ -1,0 +1,64 @@
+.studio { display: grid; gap: 1.7rem; margin-inline: auto; max-width: 66rem; }
+.studio h1 { margin: 0 0 1rem; font-size: clamp(1.95rem, 4vw, 2.7rem); font-weight: 500; }
+.studio h2 { font-size: 1.35rem; font-weight: 500; }
+.studio-bar, .studio-heading, .studio-actions {
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.85rem;
+}
+.studio-bar { border-bottom: 1px solid var(--hairline); padding-bottom: 0.72rem; }
+.studio-bar nav { display: flex; flex-wrap: wrap; gap: 0.35rem 1.3rem; }
+.studio-bar nav a { display: inline-flex; align-items: center; min-height: 44px; color: var(--muted); }
+.studio-bar nav a[aria-current] { color: var(--fg); text-decoration: underline; text-underline-offset: 0.35rem; }
+.studio-actions { justify-content: flex-start; }
+.studio-heading h1, .studio-heading h2 { margin: 0; }
+.studio a:hover { text-decoration: underline; text-underline-offset: 0.2em; }
+.studio-signin { max-width: 27rem; width: 100%; margin: 2rem auto 4rem; }
+.studio-muted { color: var(--muted); font-size: 0.86rem; }
+.studio [role="alert"] { color: var(--accent); overflow-wrap: anywhere; }
+.studio-posts { display: grid; gap: 1rem; margin-top: 1.7rem; }
+.studio-posts ul, .studio-photo-list { list-style: none; margin: 0; padding: 0; }
+.studio-posts li {
+  border-top: 1px solid var(--hairline); padding: 0.85rem 0; display: flex;
+  justify-content: space-between; align-items: baseline; gap: 1rem;
+}
+.studio-posts li > :first-child { font: 500 1.25rem/1.15 var(--font-serif), Georgia, serif; }
+.studio-upload { display: flex; flex-wrap: wrap; gap: 0.8rem; align-items: flex-end; border-bottom: 1px solid var(--hairline); padding-block: 1.1rem; }
+.studio-upload .form-field { max-width: 100%; }
+.studio-photos { display: grid; grid-template-columns: minmax(0, 1fr) minmax(17rem, 0.95fr); gap: 1.7rem; margin-top: 1.5rem; align-items: start; }
+.studio-photo-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(98px, 1fr)); gap: 0.5rem; }
+.studio-photo-list button {
+  border: 1px solid var(--hairline); background: var(--surface); color: var(--fg);
+  padding: 0; width: 100%; border-radius: 0.3rem; overflow: hidden; text-align: left;
+}
+.studio-photo-list button[aria-pressed="true"] { outline: 2px solid var(--accent); outline-offset: 2px; }
+.studio-photo-list img { width: 100%; display: block; aspect-ratio: 4/3; object-fit: cover; }
+.studio-photo-list span { display: block; padding: 0.35rem; font-size: 0.72rem; overflow-wrap: anywhere; }
+.studio-photo-details { border-block-start: 1px solid var(--hairline); }
+.studio-photo-preview {
+  display: block; width: 100%; height: clamp(9rem, 21vw, 12rem); object-fit: contain;
+  background: var(--surface); margin-block-end: 0.9rem; border-radius: 0.3rem;
+}
+.studio-photo-details fieldset { min-width: 0; margin: 0; border: 0; padding: 0; display: grid; gap: 0.82rem; }
+.studio-photo-details .studio-actions > * { font-size: 0.84rem; }
+.studio-settings { margin: 0.3rem 0; }
+.studio-settings summary { cursor: pointer; color: var(--muted); }
+.studio-settings[open] label { margin-top: 0.75rem; }
+.studio-danger { border: none; background: transparent; padding: 0.35rem 0; color: var(--accent); text-decoration: underline; }
+.studio-writer { max-width: 50rem; width: 100%; margin-inline: auto; }
+.studio-writer .studio-actions { margin-block: 0.75rem; }
+.studio-writer .studio-title-input { font: 500 clamp(1.55rem, 4vw, 2.5rem)/1.18 var(--font-serif), Georgia, serif; }
+.studio-writer .markdown-editor { min-height: 48vh; }
+.studio-writer .studio-settings[open] { padding: 0.8rem 0; }
+.studio-write-status { margin-inline-start: auto; color: var(--muted); font-size: 0.82rem; }
+.studio-visual { min-height: 48vh; outline-offset: 5px; }
+.studio-visual:empty::before { content: "Write your article…"; color: var(--muted); pointer-events: none; }
+@media (min-width: 721px) {
+  .studio-photo-details { position: sticky; top: 5rem; }
+}
+@media (max-width: 720px) {
+  .studio-photos { grid-template-columns: minmax(0, 1fr); }
+  .studio-photo-list {
+    overflow-x: auto; grid-template-columns: none; grid-auto-flow: column;
+    grid-auto-columns: minmax(5.5rem, 7rem); padding: 0.25rem;
+  }
+}
+.studio-writer fieldset.markdown-toolbar { padding: 0; border: 0; margin-inline: 0; min-width: 0; }

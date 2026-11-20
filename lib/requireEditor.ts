@@ -16,6 +16,10 @@ export async function requireEditor(
     return { allowed: false, status: 401, message: "Unauthorized" };
   }
 
+  if (user.email?.toLowerCase() !== "jasonlatz0@gmail.com") {
+    return { allowed: false, status: 403, message: "Forbidden" };
+  }
+
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("is_editor")

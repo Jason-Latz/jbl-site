@@ -9,8 +9,7 @@ const navItems = [
   { label: "Writings", href: "/writings" },
   { label: "Travel", href: "/travel" },
   { label: "Photography", href: "/photography" },
-  { label: "Experience", href: "/experience" },
-  { label: "Admin", href: "/admin" }
+  { label: "Experience", href: "/experience" }
 ];
 
 export default function SiteNav() {
@@ -34,8 +33,7 @@ export default function SiteNav() {
             // because their links are visible over a loading desk.
             prefetch={
               item.href === "/travel" ||
-              item.href === "/photography" ||
-              item.href === "/admin"
+              item.href === "/photography"
                 ? false
                 : undefined
             }

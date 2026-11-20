@@ -14,7 +14,8 @@ export default function SiteFooter() {
             © {new Date().getFullYear()} Jason Latz. All rights reserved.
           </p>
         </div>
-        <nav className="site-footer-social" aria-label="Social links">
+        <nav className="site-footer-social" aria-label="More links">
+          <a href="/admin">Studio</a>
           {socialLinks.map((link) => (
             <a key={link.label} href={link.href} target="_blank" rel="noreferrer">
               {link.label}

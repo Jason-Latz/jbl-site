@@ -1,7 +1,7 @@
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { requireEditor } from "@/lib/requireEditor";
+import { createFreshRouteHandlerClient } from "@/lib/supabaseRoute";
 import {
   GAME_COLUMNS,
   STARTING_FEN,
@@ -24,23 +24,8 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   // Auth first, via the visitor's own session — the service role only
   // comes out once we know this is Jason.
-  const authClient = createRouteHandlerClient({ cookies });
-  const {
-    data: { user },
-    error: authError
-  } = await authClient.auth.getUser();
-
-  if (authError || !user) {
-    return notJason();
-  }
-
-  const { data: profile, error: profileError } = await authClient
-    .from("profiles")
-    .select("is_editor")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  if (profileError || !profile?.is_editor) {
+  const access = await requireEditor(createFreshRouteHandlerClient());
+  if (!access.allowed) {
     return notJason();
   }
 

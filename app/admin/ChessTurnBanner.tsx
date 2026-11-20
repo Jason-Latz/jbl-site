@@ -1,11 +1,5 @@
 "use client";
 
-// A nudge pinned to the top of /admin so Jason sees, the moment he lands, when
-// the world has moved and it's his turn to reply. The board itself lives further
-// down the page (below the article editor), so this links straight to it. It
-// renders NOTHING unless it's actually his move — quiet until there's something
-// to do. Shares no state with ChessAdmin below; both poll the one global game.
-
 import { useChessGame } from "@/lib/useChessGame";
 
 function relativeTime(iso: string): string {
@@ -31,7 +25,7 @@ export default function ChessTurnBanner() {
   const move = game.lastMove;
 
   return (
-    <a className="chess-turn-banner" href="#chessboard" role="status">
+    <a className="chess-turn-banner" href="/admin/chess">
       <span className="chess-turn-banner-dot" aria-hidden="true" />
       <span className="chess-turn-banner-text">
         <strong>Your move.</strong>{" "}
@@ -40,7 +34,7 @@ export default function ChessTurnBanner() {
           : "The world is waiting on your opening."}
       </span>
       <span className="chess-turn-banner-cta" aria-hidden="true">
-        Go to the board ↓
+        Go to the board →
       </span>
     </a>
   );
