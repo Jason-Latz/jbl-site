@@ -1,7 +1,6 @@
 """Render the homepage desk and its photographic prints with Blender/Cycles.
 
-Use the desktop composition at the original 16:9 aspect ratio so the
-homepage's HTML writing list stays inside the physical sheet.
+Keep the desktop camera framing and 16:10 crop aligned with the HTML sheet.
 """
 
 import argparse
@@ -86,9 +85,9 @@ def render(args):
 
     edge, _ = matte("Cotton print stock", (0.78, 0.69, 0.55))
     if args.mobile:
-        photograph(args.phoenix, -0.18, 0.12, 0.27, 14, 0.002, edge)
-        photograph(args.switzerland, 0.08, 0.13, 0.18, -11, 0.004, edge)
-        photograph(args.chicago, 0.28, -0.03, 0.17, 8, 0.0025, edge)
+        photograph(args.phoenix, -0.16, 0.12, 0.25, 13, 0.002, edge)
+        photograph(args.switzerland, 0.10, 0.17, 0.20, -12, 0.004, edge)
+        photograph(args.chicago, 0.145, -0.12, 0.19, 9, 0.0025, edge)
     else:
         photograph(args.phoenix, -0.17, 0.315, 0.208, 13, 0.002, edge)
         photograph(args.switzerland, 0.055, 0.304, 0.137, -11, 0.004, edge)
@@ -140,7 +139,7 @@ def render(args):
     scene.view_settings.exposure = 0.35 if light else 0.55
 
     scene.render.resolution_x = args.width
-    scene.render.resolution_y = round(args.width * 9 / 16)
+    scene.render.resolution_y = round(args.width * (5 / 3 if args.mobile else 10 / 16))
     scene.render.image_settings.file_format = "PNG"
     scene.render.filepath = str(args.output.resolve())
     args.output.parent.mkdir(parents=True, exist_ok=True)
