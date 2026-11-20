@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 
-import { existsSync, readFileSync } from "node:fs";
+import { randomBytes } from "node:crypto";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { createServer } from "node:http";
 import { resolve } from "node:path";
 
 function loadEnvFile(filePath) {
@@ -42,7 +44,9 @@ const redirectedUrl = process.env.SPOTIFY_REDIRECTED_URL;
 const scopes = [
   "user-read-currently-playing",
   "user-read-recently-played",
-  "playlist-read-private"
+  "playlist-read-private",
+  // Lets top artists/tracks be queried straight from Spotify (added 2026-11-10).
+  "user-top-read"
 ];
 
 function getAuthCodeFromRedirectUrl(urlValue) {
@@ -66,29 +70,48 @@ if (!clientId || !clientSecret) {
   process.exit(1);
 }
 
+const redirect = new URL(redirectUri);
+const state = randomBytes(16).toString("hex");
+
 const authorizeUrl = new URL("https://accounts.spotify.com/authorize");
 authorizeUrl.searchParams.set("client_id", clientId);
 authorizeUrl.searchParams.set("response_type", "code");
 authorizeUrl.searchParams.set("redirect_uri", redirectUri);
 authorizeUrl.searchParams.set("scope", scopes.join(" "));
+authorizeUrl.searchParams.set("state", state);
+// Re-show the consent screen so the new grant carries every scope above.
+authorizeUrl.searchParams.set("show_dialog", "true");
 
-const authCode = providedAuthCode ?? getAuthCodeFromRedirectUrl(redirectedUrl);
-
-console.log("Open this URL and approve access:");
-console.log(authorizeUrl.toString());
-console.log("");
+// Manual fallback: SPOTIFY_AUTH_CODE or SPOTIFY_REDIRECTED_URL skips the listener.
+let authCode = providedAuthCode ?? getAuthCodeFromRedirectUrl(redirectedUrl);
 
 if (!authCode) {
-  console.log("After approval, Spotify redirects to your redirect URI.");
-  console.log("Copy the `code` query parameter and run:");
-  console.log(
-    'SPOTIFY_AUTH_CODE="<paste_code>" npm run spotify:token'
-  );
-  console.log("Alternatively pass the full redirected URL:");
-  console.log(
-    'SPOTIFY_REDIRECTED_URL="<full_redirect_url>" npm run spotify:token'
-  );
-  process.exit(0);
+  // Default: listen on the redirect URI (127.0.0.1:8787/callback) and catch the code.
+  authCode = await new Promise((resolveCode, rejectCode) => {
+    const server = createServer((req, res) => {
+      const url = new URL(req.url ?? "/", redirect.origin);
+      if (url.pathname !== redirect.pathname) {
+        res.writeHead(404).end();
+        return;
+      }
+      const code = url.searchParams.get("code");
+      const ok = code && url.searchParams.get("state") === state;
+      res.writeHead(ok ? 200 : 400, { "Content-Type": "text/plain" });
+      res.end(
+        ok
+          ? "Spotify authorized. You can close this tab."
+          : `Authorization failed: ${url.searchParams.get("error") ?? "state mismatch"}`
+      );
+      server.close();
+      if (ok) resolveCode(code);
+      else rejectCode(new Error("Spotify authorization was denied or invalid."));
+    });
+    server.listen(Number(redirect.port), redirect.hostname, () => {
+      console.log("Open this URL and approve access:");
+      console.log(authorizeUrl.toString());
+      console.log(`\nWaiting for the callback on ${redirectUri} ...`);
+    });
+  });
 }
 
 const tokenResponse = await fetch("https://accounts.spotify.com/api/token", {
@@ -107,9 +130,8 @@ const tokenResponse = await fetch("https://accounts.spotify.com/api/token", {
 });
 
 if (!tokenResponse.ok) {
-  const errorText = await tokenResponse.text();
   console.error(`Token exchange failed (${tokenResponse.status}).`);
-  console.error(errorText);
+  console.error(await tokenResponse.text());
   process.exit(1);
 }
 
@@ -123,5 +145,15 @@ if (!payload.refresh_token || typeof payload.refresh_token !== "string") {
   process.exit(1);
 }
 
-console.log("Refresh token generated successfully.");
-console.log(`SPOTIFY_REFRESH_TOKEN=${payload.refresh_token}`);
+console.log(`Granted scopes: ${payload.scope}`);
+
+// Write the token into .env in place so it never has to be printed or pasted.
+const envPath = resolve(process.cwd(), ".env");
+const line = `SPOTIFY_REFRESH_TOKEN=${payload.refresh_token}`;
+const current = existsSync(envPath) ? readFileSync(envPath, "utf8") : "";
+const next = /^SPOTIFY_REFRESH_TOKEN=.*$/m.test(current)
+  ? current.replace(/^SPOTIFY_REFRESH_TOKEN=.*$/m, line)
+  : `${current}${current.endsWith("\n") || !current ? "" : "\n"}${line}\n`;
+writeFileSync(envPath, next);
+console.log("Wrote the new SPOTIFY_REFRESH_TOKEN to .env.");
+console.log("Next: update the same variable in Vercel production and redeploy.");
