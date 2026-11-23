@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { selectLeadTrack } from "@/lib/spotifyLeadTrack";
+import { selectRecordTrack } from "@/lib/spotifyLeadTrack";
 
 type SpotifyNowPlayingPayload = {
   trackName: string;
@@ -337,14 +337,12 @@ export default function SpotifyNowPlaying() {
     };
   }, [fetchSpotifyLive, isPageVisible]);
 
-  // The live track wins; otherwise only a genuinely-recent last play stands in.
-  // A stale stored track is dropped so the headline never shows an old song as
-  // if it were current. See lib/spotifyLeadTrack.ts.
-  const leadTrack = useMemo(() => selectLeadTrack(data), [data]);
+  const leadTrack = selectRecordTrack(data);
 
   const trackLine = useMemo(() => {
     if (data?.nowPlaying) {
-      return formatTrackLine(data.nowPlaying.trackName, data.nowPlaying.artists);
+      const line = formatTrackLine(data.nowPlaying.trackName, data.nowPlaying.artists);
+      return data.isPlaying ? line : `Paused: ${line}`;
     }
 
     if (leadTrack) {

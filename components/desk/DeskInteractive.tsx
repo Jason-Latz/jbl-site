@@ -1,15 +1,15 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { TurntableAudio } from "@/lib/audio/turntable-audio";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRecordPreview } from "@/lib/useRecordPreview";
 import { useChessGame } from "@/lib/useChessGame";
 import { useSpotifyLive } from "@/lib/useSpotifyLive";
-import { selectLeadTrack } from "@/lib/spotifyLeadTrack";
+import { selectLeadTrack, selectRecordTrack } from "@/lib/spotifyLeadTrack";
 import { type FocusId } from "./layout";
 import type { DeskNote } from "./DeskScene";
 import DragHint from "./DragHint";
-import NowPlayingHUD, { type NeedlePhase } from "./NowPlayingHUD";
+import NowPlayingHUD from "./NowPlayingHUD";
 import ChessPanel from "./panels/ChessPanel";
 import DeskPanel from "./panels/DeskPanel";
 import NotesPanel from "./panels/NotesPanel";
@@ -40,16 +40,7 @@ const DeskScene = dynamic(
   }
 );
 
-// Choreography of the needle drop, in ms from the click:
-// arm starts swinging immediately; the thunk + crackle land as the needle
-// touches down; the music fades in just after.
-const NEEDLE_CONTACT_MS = 850;
-const PREVIEW_START_MS = 1250;
-const ARM_LIFT_MS = 800;
-
 export default function DeskInteractive({ onReady }: { onReady: () => void }) {
-  const [phase, setPhase] = useState<NeedlePhase>("idle");
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [focus, setFocus] = useState<FocusId | null>(null);
   const [coverArtUrls, setCoverArtUrls] = useState<string[]>([]);
   const [notes, setNotes] = useState<DeskNote[]>([]);
@@ -155,129 +146,15 @@ export default function DeskInteractive({ onReady }: { onReady: () => void }) {
     }
   }, []);
 
-  const audioRef = useRef<TurntableAudio | null>(null);
-  const timersRef = useRef<number[]>([]);
-
-  useEffect(() => {
-    return () => {
-      timersRef.current.forEach((id) => window.clearTimeout(id));
-      audioRef.current?.dispose();
-      audioRef.current = null;
-    };
-  }, []);
-
-  const schedule = useCallback((fn: () => void, delayMs: number) => {
-    timersRef.current.push(window.setTimeout(fn, delayMs));
-  }, []);
-
-  // Headline = the live track when present, else a genuinely-recent last play;
-  // a stale stored play is dropped (slot shows "Nothing playing right now")
-  // rather than masquerading as current. See lib/spotifyLeadTrack.ts.
-  const leadTrack = selectLeadTrack(data);
-  const trackTitle = leadTrack?.trackName ?? null;
-  const artistLine = useMemo(
-    () =>
-      leadTrack && leadTrack.artists.length > 0
-        ? leadTrack.artists.join(", ")
-        : null,
-    [leadTrack]
-  );
-  const primaryArtist = leadTrack?.artists?.[0] ?? null;
-
-  // Match the lead track against the iTunes catalog whenever it changes.
-  // A playing preview is never interrupted by a match change; the next
-  // needle drop simply uses the fresher URL.
-  useEffect(() => {
-    if (!trackTitle || !primaryArtist) {
-      setPreviewUrl(null);
-      return;
-    }
-
-    const controller = new AbortController();
-    const query = new URLSearchParams({
-      track: trackTitle,
-      artist: primaryArtist
-    });
-
-    fetch(`/api/audio/preview?${query.toString()}`, {
-      signal: controller.signal
-    })
-      .then((response) => (response.ok ? response.json() : null))
-      .then((payload: { previewUrl?: string } | null) => {
-        setPreviewUrl(
-          typeof payload?.previewUrl === "string" ? payload.previewUrl : null
-        );
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) {
-          setPreviewUrl(null);
-        }
-      });
-
-    return () => controller.abort();
-  }, [trackTitle, primaryArtist]);
-
-  const liftNeedle = useCallback(() => {
-    const audio = audioRef.current;
-    setPhase("stopping");
-    audio?.stopPreview();
-    schedule(() => audio?.stopCrackle(), 250);
-    schedule(() => setPhase("idle"), ARM_LIFT_MS);
-  }, [schedule]);
-
-  const dropNeedle = useCallback(async () => {
-    if (!previewUrl) {
-      return;
-    }
-    const audio = (audioRef.current ??= new TurntableAudio());
-    setPhase("dropping");
-
-    try {
-      await audio.ensureContext();
-    } catch {
-      setPhase("idle");
-      return;
-    }
-
-    schedule(() => {
-      audio.playNeedleDrop();
-      audio.startCrackle();
-    }, NEEDLE_CONTACT_MS);
-
-    schedule(() => {
-      const streamUrl = `/api/audio/stream?u=${encodeURIComponent(previewUrl)}`;
-      audio
-        .playPreview(streamUrl, { onEnded: liftNeedle })
-        .then(() => setPhase("playing"))
-        .catch(() => {
-          audio.stopCrackle();
-          setPhase("stopping");
-          schedule(() => setPhase("idle"), ARM_LIFT_MS);
-        });
-    }, PREVIEW_START_MS);
-  }, [previewUrl, liftNeedle, schedule]);
-
-  const handleToggleNeedle = useCallback(() => {
-    if (phase === "dropping" || phase === "stopping") {
-      return;
-    }
-    if (phase === "playing") {
-      liftNeedle();
-      return;
-    }
-    void dropNeedle();
-  }, [phase, liftNeedle, dropNeedle]);
-
+  const [pickedTrack, setPickedTrack] = useState<ReturnType<typeof selectRecordTrack>>(null);
+  const liveLead = selectLeadTrack(data);
+  const recordTrack = pickedTrack ?? selectRecordTrack(data);
+  const preview = useRecordPreview(recordTrack);
+  const { phase } = preview;
+  const panelTrack = preview.playingTrack ?? recordTrack;
+  const hudTrack = preview.playingTrack ?? liveLead;
   const armDown = phase === "dropping" || phase === "playing";
   const turntablePlaying = (data?.isPlaying ?? false) || armDown;
-
-  const statusNote = !trackTitle
-    ? null
-    : previewUrl
-      ? data?.isPlaying
-        ? "live on Jason's Spotify · 30 s preview"
-        : "last played · 30 s preview"
-      : "preview unavailable for this track";
 
   return (
     <>
@@ -300,7 +177,7 @@ export default function DeskInteractive({ onReady }: { onReady: () => void }) {
           onNeedleClick={handleNeedleFocus}
           focus={focus}
           onFocus={setFocus}
-          labelArtUrl={leadTrack?.albumImageUrl ?? null}
+          labelArtUrl={(preview.playingTrack ?? liveLead)?.albumImageUrl ?? null}
           coverArtUrls={coverArtUrls}
           chessFen={chessGame?.fen ?? null}
           chessLastMove={chessLastMove}
@@ -319,8 +196,12 @@ export default function DeskInteractive({ onReady }: { onReady: () => void }) {
             <RecordsPanel
               spotify={data}
               phase={phase}
-              canPlay={Boolean(previewUrl)}
-              onToggleNeedle={handleToggleNeedle}
+              track={panelTrack}
+              canPlay={preview.canPlay}
+              previewStatus={preview.status}
+              onRetryPreview={preview.retry}
+              onSelectTrack={setPickedTrack}
+              onToggleNeedle={preview.toggle}
             />
           ) : focus === "work" ? (
             <WorkPanel />
@@ -335,13 +216,13 @@ export default function DeskInteractive({ onReady }: { onReady: () => void }) {
       ) : null}
       {sceneReady ? (
         <NowPlayingHUD
-          trackTitle={trackTitle}
-          artistLine={artistLine}
-          isLive={data?.isPlaying ?? false}
+          trackTitle={hudTrack?.trackName ?? null}
+          artistLine={hudTrack?.artists.join(", ") ?? null}
+          isLive={Boolean(data?.isPlaying && !preview.playingTrack)}
           phase={phase}
-          canPlay={Boolean(previewUrl)}
-          onToggleNeedle={handleToggleNeedle}
-          statusNote={statusNote}
+          canPlay={Boolean(hudTrack && preview.canPlay)}
+          onToggleNeedle={hudTrack && (hudTrack === panelTrack || armDown) ? preview.toggle : handleNeedleFocus}
+          statusNote={hudTrack ? preview.status : null}
         />
       ) : null}
       {/* Touch-only, first-visit nudge that the scene can be dragged. Self-gates

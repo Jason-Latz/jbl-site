@@ -6,7 +6,6 @@ const ITUNES_RESULT_LIMIT = 8;
 const MAX_PARAM_LENGTH = 200;
 const CACHE_TTL_MS = 24 * 60 * 60 * 1_000;
 const CACHE_MAX_ENTRIES = 500;
-const HIGH_CONFIDENCE_THRESHOLD = 5;
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +26,7 @@ interface PreviewMatch {
   matchedTrack: string;
   matchedArtist: string;
   artworkUrl: string | null;
-  confidence: "high" | "low";
+  confidence: "high";
 }
 
 interface CacheEntry {
@@ -37,20 +36,15 @@ interface CacheEntry {
 
 const matchCache = new Map<string, CacheEntry>();
 
-/**
- * Lowercase, strip diacritics, drop bracketed segments and feat./ft.
- * clauses, then collapse everything non-alphanumeric to single spaces.
- */
 function normalize(value: string): string {
-  return value
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/\([^)]*\)/g, " ")
-    .replace(/\[[^\]]*\]/g, " ")
-    .replace(/\b(?:feat|ft)\.?\s.*$/g, " ")
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
+  return value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function baseTitle(value: string): string {
+  return normalize(value
+    .replace(/\s*[([]\s*(?:feat\.?|ft\.?)\s+[^)\]]+[)\]]/gi, "")
+    .replace(/(?:\s+[-–]\s+|\s*[([]\s*)(?:\d{4}\s+)?remaster(?:ed)?[^)\]]*[)\]]?$/i, ""));
 }
 
 function readCache(key: string): CacheEntry | null {
@@ -101,82 +95,23 @@ async function searchItunes(term: string): Promise<ItunesResult[]> {
   return Array.isArray(payload.results) ? payload.results : [];
 }
 
-function scoreResult(
-  result: ItunesResult,
-  normalizedTrack: string,
-  normalizedArtist: string
-): number {
-  const candidateTrack = normalize(result.trackName ?? "");
-  const candidateArtist = normalize(result.artistName ?? "");
-  let score = 0;
-
-  if (candidateTrack.length > 0) {
-    if (candidateTrack === normalizedTrack) {
-      score += 3;
-    } else if (
-      candidateTrack.startsWith(normalizedTrack) ||
-      candidateTrack.includes(normalizedTrack) ||
-      normalizedTrack.includes(candidateTrack)
-    ) {
-      score += 2;
-    }
-  }
-
-  if (
-    candidateArtist.length > 0 &&
-    normalizedArtist.length > 0 &&
-    (candidateArtist.includes(normalizedArtist) ||
-      normalizedArtist.includes(candidateArtist))
-  ) {
-    score += 2;
-  }
-
-  return score;
-}
-
-function pickBestMatch(
-  results: ItunesResult[],
-  normalizedTrack: string,
-  normalizedArtist: string
-): PreviewMatch | null {
-  let best: { result: ItunesResult; score: number; lengthDelta: number } | null =
-    null;
-
-  for (const result of results) {
-    if (!result.previewUrl) {
-      continue;
-    }
-
-    const score = scoreResult(result, normalizedTrack, normalizedArtist);
-
-    if (score <= 0) {
-      continue;
-    }
-
-    const lengthDelta = Math.abs(
-      normalize(result.trackName ?? "").length - normalizedTrack.length
-    );
-
-    if (
-      best === null ||
-      score > best.score ||
-      (score === best.score && lengthDelta < best.lengthDelta)
-    ) {
-      best = { result, score, lengthDelta };
-    }
-  }
-
-  if (!best || !best.result.previewUrl) {
-    return null;
-  }
+function pickBestMatch(results: ItunesResult[], track: string, artists: string[]): PreviewMatch | null {
+  const exactTitle = normalize(track);
+  const versionlessTitle = baseTitle(track);
+  const matches = results.filter((result) => {
+    const artist = normalize(result.artistName ?? "");
+    const title = result.trackName ?? "";
+    return result.previewUrl && artists.includes(artist) && baseTitle(title) === versionlessTitle;
+  });
+  const result = matches.find((candidate) => normalize(candidate.trackName ?? "") === exactTitle) ?? matches[0];
+  if (!result?.previewUrl) return null;
 
   return {
-    previewUrl: best.result.previewUrl,
-    matchedTrack: best.result.trackName ?? "",
-    matchedArtist: best.result.artistName ?? "",
-    artworkUrl:
-      best.result.artworkUrl100?.replace("100x100", "600x600") ?? null,
-    confidence: best.score >= HIGH_CONFIDENCE_THRESHOLD ? "high" : "low"
+    previewUrl: result.previewUrl,
+    matchedTrack: result.trackName ?? "",
+    matchedArtist: result.artistName ?? "",
+    artworkUrl: result.artworkUrl100?.replace("100x100", "600x600") ?? null,
+    confidence: "high"
   };
 }
 
@@ -198,18 +133,18 @@ function buildResponse(match: PreviewMatch | null): NextResponse {
 export async function GET(request: Request): Promise<NextResponse> {
   const { searchParams } = new URL(request.url);
   const track = searchParams.get("track")?.trim().slice(0, MAX_PARAM_LENGTH);
-  const artist = searchParams.get("artist")?.trim().slice(0, MAX_PARAM_LENGTH);
+  const artists = searchParams.getAll("artist").slice(0, 5).map((artist) => artist.trim().slice(0, MAX_PARAM_LENGTH)).filter(Boolean);
 
-  if (!track || !artist) {
+  if (!track || !artists.length) {
     return NextResponse.json(
       { error: "Both `track` and `artist` query params are required." },
       { status: 400 }
     );
   }
 
-  const normalizedTrack = normalize(track);
-  const normalizedArtist = normalize(artist);
-  const cacheKey = `${normalizedArtist}|${normalizedTrack}`;
+  const normalizedArtists = artists.map(normalize).filter(Boolean);
+  if (!baseTitle(track) || !normalizedArtists.length) return buildResponse(null);
+  const cacheKey = JSON.stringify([normalize(track), normalizedArtists]);
   const cached = readCache(cacheKey);
 
   if (cached) {
@@ -217,13 +152,9 @@ export async function GET(request: Request): Promise<NextResponse> {
   }
 
   try {
-    let results = await searchItunes(`${artist} ${track}`);
-
-    if (results.length === 0) {
-      results = await searchItunes(track);
-    }
-
-    const match = pickBestMatch(results, normalizedTrack, normalizedArtist);
+    const results = await searchItunes(`${artists[0]} ${track}`);
+    const match = pickBestMatch(results, track, normalizedArtists) ??
+      pickBestMatch(await searchItunes(track), track, normalizedArtists);
     writeCache(cacheKey, match);
 
     return buildResponse(match);

@@ -64,15 +64,17 @@ async function proxyPreview(
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
+  const range = request.headers.get("range");
 
   let upstream: Response;
 
   try {
-    // Deliberately forwards nothing from the client request: no cookies,
-    // no headers, no credentials. The upstream sees a bare anonymous GET.
+    // Forward only a well-formed byte range so media loaders can probe and seek.
+    // The Apple CDN receives an anonymous request without browser credentials.
     upstream = await fetch(previewUrl, {
       signal: controller.signal,
-      cache: "no-store"
+      cache: "no-store",
+      headers: range && /^bytes=(?:\d+-\d*|-\d+)$/.test(range) ? { Range: range } : undefined
     });
   } catch {
     const message = controller.signal.aborted
@@ -116,22 +118,22 @@ async function proxyPreview(
   const headers = new Headers({
     "Content-Type": upstream.headers.get("content-type") || FALLBACK_CONTENT_TYPE,
     "Cache-Control": "public, max-age=86400, immutable",
-    "Access-Control-Allow-Origin": "*"
+    "Access-Control-Allow-Origin": "*",
+    "Vary": "Range"
   });
 
-  const contentLength = upstream.headers.get("content-length");
-
-  if (contentLength) {
-    headers.set("Content-Length", contentLength);
+  for (const name of ["content-length", "accept-ranges", "content-range"]) {
+    const value = upstream.headers.get(name);
+    if (value) headers.set(name, value);
   }
 
   if (!includeBody) {
     void upstream.body?.cancel();
 
-    return new Response(null, { status: 200, headers });
+    return new Response(null, { status: upstream.status, headers });
   }
 
-  return new Response(upstream.body, { status: 200, headers });
+  return new Response(upstream.body, { status: upstream.status, headers });
 }
 
 export async function GET(request: Request): Promise<Response> {

@@ -69,3 +69,8 @@ export function selectLeadTrack(
 
   return null;
 }
+
+/** The record player can cue a past track even when the live player is idle. */
+export function selectRecordTrack(data: LeadTrackSource): LeadTrackLike | null {
+  return data?.nowPlaying ?? data?.recentTracks[0] ?? null;
+}

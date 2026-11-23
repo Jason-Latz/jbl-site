@@ -4,15 +4,19 @@
 // state passed down from the scene (the scene owns polling via useSpotifyLive)
 // plus a one-shot fetch of the heavy-rotation album wall.
 
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import type { SpotifyLiveResponse } from "@/lib/useSpotifyLive";
-import { selectLeadTrack } from "@/lib/spotifyLeadTrack";
+import type { LeadTrackLike } from "@/lib/spotifyLeadTrack";
 import type { NeedlePhase } from "@/components/desk/NowPlayingHUD";
 
 export type RecordsPanelProps = {
   spotify: SpotifyLiveResponse | null;
   phase: NeedlePhase;
   canPlay: boolean;
+  track: LeadTrackLike | null;
+  previewStatus: string | null;
+  onRetryPreview?: () => void;
+  onSelectTrack: (track: LeadTrackLike) => void;
   onToggleNeedle: () => void;
 };
 
@@ -86,11 +90,16 @@ export default function RecordsPanel({
   spotify,
   phase,
   canPlay,
+  track: lead,
+  previewStatus,
+  onRetryPreview,
+  onSelectTrack,
   onToggleNeedle
 }: RecordsPanelProps) {
   const [albumsState, setAlbumsState] = useState<AlbumsState>({
     status: "loading"
   });
+  const player = useRef<HTMLElement>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -123,9 +132,11 @@ export default function RecordsPanel({
     return () => controller.abort();
   }, []);
 
-  // Live track wins; else only a genuinely-recent last play (lib/spotifyLeadTrack).
-  const lead = selectLeadTrack(spotify);
-  const isLive = Boolean(spotify?.isPlaying && spotify.nowPlaying);
+  const currentTrack = Boolean(lead && spotify?.nowPlaying && lead.trackName === spotify.nowPlaying.trackName &&
+    lead.artists[0] === spotify.nowPlaying.artists[0]);
+  const isLive = Boolean(currentTrack && spotify?.isPlaying);
+  const isLatest = Boolean(lead && spotify?.recentTracks[0] && lead.trackName === spotify.recentTracks[0].trackName &&
+    lead.artists[0] === spotify.recentTracks[0].artists[0]);
   const isBusy = phase === "dropping" || phase === "stopping";
   const previewMissing = phase === "idle" && !canPlay;
   const today = spotify?.today ?? null;
@@ -134,7 +145,7 @@ export default function RecordsPanel({
 
   return (
     <div>
-      <section className="desk-panel-section">
+      <section className="desk-panel-section" ref={player}>
         {!spotify ? (
           <p className="desk-panel-empty">
             Tuning in — live listening data is on its way.
@@ -178,7 +189,7 @@ export default function RecordsPanel({
                       listening now
                     </>
                   ) : (
-                    "last played"
+                    currentTrack ? "paused on Spotify" : isLatest ? "last played" : "from listening history"
                   )}
                 </p>
               </div>
@@ -205,6 +216,10 @@ export default function RecordsPanel({
             >
               {NEEDLE_LABELS[phase]}
             </button>
+            {previewStatus ? <p className="desk-panel-meta" role="status">{previewStatus}</p> : null}
+            {onRetryPreview ? (
+              <button type="button" className="desk-panel-button" onClick={onRetryPreview}>Retry preview</button>
+            ) : null}
           </>
         )}
       </section>
@@ -261,6 +276,11 @@ export default function RecordsPanel({
                   </p>
                   <p className="desk-panel-meta">{track.artists.join(", ")}</p>
                 </div>
+                <button type="button" className="desk-panel-button" disabled={phase !== "idle"}
+                  aria-label={`Cue ${track.trackName}`} onClick={() => {
+                    onSelectTrack(track);
+                    player.current?.scrollIntoView({ block: "nearest" });
+                  }}>Cue</button>
               </li>
             ))}
           </ul>

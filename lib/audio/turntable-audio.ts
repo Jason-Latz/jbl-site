@@ -215,7 +215,10 @@ export class TurntableAudio {
    */
   async playPreview(url: string, handlers?: PreviewHandlers): Promise<void> {
     this.assertBrowser();
-    const ctx = await this.ensureContext();
+    const contextReady = this.ensureContext();
+    // Context construction is synchronous. Start HTML media before the first
+    // await so browsers can associate play() with the user's click.
+    const ctx = this.context ?? await contextReady;
     const token = ++this.playToken;
     const { element, gain } = this.ensurePreviewChain(ctx);
 
@@ -234,10 +237,10 @@ export class TurntableAudio {
 
     element.src = url;
 
-    await new Promise<void>((resolve, reject) => {
+    const mediaReady = new Promise<void>((resolve, reject) => {
       const onError = () => {
         cleanup();
-        reject(new Error(`Turntable preview failed to load: ${url}`));
+        reject(new Error("Turntable preview failed to load."));
       };
       const cleanup = () => element.removeEventListener("error", onError);
       element.addEventListener("error", onError);
@@ -257,6 +260,7 @@ export class TurntableAudio {
       );
     });
 
+    await Promise.all([contextReady, mediaReady]);
     if (token !== this.playToken || this.disposed) {
       // stopPreview/dispose (or a newer play) won the race while play()
       // was in flight. A newer play would have aborted this play() by
