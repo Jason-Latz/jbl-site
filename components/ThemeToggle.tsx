@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 
 type Theme = "light" | "dark";
 
@@ -15,7 +15,7 @@ function readDocumentTheme(): Theme {
   return isTheme(attr) ? attr : "light";
 }
 
-export default function ThemeToggle({ className = "" }: { className?: string }) {
+export default function ThemeToggle({ className = "", style }: { className?: string; style?: CSSProperties }) {
   const [theme, setTheme] = useState<Theme>("light");
   const [isReady, setIsReady] = useState(false);
 
@@ -58,6 +58,7 @@ export default function ThemeToggle({ className = "" }: { className?: string }) 
     <button
       type="button"
       className={`theme-toggle ${className}`}
+      style={style}
       onClick={toggleTheme}
       aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
       title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}

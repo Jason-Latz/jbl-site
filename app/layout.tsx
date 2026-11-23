@@ -62,7 +62,7 @@ const themeInitScript = `
       link.rel = "preload";
       link.as = "image";
       link.href = location.pathname === "/"
-        ? "/home-desk-" + (window.matchMedia("(min-aspect-ratio: 1/1)").matches ? "desktop" : "mobile") + "-" + theme + "-v2.webp"
+        ? "/home-desk-" + (window.matchMedia("(min-aspect-ratio: 4/3)").matches ? "desktop" : window.matchMedia("(min-aspect-ratio: 4/5)").matches ? "tablet" : "mobile") + "-" + theme + "-v3.webp"
         : "/desk-poster-" + (portrait ? "portrait-" : "") + theme + ".jpg";
       link.setAttribute("fetchpriority", "high");
       (document.head || root).appendChild(link);

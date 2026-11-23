@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import HomeActivity from "@/components/HomeActivity";
-import DeskEntry from "@/components/DeskEntry";
-import ThemeToggle from "@/components/ThemeToggle";
+import HomeDeskControls from "@/components/HomeDeskControls";
 import { formatDate } from "@/lib/date";
 import { fetchPublishedPosts } from "@/lib/posts";
 import "./landing.css";
@@ -10,13 +9,6 @@ import "./landing.css";
 export const revalidate = 60;
 
 const selectedSlugs = ["losing-my-voice", "draft-mvyft7sg-39zyx", "draft-mmcg67vg-3r55u"];
-const deskLinks = [
-  { label: "Writings", slug: "writings" },
-  { label: "Travel", slug: "travel" },
-  { label: "Photography", slug: "photography" },
-  { label: "Experience", slug: "experience" }
-];
-
 async function SelectedWriting() {
   const posts = await fetchPublishedPosts();
   const selected = selectedSlugs.flatMap((slug) => posts.filter((post) => post.slug === slug));
@@ -43,24 +35,12 @@ export default function HomePage() {
     <div className="landing">
       <section className="landing-desktop" aria-label="Jason's desk">
         <div className="landing-desk">
-          <div
-            className="landing-illustration"
-            role="img"
-            aria-label="Jason’s desk with a record player, a chessboard and his photographs from Chicago, Phoenix and Switzerland"
-          />
-          <nav className="landing-keys" aria-label="Main navigation">
-            <Link className="landing-key landing-key-home" href="/" aria-current="page">
-              <span className="sr-only">Jason Latz</span>
-            </Link>
-            <DeskEntry />
-            {deskLinks.map(({ label, slug }) => (
-              <Link className={`landing-key landing-key-${slug}`} key={slug} href={`/${slug}`} prefetch={false}>
-                <span className="sr-only">{label}</span>
-              </Link>
-            ))}
-            <ThemeToggle className="landing-key landing-key-lamp" />
-          </nav>
-          <a className="landing-read-below" href="#selected-writing">Selected writing <span aria-hidden="true">↓</span></a>
+          <div className="landing-stage">
+            <div className="landing-illustration">
+              <HomeDeskControls />
+            </div>
+            <a className="landing-read-below" href="#selected-writing">Selected writing <span aria-hidden="true">↓</span></a>
+          </div>
           <section className="landing-sheet" aria-labelledby="selected-writing">
             <h1 className="sr-only">Jason Latz</h1>
             <h2 id="selected-writing">Selected writing</h2>

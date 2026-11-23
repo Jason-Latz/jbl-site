@@ -1,14 +1,14 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type CSSProperties } from "react";
 
-export default function DeskEntry() {
+export default function DeskEntry({ style }: { style?: CSSProperties }) {
   const link = useRef<HTMLAnchorElement>(null);
 
   useEffect(() => {
     function enter(event: KeyboardEvent) {
       if (event.code !== "Space" || event.repeat || event.defaultPrevented ||
-          event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.isComposing) return;
+          event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.isComposing || document.querySelector("dialog[open]")) return;
 
       const target = event.target;
       if (target instanceof Element && target.closest(
@@ -29,7 +29,7 @@ export default function DeskEntry() {
   }, []);
 
   return (
-    <a ref={link} className="landing-key landing-key-desk" href="/desk" title="Desk (Space)" aria-keyshortcuts="Space">
+    <a ref={link} className="landing-hit landing-key" style={style} href="/desk" title="Desk (Space)" aria-keyshortcuts="Space">
       <span className="sr-only">Desk</span>
     </a>
   );
