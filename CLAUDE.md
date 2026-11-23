@@ -38,9 +38,9 @@ interactive bake runbooks.
    (e.g. *The Wise Man's Fear* is by Patrick Rothfuss — Jason initially misattributed it;
    *The Power Law* is Sebastian Mallaby; *Moonwalking with Einstein* is Joshua Foer).
 5. **Direct links come first.** Home uses the actual desk as a full-screen
-   offline still. Render physical keycaps and their labels in Blender, with
-   real HTML links and a lamp button for interaction. Keep writing as HTML,
-   use Jason’s photos for the prints, and open the 3D desk on demand.
+   offline still. Render the navigation keys in the same Blender scene.
+   Keep the lamp, record player, chessboard, and Jason’s prints clickable
+   with HTML controls. Keep writing as HTML and open the 3D desk on demand.
 6. **Graceful degradation is non-negotiable.** No-WebGL, reduced-motion, and weak devices
    get a designed fallback (not an apology). Content below the canvas stays real HTML.
 7. **Release through GitHub.** Use the linked Vercel project’s automatic production build

@@ -126,9 +126,9 @@ This means every route is rendered inside the same visual shell by default.
 
 ### 4.2 Public pages
 
-- `/` (`app/page.tsx`, `app/landing.css`): a full-screen overhead Blender render with three of Jason’s photographs on the desk. Seven layered copper and enamel keycaps are rendered in Blender with raised lettering and amber edge lights. The controls are six native links and a lamp button aligned with the keycap atlas. The global text header is hidden on home. Elsewhere the standard site header remains in use.
-- The three essay links and dates are real HTML. At 680 px and wider in a square or landscape viewport they sit on the rendered paper. Other layouts show the essays immediately below the desk and provide a jump link. The lead and alternate slugs live in `selectedSlugs`; newest published articles fill blank slots, and the archive link handles empty data. The footer links to Studio.
-- The Desk key and guarded Space shortcut in `components/DeskEntry.tsx` open the interactive room. Home loads no desk model, lightmaps, or Three.js. `components/HomeActivity.tsx` reserves the shared Spotify and Duolingo ribbon and mounts the widgets within 100 px of the viewport.
+- `/` (`app/page.tsx`, `app/landing.css`): full-screen overhead Blender desk with its five navigation keys built into the back rail. `components/HomeDeskControls.tsx` overlays native links and the lamp switch on bounds exported by Blender. The three prints, turntable, and chessboard open native dialogs in place. The photo dialogs use the original public photographs. Chess and Spotify load when their dialogs open. Home never initializes WebGL, lightmaps, or the desk model.
+- The three essay links and dates are real HTML. In the landscape framing they sit on the rendered paper. Portrait and tablet framings show them under the art with a jump link. The slugs live in `selectedSlugs`; newest published articles fill blank slots, and the archive link handles empty data. The footer links to Studio.
+- The Desk key and guarded Space shortcut open the separate 3D room. `components/HomeActivity.tsx` mounts Spotify and Duolingo in the activity ribbon when it is within 100 px of the viewport.
 - `/desk` (`app/desk/page.tsx`): the deliberately entered interactive 3D room (`DeskHero` → `DeskInteractive` → `BakedDeskScene`). The default model remains `/desk-static-f5fbb9104223.glb`; immutable lightmaps remain on Supabase `bake/v1`. `NEXT_PUBLIC_BAKE_CDN_URL` overrides model/lightmap sources for local bake work. `/desk?focus=records|work|reading|notes|chess` opens a panel; `/desk?baked=0` retains the procedural scene. `next.config.js` redirects legacy `/?focus=…` and `/?baked=0|1` requests with HTTP 307 while keeping ordinary `/` static. The bookshelf panel links to writings; the scratch pad remains the existing moderated guestbook.
 - `/experience` (`app/experience/page.tsx`): static, resume-style sections (education, professional experience, projects, technical skills, activities) rendered as cards.
 - `/travel` (`app/travel/page.tsx`): server-rendered route that fetches `public.photos` grouped by their estimated place (`lib/travelGlobe.ts`) and hydrates the interactive 3D globe (`components/travel/TravelGlobeStage` → `TravelGlobe`, react-three-fiber). Each place with photos is a glowing pin; clicking one flies the globe to it and opens a gallery panel (thumbnails → lightbox) showing the photos shot there, with an "estimated location · NN% confidence" badge. `?place=<name>` deep-links a selection. A server-rendered place list is kept in the DOM (visually hidden) for crawlers, and is the designed fallback for no-WebGL / reduced-motion / no-JS visitors. See §4.7 for how photos get placed.
@@ -148,9 +148,9 @@ For perceived gallery-load speed, other inner routes run a one-time, session-sco
 
 #### Static homepage still
 
-- The landscape renders (`public/home-desk-desktop-{light,dark}-v2.webp`) measure 1760 × 1100. The portrait renders (`public/home-desk-mobile-{light,dark}-v2.webp`) measure 780 × 1300. The asset switches at a 1:1 viewport aspect ratio. The corresponding rule in `app/layout.tsx` preloads one active theme and viewport asset; CSS loads the shared 640 × 528 keycap atlas `public/home-desk-controls-v1.webp`. `next.config.js` gives all five versioned WebPs an immutable one-year cache policy.
-- Regenerate via `scripts/bake/render_home.py` for the desk and `scripts/bake/render_home_controls.py` for the keycaps. See [the Blender runbook](docs/BAKING.md#11-homepage-desk-stills) for source image paths, render and encode commands, and the CSS registration.
-- Verify the entire first viewport is desk art, the essay list stays on the paper on landscape desktops, and the keys retain visible focus and work with JavaScript disabled. Check that home requests one desk still and one shared keycap atlas and that Back navigation does not initialize the optional 3D scene.
+- The versioned filenames are `public/home-desk-{desktop,tablet,mobile}-{light,dark}-v3.webp`. Desktop is 1760 × 1100, tablet 1120 × 1120, and mobile 780 × 1300. CSS and the preload in `app/layout.tsx` share the viewport aspect-ratio breakpoints of 4:3 and 4:5. Only one image is required on cold load. `next.config.js` serves these assets with a one-year immutable cache policy.
+- The five keycaps are part of every image. `scripts/bake/render_home.py` projects object bounds into image percentages with `--hotspots`; `app/desk-hotspots.json` stores the positions for CSS, including lamp and turntable shifts in dark mode. Art and click targets share one top-aligned crop. See [the Blender runbook](docs/BAKING.md#11-homepage-desk-stills) when changing camera or props.
+- Check the cold request count and click the lamp, turntable, chessboard, all three prints, and navigation in each framing. Verify keyboard opening, Escape, and focus restoration. Keep the optional 3D route out of home startup.
 
 #### Desk startup and model delivery
 
@@ -169,6 +169,18 @@ For perceived gallery-load speed, other inner routes run a one-time, session-sco
 - Earlier automatic-homepage verification: the static-model invariant verifier passed against the downloaded source, with production build, TypeScript checks, and 34 existing tests passing. That version's cold local run measured header at 113 ms, first contentful paint at 112 ms, scene reveal at 2,261 ms, and a maximum sampled event-loop stall of 554 ms. These historical measurements describe the automatic desk startup, not the current static home. Light/dark scenes, the Work panel, delayed-load navigation, and immutable model delivery were checked before moving the scene to `/desk`.
 
 ### 4.3 Home activity ribbon (Spotify + Duolingo)
+
+The home turntable dialog and `/desk` use the same `useRecordPreview` hook and
+`RecordsPanel`. When Spotify is idle, the player can cue the latest stored play
+regardless of age. The ribbon explicitly labels it Last played. The interactive
+desk's live HUD still drops stale headlines. The record panel also offers the
+last ten plays as choices and a direct link to each track on Spotify.
+
+`/api/audio/preview` searches the Apple catalog for the selected track, requires a
+matching song and Spotify-listed artist, and can match a remaster of the same
+song. A miss is shown in the panel and visitors can choose another track.
+`/api/audio/stream` sends a byte range to the Apple CDN for media probing and
+seeking. Playback begins on the click rather than after the needle animation.
 
 The home page includes `components/SpotifyNowPlaying.tsx` and `components/DuolingoStreak.tsx` (both client components) inside one shared horizontal `activity-ribbon` container. Each component is rendered as a `<details>` panel:
 
@@ -835,7 +847,7 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 - `app/layout.tsx`: global app shell and typography setup, plus Supabase preconnect/dns-prefetch hints and background travel warmup mount.
 - `app/not-found.tsx`: designed 404 recovery with links back home and to writings.
 - `app/error.tsx`: client error boundary with retry and home recovery actions.
-- `app/page.tsx`, `app/landing.css`, `public/home-desk-{desktop,mobile}-{light,dark}-v2.webp`: Blender desk still, selected writings, explicit desk entry, viewport-deferred activity ribbon.
+- `app/page.tsx`, `app/landing.css`, `public/home-desk-{desktop,tablet,mobile}-{light,dark}-v3.webp`: interactive Blender still, selected writings, explicit 3D desk entry, viewport-deferred activity ribbon.
 - `app/travel/page.tsx`: interactive 3D globe shell backed by cached geolocated photo groupings.
 - `app/travel/quality-lab/page.tsx`: side-by-side travel image quality comparison route for evaluating `q92`, `q90`, and original delivery against the same photos.
 - `app/photography/page.tsx`: public gapless justified photo mosaic with zoom controls and metadata details.

@@ -4,6 +4,27 @@
 > Purpose: if context is lost, a fresh session reads CLAUDE.md → PLAN.md → this file
 > and knows exactly where things stand and why.
 
+## November 23, 2026 — desk interaction and Spotify repair
+
+The full-screen homepage has five bronze controls in the Blender render.
+There is no name button or extra lamp key. The lamp itself switches themes.
+The turntable, chessboard, and each of the three prints are clickable and
+open focused HTML panels. The separately entered 3D room remains available.
+The render script projects the clickable objects for desktop, tablet, and
+phone. See [the bake runbook](BAKING.md#11-homepage-desk-stills).
+
+Production Spotify health and history responded successfully during the
+investigation. The record player was coupled to the ten-minute freshness
+window used by the live HUD. The restored player can cue older entries from
+recent history, validates the track and artist of each Apple preview, and
+supports media byte ranges. The ribbon shows the last played track when
+Spotify is idle and labels it accordingly.
+
+Chromium verified the physical targets in both themes across desktop, tablet,
+and phone, modal focus return, the separate 3D desk and dragging, and real
+audio playback from a recent Spotify track. The production build, local
+route checks, and 40 unit tests passed. The repair is local for review.
+
 ## November 23, 2026 — homepage and Studio approved for release
 
 Jason approved pushing the reviewed homepage and Studio build (`ffbffc4`) to

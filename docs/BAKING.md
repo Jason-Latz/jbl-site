@@ -393,11 +393,11 @@ URL. Check both themes and startup navigation in a browser before shipping.
 
 ## 11. Homepage desk stills
 
-The landing page fills the first viewport with one of four offline Cycles
-renders and a separate transparent keycap atlas. Landscape scenes include a
-physical sheet aligned with the HTML essay list in `app/landing.css`.
-Portrait scenes frame the three prints and flow the writing below the hero.
-The interactive desk has its own renderer and delivery pipeline.
+The landing page fills the first viewport with one of six offline Cycles
+renders. The navigation controls are modeled and shaded on the back rail in
+the same scene. The landscape composition includes the writing sheet. Phone
+and tablet compositions reposition the lamp, turntable, chessboard, and
+prints to keep them in reach.
 
 1. Run `npm run dev`. Visit `/bake?room=window&theme=light` and
    `/bake?room=window&theme=dark` to generate `bake/desk-window-light.glb` and
@@ -414,50 +414,28 @@ The interactive desk has its own renderer and delivery pipeline.
    | Swiss Alps | `1772606060693-11-b56f0a22-4a6f-4611-9011-746f7008c420-img-0208.jpeg` |
 
 3. Render from the repository root with Blender 5.x (Metal if available).
-   Use `--cpu` to force CPU rendering. Repeat for dark by changing `light`
-   in the GLB, theme, and output path. For the mobile pair, use `--mobile`,
-   `--width 780`, and `mobile-<theme>.png` for the output filename.
+   Use `--cpu` for CPU rendering. Render light and dark for each framing
+   (`desktop --width 1760`, `tablet --width 1120`, `mobile --width 780`).
 
    ```sh
    /Applications/Blender.app/Contents/MacOS/Blender -b \
      --python scripts/bake/render_home.py -- \
-     --glb bake/desk-window-light.glb --theme light \
+     --glb bake/desk-window-light.glb --theme light --framing desktop \
      --chicago bake/home/chicago.jpg --phoenix bake/home/phoenix.jpg \
-     --switzerland bake/home/switzerland.jpg \
-     --output bake/home/desktop-light.png --width 1760 --samples 128
+     --switzerland bake/home/switzerland.jpg --width 1760 --samples 104 \
+     --hotspots bake/home/desktop-light.json --output bake/home/desktop-light.png
    ```
 
-4. Render the keycaps in a separate pass. The atlas has two columns and four
-   rows of 320 × 132 px cells, in the order Jason Latz, Desk, Writings, Travel,
-   Photography, Experience, Lamp, then an empty cell. The label order maps to
-   `--key-x` and `--key-y` in `app/landing.css`. If the cell dimensions
-   change, update the CSS aspect ratio and registration.
+4. Encode each PNG to `public/home-desk-<framing>-<theme>-v3.webp` with
+   Sharp `.webp({ quality: 89, effort: 6 })`. Map each framing to the
+   corresponding light JSON in `app/desk-hotspots.json`, then copy the dark
+   `lamp` and `records` boxes as `lampDark` and `recordsDark`. Boxes use
+   percentages of the uncropped image, measured from the top-left corner.
+   For a changed image, bump the cache version in `app/landing.css` and
+   `app/layout.tsx`.
 
-   ```sh
-   /Applications/Blender.app/Contents/MacOS/Blender -b \
-     --python scripts/bake/render_home_controls.py -- \
-     --output bake/home/controls.png
-   ```
-
-5. Encode the PNGs with Sharp. At desktop and mobile sizes inspect the print
-   borders, warm shadows, and small photographic detail before choosing quality.
-
-   ```js
-   const sharp = require("sharp");
-   const variants = ["desktop-light", "desktop-dark", "mobile-light", "mobile-dark"];
-   Promise.all([
-     ...variants.map((variant) =>
-       sharp(`bake/home/${variant}.png`).webp({ quality: 89, effort: 6 })
-         .toFile(`public/home-desk-${variant}-v2.webp`)
-     ),
-     sharp("bake/home/controls.png").webp({ quality: 92, effort: 6 })
-       .toFile("public/home-desk-controls-v1.webp")
-   ]).catch((error) => { console.error(error); process.exitCode = 1; });
-   ```
-
-6. Commit the WebPs and script changes. `next.config.js` caches the WebPs by
-   filename for one year, so use a new version suffix for changed assets. When changing the suffix,
-   update both `app/landing.css` and the matching preload in `app/layout.tsx`.
-   Verify cold load and back navigation, both themes, key registration at 320 and 390 px,
-   and text alignment on both wide and landscape tablet viewports. The GLBs, source photos, and
-   render PNGs are local inputs under ignored `bake/`.
+5. Verify the art, crop, and target positions in both themes and all three
+   framings. Click each object, check that the relevant panel opens, and
+   keyboard-test escape and focus restoration. Check the nav and sheet
+   alignment at wide and narrow viewport sizes. The GLBs, photo sources, PNGs,
+   and intermediate coordinate exports stay under ignored `bake/`.
