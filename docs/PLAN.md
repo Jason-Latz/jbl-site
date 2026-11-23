@@ -5,7 +5,7 @@
 - [x] Render physical copper keys for the homepage routes and lamp
 - [x] Make the desk fill the first viewport with independent portrait and landscape framing
 - [x] Give Markdown and Visual a shared selection-preserving formatting toolbar
-- [ ] Review the homepage and writer before publishing through GitHub
+- [x] Jason approved the homepage and writer for publishing through GitHub on November 23
 
 ## November 19, 2026 — desk still and Studio
 

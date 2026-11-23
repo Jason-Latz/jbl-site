@@ -2,7 +2,7 @@
 
 This document explains how the site is structured, how data and auth flow through the app, and how each major file contributes to behavior.
 
-The route descriptions below cover the local October homepage and desk work. As of November 18, 2026, production still serves the automatic WebGL homepage from GitHub `main`. See the [production audit](docs/PERFORMANCE_AUDIT.md) for the verified release gap and browser measurements.
+The route descriptions below cover the full-screen desk homepage and Studio. See the [November 18 production audit](docs/PERFORMANCE_AUDIT.md) for measurements of the earlier automatic WebGL homepage.
 
 ## 1) What this project is
 

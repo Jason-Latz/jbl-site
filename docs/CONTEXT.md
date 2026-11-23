@@ -4,6 +4,14 @@
 > Purpose: if context is lost, a fresh session reads CLAUDE.md → PLAN.md → this file
 > and knows exactly where things stand and why.
 
+## November 23, 2026 — homepage and Studio approved for release
+
+Jason approved pushing the reviewed homepage and Studio build (`ffbffc4`) to
+GitHub `main`. This release uses the existing automatic Vercel GitHub
+integration for the `personal-website` project and `www.jasonlatz.com`.
+It includes the full-screen Blender desk, opt-in 3D scene, article reading
+tools, and the revised Studio workflows.
+
 ## November 20, 2026 — desk keycaps and writer
 
 The homepage fills the first viewport with a new Blender render. Seven
