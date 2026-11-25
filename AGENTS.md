@@ -78,6 +78,7 @@ When choosing between solutions:
 1. Prefer the simplest implementation that keeps core user flows working reliably.
 2. Prioritize fixes for user-facing breakage or confusing behavior before adding theoretical hardening.
 3. If a risk is low-probability and editor-only, it may be deferred when documented clearly.
+4. Deploy verified bug fixes through GitHub `main` and check the fix on the production domain.
 
 ## 10) Jason Preference: Keep AGENTS.md Lean
 
