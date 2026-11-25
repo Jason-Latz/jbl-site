@@ -11,6 +11,11 @@ Verified bug fixes now go through GitHub `main` to Vercel production as part
 of the task. Confirm the deployed commit and exercise the repaired behavior
 at `www.jasonlatz.com`.
 
+The first production smoke test confirmed Spotify audio and found that the
+3.97 MB Phoenix original could stall the desk photo dialog. The dialog uses
+responsive q92 previews now. A click opens the original, which also remains
+the fallback if the image transform fails.
+
 ## November 23, 2026 — desk interaction and Spotify repair
 
 The full-screen homepage has five bronze controls in the Blender render.
