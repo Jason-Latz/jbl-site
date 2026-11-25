@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useChessGame } from "@/lib/useChessGame";
 import { useSpotifyLive } from "@/lib/useSpotifyLive";
 import { useRecordPreview } from "@/lib/useRecordPreview";
+import { buildPublicRenderUrl } from "@/lib/photo-url";
 import { selectRecordTrack, type LeadTrackLike } from "@/lib/spotifyLeadTrack";
 import ChessPanel from "./desk/panels/ChessPanel";
 import RecordsPanel from "./desk/panels/RecordsPanel";
@@ -31,9 +32,25 @@ function Chess() {
 export default function HomeDeskPanel({ panel, image, title }: { panel: string; image: string | null; title: string }) {
   if (panel === "records") return <Records />;
   if (panel === "chess") return <Chess />;
+  const preview = image ? buildPublicRenderUrl(image, { width: 640, quality: 92 }) : null;
+  const retina = image ? buildPublicRenderUrl(image, { width: 1280, quality: 92 }) : null;
   return (
     <figure className="landing-photo">
-      {image ? <a href={image} target="_blank" rel="noreferrer"><img src={image} alt={title} /></a> : null}
+      {image && preview && retina ? (
+        <a href={image} target="_blank" rel="noreferrer" aria-label={`Open the full-resolution ${title} photo`}>
+          <img
+            src={preview}
+            srcSet={`${preview} 640w, ${retina} 1280w`}
+            sizes="(max-width: 36rem) calc(100vw - 3rem), 33rem"
+            alt={title}
+            onError={({ currentTarget }) => {
+              if (!currentTarget.srcset && currentTarget.src === image) return;
+              currentTarget.removeAttribute("srcset");
+              currentTarget.src = image;
+            }}
+          />
+        </a>
+      ) : null}
       <figcaption><a href="/photography">Browse photography →</a></figcaption>
     </figure>
   );
