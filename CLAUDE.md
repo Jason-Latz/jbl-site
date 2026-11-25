@@ -43,9 +43,10 @@ interactive bake runbooks.
    with HTML controls. Keep writing as HTML and open the 3D desk on demand.
 6. **Graceful degradation is non-negotiable.** No-WebGL, reduced-motion, and weak devices
    get a designed fallback (not an apology). Content below the canvas stays real HTML.
-7. **Release through GitHub.** Use the linked Vercel project’s automatic production build
-   from GitHub `main` for reviewed releases. Verify the ready deployment’s commit and
-   smoke-test the live domain. Feature branches are the preview path.
+7. **Ship verified bug fixes to production.** Use the linked Vercel project’s automatic
+   production build from GitHub `main`. A bug-fix request authorizes the release after
+   local verification. Confirm the deployed commit and smoke-test the fix on the live
+   domain. Use feature branches for previewing other changes.
 8. **Help readers navigate articles.** Show estimated reading time and a section outline
    from Markdown headings. Keep the Writings archive a plain chronological list.
 

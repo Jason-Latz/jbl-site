@@ -5,7 +5,7 @@
 - [x] Restore the lamp, record player, chessboard, and each photograph as direct controls
 - [x] Render the five navigation keys in the desk scene and remove the duplicate name button
 - [x] Restore playback previews from recent Spotify history and verify live data
-- [ ] Review the corrected render and interactions before production release
+- [x] Verify the corrected interactions and playback locally before the November 25 production release
 
 ## November 20, 2026 — full-screen desk and writer refinement
 

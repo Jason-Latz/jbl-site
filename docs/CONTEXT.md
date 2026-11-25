@@ -4,6 +4,13 @@
 > Purpose: if context is lost, a fresh session reads CLAUDE.md → PLAN.md → this file
 > and knows exactly where things stand and why.
 
+## November 25, 2026 — production bug-fix releases
+
+Jason directed us to ship the desk interaction and Spotify playback repairs.
+Verified bug fixes now go through GitHub `main` to Vercel production as part
+of the task. Confirm the deployed commit and exercise the repaired behavior
+at `www.jasonlatz.com`.
+
 ## November 23, 2026 — desk interaction and Spotify repair
 
 The full-screen homepage has five bronze controls in the Blender render.
@@ -23,7 +30,7 @@ Spotify is idle and labels it accordingly.
 Chromium verified the physical targets in both themes across desktop, tablet,
 and phone, modal focus return, the separate 3D desk and dragging, and real
 audio playback from a recent Spotify track. The production build, local
-route checks, and 40 unit tests passed. The repair is local for review.
+route checks, and 40 unit tests passed on November 23.
 
 ## November 23, 2026 — homepage and Studio approved for release
 

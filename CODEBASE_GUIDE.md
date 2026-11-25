@@ -912,7 +912,7 @@ Even if an API check were missed, RLS still limits unauthorized post/storage mut
 2. Primary branch:
    - `main`
 3. Local `main` is configured to track `origin/main`.
-4. The Vercel project `personal-website` is linked to `Jason-Latz/jbl-site` through the Vercel GitHub app. `main` is the production branch. Push or merge reviewed production changes to GitHub and let Vercel build and assign `www.jasonlatz.com` automatically. Use a feature branch for preview builds.
+4. The Vercel project `personal-website` is linked to `Jason-Latz/jbl-site` through the Vercel GitHub app. `main` is the production branch. Push verified bug fixes and approved releases to GitHub and let Vercel build and assign `www.jasonlatz.com` automatically. Use a feature branch for preview builds.
 5. After a release, confirm Vercel reports a ready production deployment for the intended GitHub commit and that the live domain points to it. Smoke-test the affected routes on the live domain. The Git link, production branch and a successful GitHub Vercel status were verified on November 18, 2026.
 
 ## 19) Local runtime gotchas and resolved issues
